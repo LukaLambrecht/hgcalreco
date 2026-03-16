@@ -1,0 +1,10 @@
+# Ignore cached and compiled python
+**.pyc
+**__pycache__
+
+# Ignore CMSSW installations
+CMSSW_*
+
+# Ignore output folders
+**output_*
+**plots_*

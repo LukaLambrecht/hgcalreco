@@ -1,0 +1,12 @@
+{
+    "caloparticles": ["std::vector<CaloParticle>", "mix", "MergedCaloTruth"],
+    "simclusters": ["std::vector<SimCluster>", "mix", "MergedCaloTruth"],
+    "calohitees": ["std::vector<PCaloHit>", "g4SimHits", "HGCHitsEE"],
+    "calohithebs": ["std::vector<PCaloHit>", "g4SimHits", "HGCHitsHEback"],
+    "calohithefs": ["std::vector<PCaloHit>", "g4SimHits", "HGCHitsHEfront"],
+    "tracksters": ["std::vector<ticl::Trackster>", "ticlTrackstersCLUE3DHigh", "", "HGCALTICL"],
+    "layerclusters": ["std::vector<reco::CaloCluster>", "hgcalMergeLayerClusters", "", "HGCALTICL"],
+    "rechitees": ["edm::SortedCollection<HGCRecHit>", "HGCalRecHit", "HGCEERecHits", "HGCALTICL"],
+    "rechithebs": ["edm::SortedCollection<HGCRecHit>", "HGCalRecHit", "HGCHEBRecHits", "HGCALTICL"],
+    "rechithefs": ["edm::SortedCollection<HGCRecHit>", "HGCalRecHit", "HGCHEFRecHits", "HGCALTICL"]
+}
