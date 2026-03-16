@@ -38,7 +38,7 @@ if __name__=='__main__':
         print(f'Reading events from file {file_idx+1} / {len(inputfiles)}...')
         events = Events(inputfile)
     
-        # loop over event
+        # loop over events
         for event_idx, event in enumerate(events):
             if (event_idx+1) % 10 == 0:
                 print(f'Reading event {event_idx+1}...', end='\r')
@@ -54,14 +54,16 @@ if __name__=='__main__':
 
             # object and event selection
             if len(caloparticles) < 2: continue
-            selected_caloparticles = []
+            if len(tracksters) < 1: continue
+            selected_caloparticles = caloparticles
+            '''selected_caloparticles = []
             for caloparticle in caloparticles:
                 nch = 0
                 for sc_ref in caloparticle.simClusters():
                     sc = sc_ref.get()
                     nch += len(sc.hits_and_fractions())
                 if nch > 10: selected_caloparticles.append(caloparticle)
-            if len(selected_caloparticles) < 2: continue
+            if len(selected_caloparticles) < 2: continue'''
 
             # fill event variables
             varmap['event_ncp'].append(len(caloparticles))

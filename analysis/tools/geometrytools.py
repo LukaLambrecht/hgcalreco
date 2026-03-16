@@ -1,3 +1,8 @@
+# Tools for retrieving geometric information from objects.
+
+# Typical use case: retrieve HGCal layer number(s) from LayerClusters and CaloParticles.
+
+
 import os
 import sys
 import ROOT

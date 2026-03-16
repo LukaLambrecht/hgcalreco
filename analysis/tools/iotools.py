@@ -1,3 +1,6 @@
+# Tools for reading input files.
+
+
 import os
 import sys
 import json
