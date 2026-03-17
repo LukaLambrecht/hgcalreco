@@ -15,7 +15,8 @@ from tools.geometrytools import get_layercluster_layer
 from tools.geometrytools import get_caloparticle_layers
 
 
-def get_associations(caloparticles, calohits, layerclusters, rechits):
+def get_associations(caloparticles, calohits, layerclusters, rechits,
+        sum_lc_per_layer = False):
     '''
     Calculate association scores between collections of caloparticles and layerclusters.
     Input arguments:
@@ -62,6 +63,30 @@ def get_associations(caloparticles, calohits, layerclusters, rechits):
             if detid in rechits.keys(): energy = rechits[detid].energy()
             hits_per_layer[layer][detid] = (energy, fraction)
         lcs.append(hits_per_layer)
+
+    # optional (mainly intended for testing):
+    # for each layer cluster, replace hits of the layer cluster
+    # by union of hits of all layer clusters in that layer
+    # (to check if at least in that case the efficiency is high)
+    if sum_lc_per_layer:
+        sum_hits_per_layer = {}
+        for lc_hits in lcs:
+            layer = list(lc_hits.keys())[0]
+            hits = list(lc_hits.values())[0]
+            if layer not in sum_hits_per_layer.keys(): sum_hits_per_layer[layer] = hits
+            else:
+                for detid, (energy, fraction) in hits.items():
+                    if detid not in sum_hits_per_layer[layer].keys():
+                        sum_hits_per_layer[layer][detid] = (energy, fraction)
+                    else:
+                        previous_fraction = sum_hits_per_layer[layer][detid][1]
+                        sum_hits_per_layer[layer][detid] = (energy, previous_fraction + fraction)
+        new_lcs = []
+        for lc_hits in lcs:
+            layer = list(lc_hits.keys())[0]
+            new_hits = sum_hits_per_layer[layer]
+            new_lcs.append({layer: new_hits})
+        lcs = new_lcs
 
     # loop over pairs of calo particles and layer clusters
     res = []

@@ -5,6 +5,8 @@
 # Ignore CMSSW installations
 CMSSW_*
 
-# Ignore output folders
+# Ignore output folders and files
 **output_*
 **plots_*
+**.root
+**.png
