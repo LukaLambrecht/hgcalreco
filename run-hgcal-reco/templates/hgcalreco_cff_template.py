@@ -50,6 +50,10 @@ process.hgcal_step = cms.Path(
     * process.iterTICLSequence)
 process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
 
+# parameter modifications
+#process.ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D.criticalDensity = cms.double(0.3)
+#process.ticlTrackstersCLUE3DLow.pluginPatternRecognitionByCLUE3D.criticalDensity = cms.double(1.0)
+
 # set output
 process.out = cms.OutputModule("PoolOutputModule",
     fileName = cms.untracked.string("hgcalreco_out.root"),
