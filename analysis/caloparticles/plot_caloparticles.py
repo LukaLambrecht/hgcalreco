@@ -16,8 +16,9 @@ if __name__=='__main__':
     inputfiles = sys.argv[1:]
 
     # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config.json')
-    outputdir = 'output_plots3'
+    #input_config = os.path.join(topdir, 'configs/input_config_centralreco.json')
+    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
+    outputdir = 'output_test'
 
     # initialize reader
     reader = Reader(input_config)
@@ -53,8 +54,8 @@ if __name__=='__main__':
             tracksters = collections['tracksters']
 
             # object and event selection
-            if len(caloparticles) < 2: continue
-            if len(tracksters) < 1: continue
+            #if len(caloparticles) < 2: continue
+            #if len(tracksters) < 1: continue
             selected_caloparticles = caloparticles
             '''selected_caloparticles = []
             for caloparticle in caloparticles:
