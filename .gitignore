@@ -5,6 +5,9 @@
 # Ignore CMSSW installations
 CMSSW_*
 
+# Ignore condor job files
+**cjob_*
+
 # Ignore output folders and files
 **output_*
 **plots_*

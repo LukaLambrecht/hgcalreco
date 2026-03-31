@@ -18,6 +18,7 @@ if __name__=='__main__':
     parser.add_argument('--cmssw', default=None)
     parser.add_argument('--proxy', default=None)
     parser.add_argument('--overwrite', default=False, action='store_true')
+    parser.add_argument('--remove-intermediate-output', default=False, action='store_true')
     args = parser.parse_args()
 
     # set CMSSW if provided
@@ -66,17 +67,33 @@ if __name__=='__main__':
         cmd = cmd.replace('NUM_EVENTS', f'{args.events_per_job}')
         cmds[stepidx] = cmd
 
-    # make combined command for each job
-    combined_cmds = []
+    # make set of commands for each job
+    job_cmds = []
     for jobidx in range(args.number_of_jobs):
-        this_cmds = []
+        this_job_cmds = []
         # add random seed
-        # note: use jobidx + 1 because using random seed 0 gives errors! 
-        appendix = f'--customise_commands "process.RandomNumberGeneratorService.generator.initialSeed = {jobidx+1}"'
+        # note: use jobidx + 1 because using random seed 0 gives errors!
+        # note: the --customise_commands option seems to silently override any previous option with the same name...
+        #       so need to take care in how to add it.
+        tag = 'customise_commands'
+        opt = f'process.RandomNumberGeneratorService.generator.initialSeed = {jobidx+1}'
         for cmd in cmds:
-            this_cmds.append(cmd + ' ' + appendix)
-        combined_cmd = ' && '.join(this_cmds)
-        combined_cmds.append(combined_cmd)
+            if f'--{tag}' not in cmd:
+                appendix = f'--{tag} "{opt}"'
+                cmd = cmd + ' ' + appendix
+            else:
+                parts = cmd.split('--')
+                idx = [idx for idx, part in enumerate(parts) if part.startswith(tag)][0]
+                newpart = parts[idx].rstrip(';" \t\n') + f'; {opt}" '
+                parts[idx] = newpart
+                cmd = '--'.join(parts)
+            this_job_cmds.append(cmd)
+        # remove intermediate files if requested
+        if args.remove_intermediate_output:
+            for stepidx in range(len(cmds)-1):
+                rm_cmd = f'rm step{stepidx}.root'
+                this_job_cmds.append(rm_cmd)
+        job_cmds.append(this_job_cmds)
 
     # make working directories and executable files
     # note: ideally, would write the executable files in the working directories,
@@ -107,7 +124,7 @@ if __name__=='__main__':
             # go to working directory
             f.write(f'cd {workdir}\n')
             # write actual commands to run
-            f.write(combined_cmds[jobidx]+'\n')
+            for cmd in job_cmds[jobidx]: f.write(cmd+'\n')
         # make executable
         os.system(f'chmod +x {jobscript}')
         exes.append(jobscript)

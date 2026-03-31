@@ -39,3 +39,9 @@ Notes:
 ### Which parameters to modify / scan?
 
 ?
+
+
+### Other tips and tricks
+
+Run `edmDumpEventContent.py <input file>` to see file contents.
+Use the same followed by `| grep <search term>` to filter.
