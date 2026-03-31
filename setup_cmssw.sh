@@ -1,8 +1,8 @@
 # Simple setup utility to install CMSSW and check out some useful packages
 
 # Set CMSSW version
-cmssw_version=CMSSW_14_0_9
-#cmssw_version=CMSSW_15_1_0
+#cmssw_version=CMSSW_14_0_9
+cmssw_version=CMSSW_15_1_1
 
 # Setup CMSSW
 cmsrel $cmssw_version

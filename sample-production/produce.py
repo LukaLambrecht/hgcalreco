@@ -40,6 +40,7 @@ if __name__=='__main__':
         msg = 'A CMSSW version must be provided either explicitly with --cmssw'
         msg += ' or implicitly in the environment.'
         raise Exception(msg)
+    print(f'Found following CMSSW: {cmssw}')
 
     # check if the fragment exists and move it to Configuration/GenProduction
     if not os.path.exists(args.fragment):
