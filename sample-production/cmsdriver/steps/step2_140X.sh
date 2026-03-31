@@ -5,7 +5,6 @@ cmsDriver.py step2 \
   --datatier GEN-SIM-DIGI-RAW-MINIAOD \
   --inputCommands "keep *" \
   --conditions 140X_mcRun4_realistic_v4 \
-  --customise_commands "process.MINIAODSIMoutput.outputCommands.append('keep *_*_*_HLT'); process.MINIAODSIMoutput.outputCommands.append('keep *_*_*_SIM');" \
   --step RAW2DIGI,RECO,RECOSIM,PAT \
   --geometry Extended2026D110 \
   --era Phase2C17I13M9 \

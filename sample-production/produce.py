@@ -67,6 +67,64 @@ if __name__=='__main__':
         cmd = cmd.replace('NUM_EVENTS', f'{args.events_per_job}')
         cmds[stepidx] = cmd
 
+    # other customizations
+    for stepidx, cmd in enumerate(cmds):
+
+        # get customization options that are already in the command (if any)
+        customization = []
+        tag = 'customise_commands'
+        if f'--{tag}' in cmd:
+            parts = cmd.split('--')
+            idx = [idx for idx, part in enumerate(parts) if part.startswith(tag)][0]
+            customization = [parts[idx].replace(tag, '').strip(';" \t\n')]
+            parts.pop(idx)
+            cmd = '--'.join(parts)
+
+        # set output of the last step
+        # note: this currently assumes the last step is MiniAOD level,
+        #       maybe later try to generalize.
+        if stepidx == len(cmds)-1:
+            
+            # option 1: keep everything
+            # note: directly copied from example sample, see README for more info.
+            # note: gives very large files, but contains all info to re-run HGCAL reco.
+            #customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_HLT\')')
+            #customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_SIM\')')
+
+            # option 2: minimal content
+            # note: copied from run-hgcal-reco.
+            # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
+            #       update: seems like they do (at least with the minimal setup in run-hgcal-reco, probably not the full reco)!
+            drop = [
+              '*_*_*_*'
+            ]
+            keep = [
+              '*_HGCalRecHit_*_*',
+              '*_hgcalMergeLayerClusters_*_*',
+              '*_ticlTracksters*_*_*',
+              '*GenParticle*_*_*_*',
+              '*TrackingParticle*_*_*_*',
+              '*TrackingVertex*_*_*_*',
+              '*SimTrack*_*_*_*',
+              '*CaloParticle*_*_*_*',
+              '*SimCluster*_*_*_*',
+              '*CaloHit*_*_*_*'
+            ]
+            for collection in drop:
+                customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')
+            for collection in keep:
+                customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'keep {collection}\')')
+
+        # others: to do as the need arises
+
+        # (re-)add customization to command
+        if len(customization)==0: continue
+        customizationstr = '; '.join(customization)
+        cmd += f' --{tag} "{customizationstr}"'
+
+        # replace original command
+        cmds[stepidx] = cmd
+
     # make set of commands for each job
     job_cmds = []
     for jobidx in range(args.number_of_jobs):
@@ -155,3 +213,7 @@ if __name__=='__main__':
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')
         f.write(')')
+
+    # print output
+    print(f'Job working directory {args.workdir} has been prepared.')
+    print(f'Check if everything looks fine, then run condor_submit {jobdescriptor} to submit the jobs.')
