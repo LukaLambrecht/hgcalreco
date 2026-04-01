@@ -18,11 +18,19 @@ if __name__=='__main__':
     # read input directory from command line
     inputdir = sys.argv[1]
 
+    # check existence
+    if not os.path.exists(inputdir):
+        raise Exception(f'Input directory {inputdir} does not exist.')
+
     # make a dict translating param names to legend entries
     # (maybe later put in a json file)
     legend_dict = {
-        'critical_density_high': r'$\rho_{c,high}$',
-        'critical_density_low': r'$\rho_{c,low}$',
+        'critical_density_high': r'$\rho_{c, high}$',
+        'critical_density_had': r'$\rho_{c, had}$',
+        'critical_distance_high': r'$d_{c, high}$',
+        'critical_distance_had': r'$d_{c, had}$',
+        'density_distance_high': r'$d_{\rho, high}$',
+        'density_distance_had': r'$d_{\rho, had}$',
     }
 
     # make output directory
@@ -79,7 +87,7 @@ if __name__=='__main__':
         this_params = {}
         for p, v in params[jobdir].items():
             key = legend_dict.get(p, p)
-            value = '{:.2f}'.format(v)
+            value = '{:.2e}'.format(v)
             this_params[key] = value
         labeldict[jobdir] = ', '.join([f'{k} = {v}' for k, v in this_params.items()])
 
@@ -88,7 +96,7 @@ if __name__=='__main__':
     for key in jobdirs:
         fig, ax = plot.plot_counts_per_layer(results[key]['num'], fig=fig, ax=ax,
                     color=colordict[key], label=labeldict[key])
-    ax.legend(fontsize=12, loc='upper left', bbox_to_anchor=(1,1))
+    ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     fig.savefig(os.path.join(outputdir, f'counts_vs_layer.png'))
 
@@ -97,7 +105,7 @@ if __name__=='__main__':
     for key in jobdirs:
         fig, ax = plot.plot_purity_per_layer(results[key]['pur'], fig=fig, ax=ax,
                     color=colordict[key], label=labeldict[key], doerrs=False)
-    ax.legend(fontsize=12, loc='upper left', bbox_to_anchor=(1,1))
+    ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     fig.savefig(os.path.join(outputdir, f'purity_vs_layer.png'))
 
@@ -106,6 +114,6 @@ if __name__=='__main__':
     for key in jobdirs:
         fig, ax = plot.plot_efficiency_per_layer(results[key]['eff'], fig=fig, ax=ax,
                     color=colordict[key], label=labeldict[key], doerrs=False)
-    ax.legend(fontsize=12, loc='upper left', bbox_to_anchor=(1,1))
+    ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer.png'))

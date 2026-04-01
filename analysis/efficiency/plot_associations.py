@@ -24,8 +24,8 @@ def plot(xbins, yvals, yerrs=None,
             upper = np.clip(upper, a_min=cliperrs[0], a_max=cliperrs[1])
             lower = np.clip(lower, a_min=cliperrs[0], a_max=cliperrs[1])
         ax.stairs(upper, baseline=lower, edges=xbins, fill=True, color=color, alpha=0.2)
-    if xlabel is not None: ax.set_xlabel(xlabel, fontsize=12)
-    if ylabel is not None: ax.set_ylabel(ylabel, fontsize=12)
+    if xlabel is not None: ax.set_xlabel(xlabel, fontsize=15)
+    if ylabel is not None: ax.set_ylabel(ylabel, fontsize=15)
     return (fig, ax)
 
 def get_counts_per_layer(df):

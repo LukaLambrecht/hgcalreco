@@ -99,7 +99,17 @@ if __name__=='__main__':
             if args.nentries > 0 and event_idx > args.nentries: break
 
     # merge dataframes
-    df = pd.concat(dfs)
+    if len(dfs) > 0: df = pd.concat(dfs)
+    else:
+        # this can happen if no events pass the selection,
+        # e.g. if there are no reconstructed tracksters
+        df = pd.DataFrame.from_dict({
+            'pur': [],
+            'eff': [],
+            'pt': [],
+            'eta': [],
+            'layer': []
+        })
     
     # write output file
     outputdir = os.path.dirname(args.outputfile)
