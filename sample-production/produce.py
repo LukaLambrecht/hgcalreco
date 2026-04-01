@@ -5,6 +5,11 @@ import sys
 import json
 import argparse
 
+topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(topdir)
+
+import tools.condortools as ct
+
 
 if __name__=='__main__':
 
@@ -166,26 +171,12 @@ if __name__=='__main__':
         if not os.path.exists(workdir): os.makedirs(workdir)
         jobscript = os.path.abspath(f'cjob_produce{jobidx}.sh')
         jobscript_copy = os.path.join(workdir, os.path.basename(jobscript))
-        with open(jobscript, 'w') as f:
-	        # write bash shebang
-            f.write('#!/bin/bash\n')
-	        # write sourcing of common software
-            f.write('source /cvmfs/cms.cern.ch/cmsset_default.sh\n')
-	        # write setting correct cmssw release
-            if cmssw is not None:
-                srcdir = os.path.join(cmssw, 'src')
-                f.write(f'cd {srcdir}\n')
-                f.write('eval `scram runtime -sh`\n')
-                f.write('cmsenv\n')
-	        # write export proxy
-            if args.proxy is not None:
-                f.write(f'export X509_USER_PROXY={args.proxy}\n')
+        ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
+        with open(jobscript, 'a') as f:
             # go to working directory
             f.write(f'cd {workdir}\n')
             # write actual commands to run
             for cmd in job_cmds[jobidx]: f.write(cmd+'\n')
-        # make executable
-        os.system(f'chmod +x {jobscript}')
         exes.append(jobscript)
         # copy to workdir for reference
         cmd = f'cp {jobscript} {jobscript_copy}'
@@ -193,24 +184,12 @@ if __name__=='__main__':
 
     # make job description
     name = 'cjob_produce'
-    stdout = name + '_out_$(ClusterId)_$(ProcId)'
-    stderr = name + '_err_$(ClusterId)_$(ProcId)'
-    log = name + '_log_$(ClusterId)'
     jobdescriptor = name + '.txt'
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
-    with open(jobdescriptor, 'w') as f:
-        f.write('executable = $(script)\n')
-        f.write('output = {}\n'.format(stdout))
-        f.write('error = {}\n'.format(stderr))
-        f.write('log = {}\n\n'.format(log))
-        f.write('request_cpus = 1\n')
-        f.write('request_memory = 1024\n')
-        f.write('request_disk = 10240\n')
-        if args.proxy is not None: 
-            f.write('x509userproxy = {}\n'.format(proxy))
-            f.write('use_x509userproxy = true\n\n')
-        f.write('+JobFlavour = "workday"\n')
+    ct.makeJobDescription(jobdescriptor, '$(script)', doqueue=False,
+        proxy=args.proxy, jobflavour='workday')
+    with open(jobdescriptor, 'a') as f:
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')
         f.write(')')
