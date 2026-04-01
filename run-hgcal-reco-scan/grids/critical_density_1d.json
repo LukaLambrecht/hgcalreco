@@ -1,0 +1,7 @@
+[
+{
+    "name": "critical_density_had",
+    "mod": "process.ticlTrackstersHAD.pluginPatternRecognitionByCLUE3D.criticalDensity = cms.double(VALUE)",
+    "values": [0.01, 0.1, 1.0, 3.0, 10, 100]
+}
+]
