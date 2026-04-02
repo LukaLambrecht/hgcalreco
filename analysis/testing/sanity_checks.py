@@ -14,7 +14,7 @@ if __name__=='__main__':
     inputfile = sys.argv[1]
 
     # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config.json')
+    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
 
     # read events
     events = Events(inputfile)

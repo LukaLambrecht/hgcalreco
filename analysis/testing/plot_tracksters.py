@@ -25,7 +25,7 @@ if __name__=='__main__':
     inputfile = sys.argv[1]
 
     # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
+    input_config = os.path.join(topdir, 'configs/input_config_centralreco.json')
     outputdir = 'output_plots_tracksters'
 
     # read events
@@ -38,6 +38,7 @@ if __name__=='__main__':
     # loop over events
     for event in events:
         event_counter += 1
+        print(f'Running on event {event_counter}...')
 
         # initialize plotting data
         xs, ys, zs, es, trs = [], [], [], [], []
@@ -56,12 +57,12 @@ if __name__=='__main__':
         #print(len(tracksters))
         #for tr in tracksters:
         #    pos = tr.barycenter()
-        #    print(f'- {tr.eigenvalues()} | {pos.x()} {pos.y()} {pos.z()} | {tr.regressed_energy()}')
+        #    print(f'- {tr.eigenvalues()} | {pos.x()} {pos.y()} {pos.z()} | {tr.raw_energy()}')
 
         # loop over tracksters
         for tr_idx, tr in enumerate(tracksters):
 
-            energy = tr.regressed_energy()
+            energy = tr.raw_energy()
             pos = tr.barycenter()
             xs.append(pos.x())
             ys.append(pos.y())

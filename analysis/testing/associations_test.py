@@ -17,7 +17,7 @@ if __name__=='__main__':
     inputfiles = sys.argv[1:]
 
     # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config.json')
+    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
 
     # initialize reader
     reader = Reader(input_config)

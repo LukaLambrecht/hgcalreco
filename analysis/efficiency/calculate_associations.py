@@ -24,14 +24,12 @@ if __name__=='__main__':
     parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-o', '--outputfile', default='output_test.parquet')
     parser.add_argument('-n', '--nentries', default=-1, type=int)
+    parser.add_argument('--input_config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
     args = parser.parse_args()
 
-    # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
-
     # initialize reader
-    reader = Reader(input_config)
+    reader = Reader(args.input_config)
 
     # loop over input files
     dfs = []

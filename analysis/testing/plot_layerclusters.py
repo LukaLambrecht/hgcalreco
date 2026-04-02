@@ -28,7 +28,7 @@ if __name__=='__main__':
     inputfile = sys.argv[1]
 
     # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
+    input_config = os.path.join(topdir, 'configs/input_config_centralreco.json')
     outputdir = 'output_plots_layerclusters'
 
     # read events
@@ -41,6 +41,7 @@ if __name__=='__main__':
     # loop over events
     for event in events:
         event_counter += 1
+        print(f'Now running on event {event_counter}...')
 
         # initialize plotting data
         xs, ys, zs, es, lcs, trs, lrs, zsides, subdets = [], [], [], [], [], [], [], [], []
