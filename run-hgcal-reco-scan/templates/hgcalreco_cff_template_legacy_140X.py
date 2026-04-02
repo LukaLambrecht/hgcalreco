@@ -33,37 +33,22 @@ process.source = cms.Source("PoolSource",
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE_MAX_EVENTS')))
 
 # HGCAL reconstruction
+# raw to digi
+process.load("EventFilter.HGCalRawToDigi/HGCalRawToDigi_cfi")
 # local reco (RecHits + LayerClusters)
 process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 # TICL (Tracksters)
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 
-# define digis to use
-# note: syntax is a little unclear; apparently the name RECO should not be declared explicitly;
-#       instead CMSSW looks for the collections under all available processes (e.g. RECO, HLT, etc)
-#       and exposes them to the current process.
-process.hgcalDigis = cms.EDAlias(
-    hgcalDigis = cms.VPSet(
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("EE"),
-            toProductInstance = cms.string("EE")
-        ),
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("HEfront"),
-            toProductInstance = cms.string("HEfront")
-        ),
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("HEback"),
-            toProductInstance = cms.string("HEback")
-        )
-    )
-)
+# set the correct digis as input
+# (use the ones from the HLT process, make them visible to the current process)
+process.HGCalUncalibRecHit.HGCEEConfig.digiSource  = cms.InputTag("hgcalDigis","EE","HLT")
+process.HGCalUncalibRecHit.HGCHEFConfig.digiSource = cms.InputTag("hgcalDigis","HEfront","HLT")
+process.HGCalUncalibRecHit.HGCHEBConfig.digiSource = cms.InputTag("hgcalDigis","HEback","HLT")
 
 process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
+    process.hgcalDigis
     * process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
 process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs

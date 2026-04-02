@@ -1,0 +1,12 @@
+cmsDriver.py Configuration/GenProduction/python/FRAGMENT \
+  --python_filename step0_GEN_SIM.py \
+  --eventcontent FEVTDEBUG \
+  --datatier GEN-SIM \
+  --conditions auto:phase2_realistic_T33 \
+  --beamspot HLLHC14TeV \
+  --step GEN,SIM \
+  --geometry ExtendedRun4D121 \
+  --era Phase2C22I13M9 \
+  --mc \
+  --fileout FILEOUT \
+  -n NUM_EVENTS

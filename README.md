@@ -24,55 +24,61 @@ but before the output definition.
 ### Which parameters to modify / scan?
 
 Print all available parameters with `edmConfigDump` on a default cmsRun configuration fragment.
-This gives the following (for `CMSSW_14_0_9`, to update later):
+This gives the following (for `CMSSW_16_0_5`, to update when needed):
 ```
-process.ticlTrackstersHAD = cms.EDProducer("TrackstersProducer",
+process.ticlTrackstersCLUE3DHigh = cms.EDProducer("TrackstersProducer",
     [...]
     pluginPatternRecognitionByCLUE3D = cms.PSet(
-        algo_verbosity = cms.int32(0),pluginPatternRecognitionByCLUE3D
-        criticalDensity = cms.double(4),
-        criticalEtaPhiDistance = cms.double(0.025),
-        criticalSelfDensity = cms.double(0.15),
-        criticalXYDistance = cms.double(1.8),
-        criticalZDistanceLyr = cms.int32(5),
-        densityEtaPhiDistanceSqr = cms.double(0.0008),
+        algo_verbosity = cms.int32(0),
+        computeLocalTime = cms.bool(False),
+        criticalDensity = cms.vdouble(0.6, 0.6, 0.6),
+        criticalEtaPhiDistance = cms.vdouble(0.025, 0.025, 0.025),
+        criticalSelfDensity = cms.vdouble(0.15, 0.15, 0.15),
+        criticalXYDistance = cms.vdouble(1.8, 1.8, 1.8),
+        criticalZDistanceLyr = cms.vint32(5, 5, 5),
+        cutHadProb = cms.double(999),
+        densityEtaPhiDistanceSqr = cms.vdouble(0.0008, 0.0008, 0.0008),
         densityOnSameLayer = cms.bool(False),
-        densitySiblingLayers = cms.int32(3),
-        densityXYDistanceSqr = cms.double(3.24),
-        eid_input_name = cms.string('input'),
-        eid_min_cluster_energy = cms.double(1),
-        eid_n_clusters = cms.int32(10),
-        eid_n_layers = cms.int32(50),
-        eid_output_name_energy = cms.string('output/regressed_energy'),
-        eid_output_name_id = cms.string('output/id_probabilities'),
-        kernelDensityFactor = cms.double(0.2),
-        minNumLayerCluster = cms.int32(2),
+        densitySiblingLayers = cms.vint32(3, 3, 3),
+        densityXYDistanceSqr = cms.vdouble(3.24, 3.24, 3.24),
+        doPidCut = cms.bool(True),
+        kernelDensityFactor = cms.vdouble(0.2, 0.2, 0.2),
+        minNumLayerCluster = cms.vint32(2, 2, 2),
         nearestHigherOnSameLayer = cms.bool(False),
-        outlierMultiplier = cms.double(2),
+        outlierMultiplier = cms.vdouble(2, 2, 2),
         rescaleDensityByZ = cms.bool(False),
         type = cms.string('CLUE3D'),
         useAbsoluteProjectiveScale = cms.bool(True),
-        useClusterDimensionXY = cms.bool(False)
+        useClusterDimensionXY = cms.bool(False),
+        usePCACleaning = cms.bool(False)
     ),
+    [...]
+)
 ```
 
 Note, many other modules also have a similar `pluginPatternRecognitionByCLUE3D`, e.g.:
 ```
+process.ticlTrackstersCLUE3DEM
+process.ticlTrackstersCLUE3DHAD
 process.ticlTrackstersCLUE3DHigh
-process.ticlTrackstersCLUE3DLow
 process.ticlTrackstersEM
 process.ticlTrackstersFastJet
+process.ticlTrackstersHAD
 process.ticlTrackstersHFNoseEM
 process.ticlTrackstersHFNoseHAD
 process.ticlTrackstersHFNoseMIP
 process.ticlTrackstersHFNoseTrk
 process.ticlTrackstersHFNoseTrkEM
 process.ticlTrackstersMIP
+process.ticlTrackstersRecovery
 process.ticlTrackstersTrk
 process.ticlTrackstersTrkEM
 ```
-Presumably these correspond to different sequential iterations of the TICL algorithm (to be confirmed),
-and also presumably `process.ticlTrackstersHAD` is the most relevant one for now (to be confirmed).
+These are different implementations / configurations of the TICL algorithm that have been defined over time.
+Note: this part of the config does not tell you which one of those are actually run!
+It looks like only CLUE3DHigh is enabled in normal reconstruction, so we can probably ignore the rest.
+Note: there is also a `process.ticlTrackstersMerge`, but it does not contain the same parameters.
+Probably this is a later merging step.
 
 The meaning of the parameters: to check with experts.
 

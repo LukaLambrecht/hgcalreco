@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+
 # Prepare a CMSSW version for sample production
 
 # The generator fragment must be placed inside a CMSSW module in order to be read correctly.

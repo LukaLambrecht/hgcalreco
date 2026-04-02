@@ -21,8 +21,8 @@ if __name__=='__main__':
     parser.add_argument('-r', '--runmode', default='local', choices=['local', 'condor'])
     parser.add_argument('-p', '--proxy', default=None)
     parser.add_argument('--template', default='templates/hgcalreco_cff_template.py')
-    parser.add_argument('--globaltag', default='140X_mcRun4_realistic_v4')
-    parser.add_argument('--geometry', default='GeometryExtended2026D110')
+    parser.add_argument('--globaltag', default='150X_mcRun4_realistic_v1')
+    parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
     parser.add_argument('--no_exec', default=False, action='store_true')
     args = parser.parse_args()
 

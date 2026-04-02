@@ -32,27 +32,40 @@ process.source = cms.Source("PoolSource",
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE_MAX_EVENTS')))
 
 # HGCAL reconstruction
-# raw to digi
-process.load("EventFilter.HGCalRawToDigi/HGCalRawToDigi_cfi")
 # local reco (RecHits + LayerClusters)
 process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 # TICL (Tracksters)
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 
-process.HGCalUncalibRecHit.HGCEEConfig.digiSource  = cms.InputTag("hgcalDigis","EE","HLT")
-process.HGCalUncalibRecHit.HGCHEFConfig.digiSource = cms.InputTag("hgcalDigis","HEfront","HLT")
-process.HGCalUncalibRecHit.HGCHEBConfig.digiSource = cms.InputTag("hgcalDigis","HEback","HLT")
+# define digis to use
+# note: syntax is a little unclear; apparently the name RECO should not be declared explicitly;
+#       instead CMSSW looks for the collections under all available processes (e.g. RECO, HLT, etc)
+#       and exposes them to the current process.
+process.hgcalDigis = cms.EDAlias(
+    hgcalDigis = cms.VPSet(
+        cms.PSet(
+            type = cms.string("HGCalDigiCollection"),
+            fromProductInstance = cms.string("EE"),
+            toProductInstance = cms.string("EE")
+        ),
+        cms.PSet(
+            type = cms.string("HGCalDigiCollection"),
+            fromProductInstance = cms.string("HEfront"),
+            toProductInstance = cms.string("HEfront")
+        ),
+        cms.PSet(
+            type = cms.string("HGCalDigiCollection"),
+            fromProductInstance = cms.string("HEback"),
+            toProductInstance = cms.string("HEback")
+        )
+    )
+)
 
 process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
-    process.hgcalDigis
-    * process.hgcalLocalRecoSequence
+    process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
 process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
-
-# parameter modifications
-#process.ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D.criticalDensity = cms.double(0.3)
-#process.ticlTrackstersCLUE3DLow.pluginPatternRecognitionByCLUE3D.criticalDensity = cms.double(1.0)
 
 # set output
 process.out = cms.OutputModule("PoolOutputModule",

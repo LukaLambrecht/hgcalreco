@@ -29,7 +29,10 @@ Check DAS/McM for exact cmsDriver commands:
 ### Switching to a different CMSSW version
 Not yet clear how to do this very systematically, but here are a few pointers.
 
-One can check [Configuration/PyReleaseValidation/python/upgradeWorkflowComponents.py](https://github.com/cms-sw/cmssw/blob/master/Configuration/PyReleaseValidation/python/upgradeWorkflowComponents.py) for viable combinations of global tags, geometries and eras.
+Latest available releases: see e.g. [here](https://github.com/cms-sw/cmssw/releases)
+
+Combinations of global tags, geometries, and eras:
+one can check e.g. [Configuration/PyReleaseValidation/python/upgradeWorkflowComponents.py](https://github.com/cms-sw/cmssw/blob/master/Configuration/PyReleaseValidation/python/upgradeWorkflowComponents.py).
 Switch to the branch for the targeted CMSSW version, and scroll (almost) all the way down until you see something like [this](https://github.com/cms-sw/cmssw/blob/3c20d4cff8115035a716ef635a1def5cf6e66249/Configuration/PyReleaseValidation/python/upgradeWorkflowComponents.py#L3741):
 ```
     'Run4D123' : {
@@ -43,5 +46,13 @@ Switch to the branch for the targeted CMSSW version, and scroll (almost) all the
 Unfortunately, this might still crash because it doesn't give you a full valid cmsDriver command.
 For now this has been trial-and-error, and help from CG (the second best thing after actual experts).
 
+Other than that, just check with experts.
+For example, the recommended geometry at the time of writing appears to be 121, which does not seem to be the latest one.
+
+Finding a good pileup dataset:
+also a bit of trial and error.
+Try to find samples on DAS with the same CMSSW verion and geometry (typically at least some RelVal samples exist),
+and check which pileup dataset they are using.
+
 ### Todo
-Then later update to newer CMSSW, other particles, etc.
+Try out other particles instead of pions by modifying the PDG ID in the generator fragment, etc.

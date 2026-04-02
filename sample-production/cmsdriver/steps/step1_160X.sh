@@ -1,0 +1,14 @@
+cmsDriver.py step1 \
+  --python_filename step1_DIGI_RAW.py \
+  --eventcontent FEVTDEBUGHLT \
+  --customise SLHCUpgradeSimulations/Configuration/aging.customise_aging_1000,SimGeneral/MixingModule/customiseStoredTPConfig.higherPtTP \
+  --datatier GEN-SIM-DIGI-RAW \
+  --conditions auto:phase2_realistic_T33 \
+  --customise_commands "process.FEVTDEBUGHLToutput.outputCommands.append('keep *_l1tSC8PFL1PuppiCorrectedEmulator_*_HLT')" \
+  --step DIGI:pdigi_valid,L1TrackTrigger,L1,L1P2GT,DIGI2RAW,HLT:@relvalRun4 \
+  --geometry ExtendedRun4D121 \
+  --era Phase2C22I13M9 \
+  --mc \
+  --filein file:FILEIN \
+  --fileout FILEOUT \
+  -n NUM_EVENTS

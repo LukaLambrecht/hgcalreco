@@ -20,11 +20,15 @@ if __name__=='__main__':
     parser.add_argument('-w', '--workdir', required=True)
     parser.add_argument('-n', '--events-per-job', default=10, type=int)
     parser.add_argument('-j', '--number-of-jobs', default=1, type=int)
+    parser.add_argument('--tag', default=None)
     parser.add_argument('--cmssw', default=None)
     parser.add_argument('--proxy', default=None)
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--remove-intermediate-output', default=False, action='store_true')
     args = parser.parse_args()
+
+    # parse tag
+    tagstr = '' if args.tag is None else f'_{args.tag}'
 
     # set CMSSW if provided
     # priority:
@@ -98,13 +102,14 @@ if __name__=='__main__':
             #customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_SIM\')')
 
             # option 2: minimal content
-            # note: copied from run-hgcal-reco.
             # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
             #       update: seems like they do (at least with the minimal setup in run-hgcal-reco, probably not the full reco)!
             drop = [
               '*_*_*_*'
             ]
             keep = [
+              '*_hgcalDigis_*_*',
+              '*_HGCalUncalibRecHit_*_*',
               '*_HGCalRecHit_*_*',
               '*_hgcalMergeLayerClusters_*_*',
               '*_ticlTracksters*_*_*',
@@ -169,7 +174,7 @@ if __name__=='__main__':
     for jobidx in range(args.number_of_jobs):
         workdir = os.path.abspath(os.path.join(args.workdir, f'job{jobidx}'))
         if not os.path.exists(workdir): os.makedirs(workdir)
-        jobscript = os.path.abspath(f'cjob_produce{jobidx}.sh')
+        jobscript = os.path.abspath(f'cjob_produce{tagstr}_{jobidx}.sh')
         jobscript_copy = os.path.join(workdir, os.path.basename(jobscript))
         ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
         with open(jobscript, 'a') as f:
@@ -183,7 +188,7 @@ if __name__=='__main__':
         os.system(cmd)
 
     # make job description
-    name = 'cjob_produce'
+    name = f'cjob_produce{tagstr}'
     jobdescriptor = name + '.txt'
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
