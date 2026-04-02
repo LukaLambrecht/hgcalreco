@@ -38,9 +38,15 @@ def get_detid_layer(detid, absolute_value=False):
     layer = detid.layer()
     zside = detid.zside()
     subdetid = get_detid_subdetid(detid)
-    if subdetid == 0: pass
-    elif subdetid == 1: layer += 28 # exact value to check
-    elif subdetid == 2: layer += 40 # exact value to check
+    # offsets:
+    # - EE starts at 0
+    # - HSi starts at however many EE layers there are; exact value to check
+    #   (and may also depend on exact geometry used).
+    # - HSc physically starts only a few layers after HSi (i.e. the first few HE layers are all HSi),
+    #   but the layer index seems to use the same offset.
+    if subdetid == 0: pass # EE starts at 0
+    elif subdetid == 1: layer += 26
+    elif subdetid == 2: layer += 26
     else: raise Exception('Subdetector id not recognized.')
     if absolute_value: return layer
     else: return zside * layer
