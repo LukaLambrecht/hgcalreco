@@ -29,7 +29,7 @@ if __name__=='__main__':
 
     # other settings (hard-coded for now)
     input_config = os.path.join(topdir, 'configs/input_config.json')
-    outputdir = 'plots_layerclusters'
+    outputdir = 'output_plots_layerclusters'
 
     # read events
     events = Events(inputfile)

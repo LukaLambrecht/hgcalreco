@@ -25,8 +25,8 @@ if __name__=='__main__':
     inputfile = sys.argv[1]
 
     # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config.json')
-    outputdir = 'plots_tracksters'
+    input_config = os.path.join(topdir, 'configs/input_config_customreco.json')
+    outputdir = 'output_plots_tracksters'
 
     # read events
     events = Events(inputfile)
@@ -51,6 +51,13 @@ if __name__=='__main__':
         if len(caloparticles) != 2: continue
         if len(tracksters) < 2: continue
 
+        # temp printouts for debugging
+        #print(event_counter)
+        #print(len(tracksters))
+        #for tr in tracksters:
+        #    pos = tr.barycenter()
+        #    print(f'- {tr.eigenvalues()} | {pos.x()} {pos.y()} {pos.z()} | {tr.regressed_energy()}')
+
         # loop over tracksters
         for tr_idx, tr in enumerate(tracksters):
 
@@ -69,9 +76,13 @@ if __name__=='__main__':
         trs = np.array(trs)
 
         maxx = np.amax(np.abs(xs))
+        marginx = maxx*0.05
         maxy = np.amax(np.abs(ys))
+        marginy = maxy*0.05
         maxz = np.amax(np.abs(zs))
+        marginz = maxz*0.05
         maxxy = max(maxx, maxy)
+        marginxy = maxxy*0.05
         maxe = np.amax(es)
         reles = es/maxe
 
@@ -84,13 +95,15 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c = es,
                     cmap='jet',
-                    s=30*reles)
+                    #s=30*reles,
+                    s=1,
+        )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_zlabel("z [cm]")
-        ax.set_xlim((-maxxy, maxxy))
-        ax.set_ylim((-maxxy, maxxy))
+        ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
+        ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
         fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy.png'))
         plt.close()
 
@@ -100,12 +113,14 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c = es,
                     cmap='jet',
-                    s=30*reles)
+                    #s=30*reles,
+                    s=1,
+        )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
-        ax.set_xlim((-maxxy, maxxy))
-        ax.set_ylim((-maxxy, maxxy))
+        ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
+        ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
         fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy_xy.png'))
         plt.close()
 
@@ -115,7 +130,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c = es,
                     cmap='jet',
-                    s=30*reles)
+                    #s=30*reles,
+                    s=1,
+        )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
@@ -133,8 +150,8 @@ if __name__=='__main__':
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_zlabel("z [cm]")
-        ax.set_xlim((-maxxy, maxxy))
-        ax.set_ylim((-maxxy, maxxy))
+        ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
+        ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
         fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs.png'))
         plt.close()
 
@@ -148,8 +165,8 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
-        ax.set_xlim((-maxxy, maxxy))
-        ax.set_ylim((-maxxy, maxxy))
+        ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
+        ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
         fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs_xy.png'))
         plt.close()
 
