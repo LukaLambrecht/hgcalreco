@@ -82,6 +82,54 @@ Probably this is a later merging step.
 
 The meaning of the parameters: to check with experts.
 
+All of the above seems to be for the trackster reconstruction only, not the layer clusters.
+For layer clusters, dump the config in the same way, but look for another section that looks like this:
+```
+process.hgcalLayerClustersHSi = cms.EDProducer("HGCalLayerClusterProducer",
+    calculatePositionInAlgo = cms.bool(True),
+    detector = cms.string('FH'),
+    mightGet = cms.optional.untracked.vstring,
+    nHitsTime = cms.uint32(3),
+    plugin = cms.PSet(
+        [...]
+        deltac = cms.vdouble(1.3, 1.3, 1.3, 0.0315),
+        deltasi_index_regemfac = cms.int32(3),
+        dependSensor = cms.bool(True),
+        ecut = cms.double(3),
+        [...]
+        kappa = cms.double(9),
+        [...]
+    ),
+    recHits = cms.InputTag("HGCalRecHit","HGCHEFRecHits"),
+    timeClname = cms.string('timeLayerCluster')
+)
+```
+Or for HSci instead of HSi:
+```
+process.hgcalLayerClustersHSci = cms.EDProducer("HGCalLayerClusterProducer",
+    calculatePositionInAlgo = cms.bool(True),
+    detector = cms.string('BH'),
+    mightGet = cms.optional.untracked.vstring,
+    nHitsTime = cms.uint32(3),
+    plugin = cms.PSet(
+        [...]
+        deltac = cms.vdouble(1.3, 1.3, 1.3, 0.0315),
+        deltasi_index_regemfac = cms.int32(3),
+        dependSensor = cms.bool(True),
+        ecut = cms.double(3),
+        [...]
+        kappa = cms.double(9),
+        [...]
+    ),
+    recHits = cms.InputTag("HGCalRecHit","HGCHEBRecHits"),
+    timeClname = cms.string('timeLayerCluster')
+)
+```
+Where the parameters mean (to be checked!):
+- ecut: Minimum energy for a RecHit to be considered.
+- kappa: Density threshold for identifying seed hits.
+- deltac: Clustering radius. The different values are for thin, medium and thick silicon sensors (in cm) and for scintillator tiles (in eta-phi).
+
 
 ### How to make event display
 

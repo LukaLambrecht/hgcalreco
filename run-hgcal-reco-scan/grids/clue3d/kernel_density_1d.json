@@ -1,0 +1,7 @@
+[
+{
+    "name": "kernel_density",
+    "mod": "process.ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D.kernelDensityFactor = cms.vdouble(0.2, VALUE, VALUE)",
+    "values": [0.001, 0.01, 0.1, 1, 10, 100, 1000]
+}
+]

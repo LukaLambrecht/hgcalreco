@@ -1,0 +1,7 @@
+[
+{
+    "name": "deltac_ee",
+    "mod": "process.hgcalLayerClustersEE.plugin.deltac = cms.vdouble(VALUE, VALUE, VALUE, 0.0315)",
+    "values": [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20]
+}
+]

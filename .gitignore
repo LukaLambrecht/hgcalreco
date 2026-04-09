@@ -13,3 +13,4 @@ CMSSW_*
 **plots_*
 **.root
 **.png
+**.parquet

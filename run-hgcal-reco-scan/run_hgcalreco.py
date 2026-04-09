@@ -17,17 +17,21 @@ if __name__=='__main__':
     parser.add_argument('-i', '--inputfile', required=True)
     parser.add_argument('-g', '--grid', required=True)
     parser.add_argument('-n', '--max_events', default=-1, type=int)
-    parser.add_argument('-w', '--workdir', default='.')
-    parser.add_argument('--tag', default=None)
+    parser.add_argument('-w', '--workdir', default='auto')
+    parser.add_argument('--tag', default='auto')
     parser.add_argument('--template', default='templates/hgcalreco_cff_template.py')
     parser.add_argument('--globaltag', default='150X_mcRun4_realistic_v1')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
     parser.add_argument('--cmssw', default=None)
     parser.add_argument('--proxy', default=None)
+    parser.add_argument('--submit', default=False, action='store_true')
     args = parser.parse_args()
 
     # parse tag
-    tagstr = '' if args.tag is None else f'_{args.tag}'
+    if args.tag == 'auto': args.tag = os.path.basename(args.grid).replace('.json', '')
+
+    # parse working directory
+    if args.workdir == 'auto': args.workdir = f'output_{args.tag}'
 
     # set CMSSW if provided
     # priority:
@@ -117,7 +121,7 @@ if __name__=='__main__':
     exes = []
     for jobidx in range(njobs):
         workdir = os.path.abspath(os.path.join(args.workdir, f'job{jobidx}'))
-        jobscript = os.path.abspath(f'cjob_run{tagstr}_{jobidx}.sh')
+        jobscript = os.path.abspath(f'cjob_run_{args.tag}_{jobidx}.sh')
         jobscript_copy = os.path.join(workdir, os.path.basename(jobscript))
         ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
         with open(jobscript, 'a') as f:
@@ -125,14 +129,16 @@ if __name__=='__main__':
             f.write(f'cd {workdir}\n')
             # write actual commands to run
             f.write('cmsRun config.py\n')
-            f.write('python3 ../../../analysis/efficiency/calculate_associations.py -i hgcalreco_out.root -o efficiency.parquet\n')
+            cmd = 'python3 ../../../analysis/efficiency/calculate_associations.py -i hgcalreco_out.root -o efficiency.parquet'
+            cmd += ' --input_config ../../../analysis/configs/input_config_customreco.json'
+            f.write(f'{cmd}\n')
         exes.append(jobscript)
         # copy to workdir for reference
         cmd = f'cp {jobscript} {jobscript_copy}'
         os.system(cmd)
 
     # make job description
-    name = f'cjob_run{tagstr}'
+    name = f'cjob_run_{args.tag}'
     jobdescriptor = name + '.txt'
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
@@ -143,6 +149,7 @@ if __name__=='__main__':
         for exe in exes: f.write(f'    {exe}\n')
         f.write(')')
 
-    # print output
+    # print output (and submit jobs if requested)
     print(f'Job working directory {args.workdir} has been prepared.')
-    print(f'Check if everything looks fine, then run condor_submit {jobdescriptor} to submit the jobs.')
+    if args.submit: os.system(f'condor_submit {jobdescriptor}')
+    else: print(f'Check if everything looks fine, then run condor_submit {jobdescriptor} to submit the jobs.')

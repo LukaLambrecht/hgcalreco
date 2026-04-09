@@ -13,10 +13,7 @@ sys.path.append(topdir)
 import analysis.efficiency.plot_associations as plot
 
 
-if __name__=='__main__':
-
-    # read input directory from command line
-    inputdir = sys.argv[1]
+def main(inputdir):
 
     # check existence
     if not os.path.exists(inputdir):
@@ -25,12 +22,13 @@ if __name__=='__main__':
     # make a dict translating param names to legend entries
     # (maybe later put in a json file)
     legend_dict = {
-        'critical_density_high': r'$\rho_{c, high}$',
-        'critical_density_had': r'$\rho_{c, had}$',
-        'critical_distance_high': r'$d_{c, high}$',
-        'critical_distance_had': r'$d_{c, had}$',
-        'density_distance_high': r'$d_{\rho, high}$',
-        'density_distance_had': r'$d_{\rho, had}$',
+        'critical_density': r'$\rho_{c}$',
+        'critical_distance': r'$d_{c}$',
+        'density_distance': r'$d_{\rho}$',
+        'kernel_density': r'$\rho_{kernel}$',
+        'deltac_ee': r'$\delta_c (EE)$',
+        'deltac_hsi': r'$\delta_c (HSi)$',
+        'deltac_hsci': r'$\delta_c (HSci)$'
     }
 
     # make output directory
@@ -55,15 +53,15 @@ if __name__=='__main__':
         # make plots of individual runs
 
         # counts vs layer number
-        counts_per_layer = plot.get_counts_per_layer(df)
-        fig, ax = plot.plot_counts_per_layer(counts_per_layer)
-        fig.savefig(os.path.join(outputdir, f'counts_vs_layer_{jobdir}.png'))
+        counts_per_layer = plot.get_counts_per_layer(df, absolute=True)
+        #fig, ax = plot.plot_counts_per_layer(counts_per_layer)
+        #fig.savefig(os.path.join(outputdir, f'counts_vs_layer_{jobdir}.png'))
 
         # purity and efficiency vs layer number
-        purity_per_layer = plot.get_purity_per_layer(df)
-        efficiency_per_layer = plot.get_efficiency_per_layer(df)
-        fig, ax = plot.plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
-        fig.savefig(os.path.join(outputdir, f'effandpur_vs_layer_{jobdir}.png'))
+        purity_per_layer = plot.get_purity_per_layer(df, absolute=True)
+        efficiency_per_layer = plot.get_efficiency_per_layer(df, absolute=True)
+        #fig, ax = plot.plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
+        #fig.savefig(os.path.join(outputdir, f'effandpur_vs_layer_{jobdir}.png'))
 
         # close all open plots
         plt.close()
@@ -96,6 +94,7 @@ if __name__=='__main__':
     for key in jobdirs:
         fig, ax = plot.plot_counts_per_layer(results[key]['num'], fig=fig, ax=ax,
                     color=colordict[key], label=labeldict[key])
+    fig, ax = plot.add_subdetector_labels(fig, ax)
     ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     fig.savefig(os.path.join(outputdir, f'counts_vs_layer.png'))
@@ -105,6 +104,8 @@ if __name__=='__main__':
     for key in jobdirs:
         fig, ax = plot.plot_purity_per_layer(results[key]['pur'], fig=fig, ax=ax,
                     color=colordict[key], label=labeldict[key], doerrs=False)
+    fig, ax = plot.add_subdetector_labels(fig, ax)
+    ax.set_ylim((0, 1.2))
     ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     fig.savefig(os.path.join(outputdir, f'purity_vs_layer.png'))
@@ -114,6 +115,20 @@ if __name__=='__main__':
     for key in jobdirs:
         fig, ax = plot.plot_efficiency_per_layer(results[key]['eff'], fig=fig, ax=ax,
                     color=colordict[key], label=labeldict[key], doerrs=False)
+    fig, ax = plot.add_subdetector_labels(fig, ax)
+    ax.set_ylim((0, 1.2))
     ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer.png'))
+
+    plt.close()
+
+
+if __name__=='__main__':
+
+    # read input directory from command line
+    inputdirs = sys.argv[1:]
+
+    for inputdir in inputdirs:
+        print(f'Running on {inputdir}')
+        main(inputdir)

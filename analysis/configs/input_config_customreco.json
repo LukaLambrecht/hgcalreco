@@ -6,7 +6,7 @@
     "calohithefs": ["std::vector<PCaloHit>", "g4SimHits", "HGCHitsHEfront"],
     "tracksters": ["std::vector<ticl::Trackster>", "ticlTrackstersCLUE3DHigh", "", "HGCALTICL"],
     "layerclusters": ["std::vector<reco::CaloCluster>", "hgcalMergeLayerClusters", "", "HGCALTICL"],
-    "rechitees": ["std::vector<HGCRecHit>", "HGCalRecHit", "HGCEERecHits", "RECO"],
-    "rechithebs": ["std::vector<HGCRecHit>", "HGCalRecHit", "HGCHEBRecHits", "RECO"],
-    "rechithefs": ["std::vector<HGCRecHit>", "HGCalRecHit", "HGCHEFRecHits", "RECO"]
+    "rechitees": ["std::vector<HGCRecHit>", "HGCalRecHit", "HGCEERecHits", "HGCALTICL"],
+    "rechithebs": ["std::vector<HGCRecHit>", "HGCalRecHit", "HGCHEBRecHits", "HGCALTICL"],
+    "rechithefs": ["std::vector<HGCRecHit>", "HGCalRecHit", "HGCHEFRecHits", "HGCALTICL"]
 }

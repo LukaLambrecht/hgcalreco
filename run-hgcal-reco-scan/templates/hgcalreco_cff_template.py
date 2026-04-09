@@ -64,7 +64,7 @@ process.hgcalDigis = cms.EDAlias(
 
 process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
-    * process.hgcalLocalRecoSequence
+    process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
 process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
 
