@@ -17,10 +17,12 @@ def plot_response_per_layer(response_per_layer, **kwargs):
     xvals = np.array(list(response_per_layer.keys()))
     xbins = np.concatenate((xvals - 0.5, [xvals[-1]+0.5]))
     yvals = np.array([v[0] for v in response_per_layer.values()])
-    yerrs = np.array([v[1] for v in response_per_layer.values()])
+    #yerrs = np.array([v[1] for v in response_per_layer.values()])
+    yerrs = None
     fig, ax = plot(xbins, yvals, yerrs=yerrs,
                 xlabel='Layer number', ylabel='Response',
                 **kwargs)
+    ax.axhline(y=1, color='grey', linestyle='--')
     return fig, ax
 
 

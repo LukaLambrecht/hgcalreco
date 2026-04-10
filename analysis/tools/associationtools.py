@@ -82,11 +82,29 @@ def get_associations(
             new_lcs_hits_per_layer.append({layer: new_hits})
         lcs_hits_per_layer = new_lcs_hits_per_layer
 
-    # loop over pairs of calo particles and layer clusters
+    # precompute layer cluster norms (denominator)
+    lc_norms = []
+    for lc_hits_per_layer in lcs_hits_per_layer:
+        layer = next(iter(lc_hits_per_layer))
+        hits = lc_hits_per_layer[layer]
+        denom = 0.
+        for e, f in hits.values(): denom += (f * e) ** 2
+        lc_norms.append(denom)
+
+    # loop over calo particles
     res = []
     for cp_hits_per_layer in cps_hits_per_layer:
         res.append([])
-        for lc_hits_per_layer in lcs_hits_per_layer:
+
+        # precompute norm per layer (denominator)
+        cp_norm_per_layer = {}
+        for layer, hits in cp_hits_per_layer.items():
+            denom = 0.
+            for e, f in hits.values(): denom += (f * e) ** 2
+            cp_norm_per_layer[layer] = denom
+
+        # loop over layer clusters
+        for lc_idx, lc_hits_per_layer in enumerate(lcs_hits_per_layer):
 
             # check number of layers for this layer cluster (should be 1)
             layers = list(lc_hits_per_layer.keys())
@@ -94,8 +112,15 @@ def get_associations(
                 msg = f'Something went wrong; expected 1 layer but found {len(layers)} ({layers}).'
                 raise Exception(msg)
 
+            # get hits for layer cluster and calo particle in this layer
+            layer = layers[0]
+            lc_hits = lc_hits_per_layer[layer]
+            cp_hits = cp_hits_per_layer.get(layer, {})
+
             # calculate association between the two collections of hits
-            associations = get_hitcollection_association(cp_hits_per_layer, lc_hits_per_layer, layers=layers)
+            associations = get_hitcollection_association(cp_hits, lc_hits,
+                denominator_1 = cp_norm_per_layer.get(layer, 0),
+                denominator_2 = lc_norms[lc_idx])
             res[-1].append({
                 "cptolc": associations[0],
                 "lctocp": associations[1]
@@ -123,56 +148,38 @@ def get_lctocp_matrix(associations):
     return get_matrix(associations, "lctocp")
 
 
-def get_hitcollection_association(hits_1, hits_2, layers=None):
+def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominator_2=None):
     '''
     Base function for calculating association scores between two collections of hits.
     Input arguments:
-    - hits_1 and hits_2: dicts of the form {layer number: dict of the form {detid: (energy, fraction)}}
-    - layers: list of layers to restrict both hits_1 and hits_2
-      (default: do not restrict, use the union of all layers)
+    - hits_1 and hits_2: dicts of the form {detid: (energy, fraction)}
     Returns:
     Tuple of two elements:
         - Association score of 1 to 2.
         - Association score of 2 to 1.
     '''
 
-    # restrict hit collections to provided layers
-    if layers is not None:
-        hits_1 = {layer: hits_1.get(layer, {}) for layer in layers}
-        hits_2 = {layer: hits_2.get(layer, {}) for layer in layers}
-    
-    # loop over the union of all layers present in the hit collections
-    all_layers = list(set(list(hits_1.keys()) + list(hits_2.keys())))
-    hits = {}
-    for layer in all_layers:
-        h1 = hits_1.get(layer, {})
-        h2 = hits_2.get(layer, {})
-
-        # complement both collections with non-shared detids
-        for detid in h1.keys():
-            if detid not in h2.keys(): h2[detid] = (0, 0)
-        for detid in h2.keys():
-            if detid not in h1.keys(): h1[detid] = (0, 0)
-
-        # add to merged collection
-        for detid in h1.keys():
-            e_1, f_1 = h1[detid]
-            e_2, f_2 = h2[detid]
-            hits[detid] = (e_1, f_1, e_2, f_2)
+    # calculate denominators if not provided
+    if denominator_1 is None:
+        denominator_1 = sum([e*f for (e, f) in hits_1.values()])
+    if denominator_2 is None:
+        denominator_2 = sum([e*f for (e, f) in hits_2.values()])
 
     # calculate association of 1 to 2
-    #numerator = sum([min((f_2 - f_1)**2, f_1**2)*e_1**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    numerator = sum([(1 - f_2)**2 * f_1**2 * e_1**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    denominator = sum([(f_1 * e_1)**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    if denominator < 1e-12: association_12 = 0
-    else: association_12 = 1 - numerator / denominator
+    numerator_12 = 0.
+    for detid, (e1, f1) in hits_1.items():
+        f2 = hits_2.get(detid, (0., 0.))[1]
+        numerator_12 += (1 - f2)**2 * f1**2 * e1**2
+    if denominator_1 < 1e-12: association_12 = 0.
+    else: association_12 = 1. - numerator_12 / denominator_1
 
     # calculate association of 2 to 1
-    #numerator = sum([min((f_2 - f_1)**2, f_2**2)*e_2**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    numerator = sum([(1 - f_1)**2 * f_2**2 * e_2**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    denominator = sum([(f_2 * e_2)**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    if denominator < 1e-12: association_21 = 0 
-    else: association_21 = 1 - numerator / denominator
+    numerator_21 = 0.
+    for detid, (e2, f2) in hits_2.items():
+        f1 = hits_1.get(detid, (0., 0.))[1]
+        numerator_21 += (1 - f1)**2 * f2**2 * e2**2
+    if denominator_2 < 1e-12: association_21 = 0.
+    else: association_21 = 1. - numerator_21 / denominator_2
 
     # return results
     return (association_12, association_21)
