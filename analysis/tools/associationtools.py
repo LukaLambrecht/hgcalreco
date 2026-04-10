@@ -6,26 +6,34 @@
 import os
 import sys
 import numpy as np
-from DataFormats.FWLite import Events, Handle
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
-from tools.geometrytools import get_layercluster_layer
-from tools.geometrytools import get_caloparticle_layers
+from tools.geometrytools import get_layercluster_hits
+from tools.geometrytools import get_caloparticle_hits_per_layer
 
 
-def get_associations(caloparticles, calohits, layerclusters, rechits,
+def get_associations(
+        caloparticles=None, calohits=None,
+        layerclusters=None, rechits=None,
+        cps_hits_per_layer=None,
+        lcs_hits_per_layer=None,
         sum_lc_per_layer = False):
     '''
     Calculate association scores between collections of caloparticles and layerclusters.
     Input arguments:
+    --- option 1 ---
     - caloparticles: collection of calo particles (CaloParticle)
     - layerclusters: collection of layer clusters (LayerCluster)
     - calohits: dict mapping detid to CaloHit objects
     - rechits: dict mapping detid to RecHit objects
+    --- option 2 ---
+    - cps_hits_per_layer: list of dicts of the form {layer: {detid: (energy, fraction)}}
+    - lcs_hits_per_layer: same for layerclusters
     Returns:
-    A 2D list of dicts with the following elements:
+    - A 2D list over pairs of calo particles and layer clusters,
+      where each element is a dict with the following items:
         - "cptolc": calo particle to layer cluster association score.
           This can be though of as the calo particle efficiency,
           i.e. fraction of the calo particle reconstructed in this layer cluster.
@@ -35,34 +43,20 @@ def get_associations(caloparticles, calohits, layerclusters, rechits,
           i.e. fraction of layer cluster coming from this calo particle.
     '''
 
-    # retrieve calo particle energy deposits per layer
-    cps = []
-    for caloparticle in caloparticles:
-        
-        # find energy deposits of this calo particle per layer
-        caloparticle_per_layer = get_caloparticle_layers(caloparticle)
-        hits_per_layer = {}
-        for layer, detids in caloparticle_per_layer.items():
-            hits_per_layer[layer] = {}
-            for (detid, fraction) in detids:
-                energy = 0
-                if detid in calohits.keys(): energy = calohits[detid].energy()
-                hits_per_layer[layer][detid] = (energy, fraction)
-        cps.append(hits_per_layer)
+    # retrieve calo particle energy deposits per layer, if not yet provided
+    if cps_hits_per_layer is None:
+        cps_hits_per_layer = []
+        for caloparticle in caloparticles:
+            hits_per_layer = get_caloparticle_hits_per_layer(caloparticle, calohits)
+            cps_hits_per_layer.append(hits_per_layer)
 
-    # retrieve layer cluster energy deposits
-    lcs = []
-    for layercluster in layerclusters:
-
-        # find energy deposits of this layer cluster
-        layer = get_layercluster_layer(layercluster)
-        hits_per_layer = {layer: {}}
-        for hf in layercluster.hitsAndFractions():
-            detid = hf.first
-            fraction = hf.second
-            if detid in rechits.keys(): energy = rechits[detid].energy()
-            hits_per_layer[layer][detid] = (energy, fraction)
-        lcs.append(hits_per_layer)
+    # retrieve layer cluster energy deposits, if not yet provided
+    if lcs_hits_per_layer is None:
+        lcs_hits_per_layer = []
+        for layercluster in layerclusters:
+            layer = get_layercluster_layer(layercluster)
+            hits_per_layer = {layer: get_layercluster_hits(layercluster, rechits)}
+            lcs_hits_per_layer.append(hits_per_layer)
 
     # optional (mainly intended for testing):
     # for each layer cluster, replace hits of the layer cluster
@@ -70,9 +64,9 @@ def get_associations(caloparticles, calohits, layerclusters, rechits,
     # (to check if at least in that case the efficiency is high)
     if sum_lc_per_layer:
         sum_hits_per_layer = {}
-        for lc_hits in lcs:
-            layer = list(lc_hits.keys())[0]
-            hits = list(lc_hits.values())[0]
+        for lc_hits_per_layer in lcs_hits_per_layer:
+            layer = list(lc_hits_per_layer.keys())[0]
+            hits = list(lc_hits_per_layer.values())[0]
             if layer not in sum_hits_per_layer.keys(): sum_hits_per_layer[layer] = hits
             else:
                 for detid, (energy, fraction) in hits.items():
@@ -81,23 +75,27 @@ def get_associations(caloparticles, calohits, layerclusters, rechits,
                     else:
                         previous_fraction = sum_hits_per_layer[layer][detid][1]
                         sum_hits_per_layer[layer][detid] = (energy, previous_fraction + fraction)
-        new_lcs = []
-        for lc_hits in lcs:
-            layer = list(lc_hits.keys())[0]
+        new_lcs_hits_per_layer = []
+        for lc_hits_per_layer in lcs_hits_per_layer:
+            layer = list(lc_hits_per_layer.keys())[0]
             new_hits = sum_hits_per_layer[layer]
-            new_lcs.append({layer: new_hits})
-        lcs = new_lcs
+            new_lcs_hits_per_layer.append({layer: new_hits})
+        lcs_hits_per_layer = new_lcs_hits_per_layer
 
     # loop over pairs of calo particles and layer clusters
     res = []
-    for cp_hits in cps:
+    for cp_hits_per_layer in cps_hits_per_layer:
         res.append([])
-        for lc_hits in lcs:
-            layers = list(lc_hits.keys())
+        for lc_hits_per_layer in lcs_hits_per_layer:
+
+            # check number of layers for this layer cluster (should be 1)
+            layers = list(lc_hits_per_layer.keys())
             if len(layers) != 1:
                 msg = f'Something went wrong; expected 1 layer but found {len(layers)} ({layers}).'
                 raise Exception(msg)
-            associations = get_hitcollection_association(cp_hits, lc_hits, layers=layers)
+
+            # calculate association between the two collections of hits
+            associations = get_hitcollection_association(cp_hits_per_layer, lc_hits_per_layer, layers=layers)
             res[-1].append({
                 "cptolc": associations[0],
                 "lctocp": associations[1]
@@ -163,16 +161,35 @@ def get_hitcollection_association(hits_1, hits_2, layers=None):
             hits[detid] = (e_1, f_1, e_2, f_2)
 
     # calculate association of 1 to 2
-    numerator = sum([min((f_2 - f_1)**2, f_1**2)*e_1**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    denominator = sum([(f_1*e_1)**2 for e_1, f_1, e_2, f_2 in hits.values()])
+    #numerator = sum([min((f_2 - f_1)**2, f_1**2)*e_1**2 for e_1, f_1, e_2, f_2 in hits.values()])
+    numerator = sum([(1 - f_2)**2 * f_1**2 * e_1**2 for e_1, f_1, e_2, f_2 in hits.values()])
+    denominator = sum([(f_1 * e_1)**2 for e_1, f_1, e_2, f_2 in hits.values()])
     if denominator < 1e-12: association_12 = 0
     else: association_12 = 1 - numerator / denominator
 
     # calculate association of 2 to 1
-    numerator = sum([min((f_2 - f_1)**2, f_2**2)*e_2**2 for e_1, f_1, e_2, f_2 in hits.values()])
-    denominator = sum([(f_2*e_2)**2 for e_1, f_1, e_2, f_2 in hits.values()])
+    #numerator = sum([min((f_2 - f_1)**2, f_2**2)*e_2**2 for e_1, f_1, e_2, f_2 in hits.values()])
+    numerator = sum([(1 - f_1)**2 * f_2**2 * e_2**2 for e_1, f_1, e_2, f_2 in hits.values()])
+    denominator = sum([(f_2 * e_2)**2 for e_1, f_1, e_2, f_2 in hits.values()])
     if denominator < 1e-12: association_21 = 0 
     else: association_21 = 1 - numerator / denominator
 
     # return results
     return (association_12, association_21)
+
+
+def get_mapping(association_matrix):
+    '''
+    Calculate unique mapping between calo particles and layer clusters,
+    based on a provided association score matrix.
+    The association matrix is supposed to have shape (len(caloparticles), len(layerclusters)).
+    Returns: a tuple of 2 elements:
+    - list of lenght caloparticles, each element is an array with indices of mapped layerclusters
+    - array of length layerclusters with indices of mapped caloparticles
+    '''
+    ncp, nlc = association_matrix.shape
+    cp_ids = np.argmax(association_matrix, axis=0).astype(int)
+    lc_ids = []
+    for cp_idx in range(ncp):
+        lc_ids.append(np.nonzero(cp_ids==cp_idx)[0])
+    return (lc_ids, cp_ids)

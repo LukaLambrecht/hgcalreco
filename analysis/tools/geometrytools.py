@@ -3,11 +3,12 @@
 # Typical use case: retrieve HGCal layer number(s) from LayerClusters and CaloParticles.
 
 
-import os
-import sys
 import ROOT
+ROOT.gSystem.Load("libFWCoreFWLite")
+ROOT.FWLiteEnabler.enable()
 ROOT.gSystem.Load("libDataFormatsDetId")
 ROOT.gSystem.Load("libDataFormatsForwardDetId")
+ROOT.gInterpreter.Declare('#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"')
 
 
 def get_detid_subdetid(detid):
@@ -78,7 +79,24 @@ def get_layercluster_zside(layercluster):
     layer = get_detid_zside(detid)
     return layer
 
-def get_simcluster_layers(simcluster, **kwargs):
+def get_layercluster_hits(layercluster, rechits):
+    '''
+    Get energy deposits of this layer cluster.
+    Returns:
+    - a dict of the form {detid: (energy, fraction)},
+      where energy is the total energy deposted in that detector element,
+      and  fraction is the fraction of that energy coming from this layercluster.
+    '''
+    layer = get_layercluster_layer(layercluster)
+    hits = {}
+    for hf in layercluster.hitsAndFractions():
+        detid = hf.first
+        fraction = hf.second
+        if detid in rechits.keys(): energy = rechits[detid].energy()
+        hits[detid] = (energy, fraction)
+    return hits
+
+def get_simcluster_detids_per_layer(simcluster, **kwargs):
     '''
     Get layer numbers with corresponding detids and fractions of a sim cluster
     '''
@@ -92,7 +110,7 @@ def get_simcluster_layers(simcluster, **kwargs):
         else: res[layer] = [(detid, fraction)]
     return res
 
-def get_caloparticle_layers(caloparticle, split_per_simcluster=False, **kwargs):
+def get_caloparticle_detids_per_layer(caloparticle, split_per_simcluster=False, **kwargs):
     '''
     Get layer numbers with corresponding detids of a calo particle
     Note: If split_per_simcluster is False, the output is a simple dict
@@ -104,7 +122,7 @@ def get_caloparticle_layers(caloparticle, split_per_simcluster=False, **kwargs):
     res = []
     for sc_ref in caloparticle.simClusters():
         sc = sc_ref.get()
-        res.append(get_simcluster_layers(sc, **kwargs))
+        res.append(get_simcluster_detids_per_layer(sc, **kwargs))
     if split_per_simcluster: return res
 
     # merge
@@ -114,3 +132,43 @@ def get_caloparticle_layers(caloparticle, split_per_simcluster=False, **kwargs):
             if key in merged: merged[key] += val
             else: merged[key] = val
     return merged
+
+def get_caloparticle_hits_per_layer(caloparticle, calohits):
+    '''
+    Returns:
+    - a dict of the form {layer: {detid: (energy, fraction)}},
+      where energy is the total energy deposited in that detector element,
+      and  fraction is the fraction of that energy coming from this calo particle.
+    Notes:
+    - The total energy is taken from the calohits collection;
+      this is not directly comparable to the energy from the rechits collection
+      for the same detector element!
+    '''
+    caloparticle_per_layer = get_caloparticle_detids_per_layer(caloparticle)
+    hits_per_layer = {}
+    for layer, detids in caloparticle_per_layer.items():
+        hits_per_layer[layer] = {}
+        for (detid, fraction) in detids:
+            energy = 0
+            if detid in calohits.keys(): energy = calohits[detid].energy()
+            hits_per_layer[layer][detid] = (energy, fraction)
+    return hits_per_layer
+
+def get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=False):
+    '''
+    Returns:
+    - a dict of the form {layer: sum over energy of hits in this layer}
+    Notes:
+    - The total energy is taken from the calohits collection;
+      this is not directly comparable to the energy from the rechits collection
+      for the same detector element!
+    '''
+    energy_per_layer = {}
+    for layer, hits in cp_hits_per_layer.items():
+        energy = sum([hit[0]*hit[1] for hit in hits.values()])
+        energy_per_layer[layer] = energy
+    if normalize:
+        total = sum(list(energy_per_layer.values()))
+        for key, val in energy_per_layer.items():
+            energy_per_layer[key] = val / total
+    return energy_per_layer

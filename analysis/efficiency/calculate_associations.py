@@ -15,6 +15,11 @@ from tools.iotools import Reader
 from tools.geometrytools import get_layercluster_layer
 from tools.associationtools import get_associations
 from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
+from tools.geometrytools import get_caloparticle_hits_per_layer
+from tools.geometrytools import get_caloparticle_energy_per_layer
+from tools.geometrytools import get_layercluster_hits
+from tools.associationtools import get_mapping
+from tools.metrics import response
 
 
 if __name__=='__main__':
@@ -22,7 +27,7 @@ if __name__=='__main__':
     # read command line args
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
-    parser.add_argument('-o', '--outputfile', default='output_test.parquet')
+    parser.add_argument('-o', '--outputdir', default='output_test')
     parser.add_argument('-n', '--nentries', default=-1, type=int)
     parser.add_argument('--input_config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
@@ -32,7 +37,8 @@ if __name__=='__main__':
     reader = Reader(args.input_config)
 
     # loop over input files
-    dfs = []
+    dfs_lc = []
+    dfs_cp = []
     for file_idx, inputfile in enumerate(args.inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(args.inputfiles)}...')
         events = Events(inputfile)
@@ -67,49 +73,87 @@ if __name__=='__main__':
             if len(caloparticles) < 2: continue
             if len(tracksters) < 1: continue
 
+            # split caloparticles per layer
+            cps_hits_per_layer = []
+            for caloparticle in caloparticles:
+                cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, calohit_map))
+            
+            # get layerclusters in the same format
+            lcs_hits_per_layer = []
+            for layercluster in layerclusters:
+                layer = get_layercluster_layer(layercluster)
+                lc_hits_per_layer = {layer: get_layercluster_hits(layercluster, rechit_map)}
+                lcs_hits_per_layer.append(lc_hits_per_layer)
+
             # calculate associations
-            associations = get_associations(caloparticles, calohit_map, layerclusters, rechit_map,
+            associations = get_associations(
+                cps_hits_per_layer=cps_hits_per_layer,
+                lcs_hits_per_layer=lcs_hits_per_layer,
                 sum_lc_per_layer = args.sum_lc_per_layer)
             eff_matrix = get_cptolc_matrix(associations)
             pur_matrix = get_lctocp_matrix(associations)
 
-            # make association based on purity (least ambiguous of the two)
-            pur_max_ids = np.argmax(pur_matrix, axis=0).astype(int) # index of calo particle for each layer cluster
-            pur = pur_matrix[pur_max_ids, range(len(layerclusters))]
-            eff = eff_matrix[pur_max_ids, range(len(layerclusters))]
+            # make mapping based on purity
+            mapping = get_mapping(pur_matrix)
+            (lc_ids, cp_ids) = mapping
 
-            # calculate auxiliary variables
-            pt = np.array([caloparticles[int(idx)].pt() for idx in pur_max_ids])
-            eta = np.array([caloparticles[int(idx)].eta() for idx in pur_max_ids])
-            layer = np.array([get_layercluster_layer(lc) for lc in layerclusters])
+            # calculate metrics for layer clusters
+            lc_pur = pur_matrix[cp_ids, range(len(layerclusters))]
+            lc_eff = eff_matrix[cp_ids, range(len(layerclusters))]
 
-            # store in dataframe
-            df = pd.DataFrame.from_dict({
-                'pur': pur,
-                'eff': eff,
-                'pt': pt,
-                'eta': eta,
-                'layer': layer
+            # calculate auxiliary variables for layer clusters
+            lc_pt = np.array([caloparticles[int(idx)].pt() for idx in cp_ids])
+            lc_eta = np.array([caloparticles[int(idx)].eta() for idx in cp_ids])
+            lc_layer = np.array([get_layercluster_layer(lc) for lc in layerclusters])
+
+            # calculate metrics for calo particles
+            cps_energy_per_layer = []
+            for cp_hits_per_layer in cps_hits_per_layer:
+                cps_energy_per_layer.append(get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=True))
+            cp_layer, cp_res = response(caloparticles, cps_energy_per_layer, layerclusters, lc_ids, flatten=True)
+
+            # store layercluster info in dataframe
+            df_lc = pd.DataFrame.from_dict({
+                'pur': lc_pur,
+                'eff': lc_eff,
+                'pt': lc_pt,
+                'eta': lc_eta,
+                'layer': lc_layer
             })
-            dfs.append(df)
+            dfs_lc.append(df_lc)
+
+            # store caloparticle info in dataframe
+            df_cp = pd.DataFrame.from_dict({
+                'res': cp_res,
+                'layer': cp_layer
+            })
+            dfs_cp.append(df_cp)
 
             # stop processing if sufficient events have been processed
             if args.nentries > 0 and event_idx > args.nentries: break
 
     # merge dataframes
-    if len(dfs) > 0: df = pd.concat(dfs)
+    if len(dfs_lc) > 0: df_lc = pd.concat(dfs_lc)
     else:
         # this can happen if no events pass the selection,
         # e.g. if there are no reconstructed tracksters
-        df = pd.DataFrame.from_dict({
+        df_lc = pd.DataFrame.from_dict({
             'pur': [],
             'eff': [],
             'pt': [],
             'eta': [],
             'layer': []
         })
+    if len(dfs_cp) > 0: df_cp = pd.concat(dfs_cp)
+    else:
+        # this can happen if no events pass the selection,
+        # e.g. if there are no reconstructed tracksters
+        df_cp = pd.DataFrame.from_dict({
+            'res': [],
+            'layer': [],
+        })
     
     # write output file
-    outputdir = os.path.dirname(args.outputfile)
-    if len(outputdir) > 0 and not os.path.exists(outputdir): os.makedirs(outputdir)
-    df.to_parquet(args.outputfile)
+    if not os.path.exists(args.outputdir): os.makedirs(args.outputdir)
+    df_lc.to_parquet(os.path.join(args.outputdir, 'metrics_lc.parquet'))
+    df_cp.to_parquet(os.path.join(args.outputdir, 'metrics_cp.parquet'))

@@ -147,20 +147,28 @@ if __name__=='__main__':
     # (todo: make configurable)
 
     # counts vs layer number
-    counts_per_layer = get_counts_per_layer(df)
+    counts_per_layer = get_counts_per_layer(df, absolute=True)
     fig, ax = plot_counts_per_layer(counts_per_layer)
+    fig, ax = add_subdetector_labels(fig, ax)
+    fig.tight_layout()
     fig.savefig('counts_vs_layer.png')
 
     # purity vs layer number
-    purity_per_layer = get_purity_per_layer(df)
+    purity_per_layer = get_purity_per_layer(df, absolute=True)
     fig, ax = plot_purity_per_layer(purity_per_layer)
+    fig, ax = add_subdetector_labels(fig, ax)
+    fig.tight_layout()
     fig.savefig('purity_vs_layer.png')
 
     # efficiency vs layer number
-    efficiency_per_layer = get_efficiency_per_layer(df)
+    efficiency_per_layer = get_efficiency_per_layer(df, absolute=True)
     fig, ax = plot_efficiency_per_layer(efficiency_per_layer)
+    fig, ax = add_subdetector_labels(fig, ax)
+    fig.tight_layout()
     fig.savefig('efficiency_vs_layer.png')
 
     # purity and efficiency together vs layer number
     fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
+    fig, ax = add_subdetector_labels(fig, ax)
+    fig.tight_layout()
     fig.savefig('effandpur_vs_layer.png')
