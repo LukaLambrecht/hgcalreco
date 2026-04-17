@@ -13,6 +13,7 @@ sys.path.append(topdir)
 
 from tools.iotools import Reader
 from tools.geometrytools import get_layercluster_layer
+from tools.geometrytools import get_layercluster_subdetid
 from tools.associationtools import get_associations
 from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
 from tools.geometrytools import get_caloparticle_hits_per_layer
@@ -47,6 +48,10 @@ if __name__=='__main__':
         for event_idx, event in enumerate(events):
             if (event_idx+1) % 10 == 0:
                 print(f'Reading event {event_idx+1}...', end='\r')
+
+            # make a unique event identifier
+            # (note: only unique within one output file, not across files!)
+            eventid = file_idx*1000000 + event_idx
         
             # get collections
             collections = reader.read_event(event)
@@ -105,6 +110,7 @@ if __name__=='__main__':
             lc_pt = np.array([caloparticles[int(idx)].pt() for idx in cp_ids])
             lc_eta = np.array([caloparticles[int(idx)].eta() for idx in cp_ids])
             lc_layer = np.array([get_layercluster_layer(lc) for lc in layerclusters])
+            lc_subdet = np.array([get_layercluster_subdetid(lc) for lc in layerclusters])
 
             # calculate metrics for calo particles
             cps_energy_per_layer = []
@@ -118,14 +124,17 @@ if __name__=='__main__':
                 'eff': lc_eff,
                 'pt': lc_pt,
                 'eta': lc_eta,
-                'layer': lc_layer
+                'layer': lc_layer,
+                'subdet': lc_subdet,
+                'event': eventid
             })
             dfs_lc.append(df_lc)
 
             # store caloparticle info in dataframe
             df_cp = pd.DataFrame.from_dict({
                 'res': cp_res,
-                'layer': cp_layer
+                'layer': cp_layer,
+                'event': eventid
             })
             dfs_cp.append(df_cp)
 
@@ -142,7 +151,9 @@ if __name__=='__main__':
             'eff': [],
             'pt': [],
             'eta': [],
-            'layer': []
+            'layer': [],
+            'subdet': [],
+            'event': []
         })
     if len(dfs_cp) > 0: df_cp = pd.concat(dfs_cp)
     else:
@@ -151,6 +162,7 @@ if __name__=='__main__':
         df_cp = pd.DataFrame.from_dict({
             'res': [],
             'layer': [],
+            'event': []
         })
     
     # write output file

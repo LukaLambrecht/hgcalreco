@@ -10,7 +10,7 @@ from fnmatch import fnmatch
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
-import analysis.efficiency.plot_associations as plot
+import analysis.efficiency.plot_metrics_lc as plot
 
 
 def main(inputdir):
@@ -35,44 +35,54 @@ def main(inputdir):
     outputdir = os.path.join(inputdir, 'plots')
     if not os.path.exists(outputdir): os.makedirs(outputdir)
 
-    # loop over job directories and gather results
+    # loop over job directories
     results = {}
     params = {}
     jobdirs = [d for d in os.listdir(inputdir) if fnmatch(d, 'job*')]
     for idx, jobdir in enumerate(jobdirs):
         print(f'Now plotting {jobdir} ({idx+1} / {len(jobdirs)})', end='\r')
-        
+
         # load dataframe
-        inputfile = os.path.join(inputdir, jobdir, 'efficiency.parquet')
+        inputfile = os.path.join(inputdir, jobdir, 'metrics_lc.parquet')
+        if not os.path.exists(inputfile):
+            msg = f'WARNING: file {inputfile} does not exist, skipping...'
+            print(msg)
+            continue
         df = pd.read_parquet(inputfile)
+
+        # define subdetector masks
+        subdet_masks = {
+            'all': np.ones(len(df)).astype(bool),
+            'EE': (df['subdet'].values==0).astype(bool),
+            'HSi': (df['subdet'].values==1).astype(bool),
+            'HSci': (df['subdet'].values==2).astype(bool),
+        }
 
         # load parameters
         with open(os.path.join(inputdir, jobdir, 'params.json'), 'r') as f:
             paramdict = json.load(f)
-
-        # make plots of individual runs
-
-        # counts vs layer number
-        counts_per_layer = plot.get_counts_per_layer(df, absolute=True)
-        #fig, ax = plot.plot_counts_per_layer(counts_per_layer)
-        #fig.savefig(os.path.join(outputdir, f'counts_vs_layer_{jobdir}.png'))
-
-        # purity and efficiency vs layer number
-        purity_per_layer = plot.get_purity_per_layer(df, absolute=True)
-        efficiency_per_layer = plot.get_efficiency_per_layer(df, absolute=True)
-        #fig, ax = plot.plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
-        #fig.savefig(os.path.join(outputdir, f'effandpur_vs_layer_{jobdir}.png'))
-
-        # close all open plots
-        plt.close()
-
-        # collect results
-        results[jobdir] = {
-            'num': counts_per_layer,
-            'pur': purity_per_layer,
-            'eff': efficiency_per_layer
-        }
         params[jobdir] = paramdict
+
+        # loop over subdetectors
+        results[jobdir] = {}
+        for subdet_name, subdet_mask in subdet_masks.items():
+
+            # select data
+            thisdf = df[subdet_mask]
+
+            # counts vs layer number
+            counts_per_layer = plot.get_counts_per_layer(thisdf, per_event=True, absolute=True)
+
+            # purity and efficiency vs layer number
+            purity_per_layer = plot.get_purity_per_layer(thisdf, absolute=True)
+            efficiency_per_layer = plot.get_efficiency_per_layer(thisdf, absolute=True)
+
+            # collect results
+            results[jobdir][subdet_name] = {
+                'num': counts_per_layer,
+                'pur': purity_per_layer,
+                'eff': efficiency_per_layer
+            }
 
     # make color dict
     cmap = mpl.colormaps['cool']
@@ -81,7 +91,7 @@ def main(inputdir):
     
     # make label dict
     labeldict = {}
-    for jobdir in jobdirs:
+    for jobdir in params.keys():
         this_params = {}
         for p, v in params[jobdir].items():
             key = legend_dict.get(p, p)
@@ -89,39 +99,52 @@ def main(inputdir):
             this_params[key] = value
         labeldict[jobdir] = ', '.join([f'{k} = {v}' for k, v in this_params.items()])
 
-    # make global plot of counts vs layer number
-    fig, ax = plt.subplots(figsize=(12,6))
-    for key in jobdirs:
-        fig, ax = plot.plot_counts_per_layer(results[key]['num'], fig=fig, ax=ax,
-                    color=colordict[key], label=labeldict[key])
-    fig, ax = plot.add_subdetector_labels(fig, ax)
-    ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
-    fig.tight_layout()
-    fig.savefig(os.path.join(outputdir, f'counts_vs_layer.png'))
+    # loop over subdetectors
+    for subdet_name in subdet_masks.keys():
 
-    # make global plot of purity vs layer number
-    fig, ax = plt.subplots(figsize=(12,6))
-    for key in jobdirs:
-        fig, ax = plot.plot_purity_per_layer(results[key]['pur'], fig=fig, ax=ax,
-                    color=colordict[key], label=labeldict[key], doerrs=False)
-    fig, ax = plot.add_subdetector_labels(fig, ax)
-    ax.set_ylim((0, 1.2))
-    ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
-    fig.tight_layout()
-    fig.savefig(os.path.join(outputdir, f'purity_vs_layer.png'))
+        # make global plot of counts vs layer number
+        fig, ax = plt.subplots(figsize=(12,6))
+        for key in results.keys():
+            fig, ax = plot.plot_counts_per_layer(results[key][subdet_name]['num'],
+                        per_event = True,
+                        fig=fig, ax=ax,
+                        color=colordict[key], label=labeldict[key])
+        fig, ax = plot.add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'counts_vs_layer_{subdet_name}.png'))
 
-    # make global plot of efficiency vs layer number
-    fig, ax = plt.subplots(figsize=(12,6))
-    for key in jobdirs:
-        fig, ax = plot.plot_efficiency_per_layer(results[key]['eff'], fig=fig, ax=ax,
-                    color=colordict[key], label=labeldict[key], doerrs=False)
-    fig, ax = plot.add_subdetector_labels(fig, ax)
-    ax.set_ylim((0, 1.2))
-    ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
-    fig.tight_layout()
-    fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer.png'))
+        # make global plot of purity vs layer number
+        fig, ax = plt.subplots(figsize=(12,6))
+        for key in results.keys():
+            fig, ax = plot.plot_purity_per_layer(results[key][subdet_name]['pur'],
+                        fig=fig, ax=ax,
+                        color=colordict[key], label=labeldict[key], doerrs=False)
+        fig, ax = plot.add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        ax.set_ylim((0, 1.2))
+        ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'purity_vs_layer_{subdet_name}.png'))
 
-    plt.close()
+        # make global plot of efficiency vs layer number
+        fig, ax = plt.subplots(figsize=(12,6))
+        for key in results.keys():
+            fig, ax = plot.plot_efficiency_per_layer(results[key][subdet_name]['eff'],
+                        fig=fig, ax=ax,
+                        color=colordict[key], label=labeldict[key], doerrs=False)
+        fig, ax = plot.add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        ax.set_ylim((0, 1.2))
+        ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer_{subdet_name}.png'))
+
+        plt.close()
 
 
 if __name__=='__main__':

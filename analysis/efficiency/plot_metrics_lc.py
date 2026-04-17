@@ -40,7 +40,7 @@ def add_subdetector_labels(fig, ax):
     ax.set_ylim((ax.get_ylim()[0], ax.get_ylim()[1]*1.3))
     return (fig, ax)
 
-def get_counts_per_layer(df, absolute=False):
+def get_counts_per_layer(df, absolute=False, per_event=False):
     # count instances per layer
     counts_per_layer = {}
     layers = df['layer'].values
@@ -48,7 +48,12 @@ def get_counts_per_layer(df, absolute=False):
     unique_layers = sorted(np.unique(layers))
     for layer in unique_layers:
         mask = (layers == layer).astype(int)
-        counts_per_layer[layer] = np.sum(mask)
+        counts = np.sum(mask)
+        error = np.sqrt(counts)
+        counts_per_layer[layer] = (counts, error)
+    if per_event:
+        nevents = len(np.unique(df['event'].values))
+        counts_per_layer = {key: (counts/nevents, error/nevents) for key, (counts, error) in counts_per_layer.items()}
     return counts_per_layer
 
 def get_quantity_per_layer(df, column, absolute=False):
@@ -74,15 +79,18 @@ def get_purity_per_layer(df, **kwargs):
 def get_efficiency_per_layer(df, **kwargs):
     return get_quantity_per_layer(df, 'eff', **kwargs)
 
-def plot_counts_per_layer(counts_per_layer, **kwargs):
+def plot_counts_per_layer(counts_per_layer, per_event=False, **kwargs):
     # plot counts vs layer number
     xvals = np.array(list(counts_per_layer.keys()))
     xbins = np.concatenate((xvals - 0.5, [xvals[-1]+0.5]))
-    yvals = np.array(list(counts_per_layer.values()))
-    yerrs = np.sqrt(yvals)
+    yvals = np.array([val[0] for val in counts_per_layer.values()])
+    yerrs = np.array([val[1] for val in counts_per_layer.values()])
+    yaxtitle = 'Number of LayerClusters'
+    if per_event: yaxtitle += ' per event'
     fig, ax = plot(xbins, yvals, yerrs=yerrs,
-                xlabel='Layer number', ylabel='Number of reconstructed LayerClusters',
+                xlabel='Layer number', ylabel=yaxtitle,
                 **kwargs)
+    ax.set_xlim((0, 47))
     return fig, ax
 
 def plot_purity_per_layer(purity_per_layer, **kwargs):
@@ -96,6 +104,7 @@ def plot_purity_per_layer(purity_per_layer, **kwargs):
                 **kwargs)
     ax.axhline(y=1, color='grey', linestyle='dashed')
     ax.set_ylim((0, 1.2))
+    ax.set_xlim((0, 47))
     return fig, ax
 
 def plot_efficiency_per_layer(efficiency_per_layer, **kwargs):
@@ -109,6 +118,7 @@ def plot_efficiency_per_layer(efficiency_per_layer, **kwargs):
                 **kwargs)
     ax.axhline(y=1, color='grey', linestyle='dashed')
     ax.set_ylim((0, 1.2))
+    ax.set_xlim((0, 47))
     return fig, ax
 
 def plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, **kwargs):
@@ -130,6 +140,7 @@ def plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, **kwargs):
                 **kwargs)
     ax.axhline(y=1, color='grey', linestyle='dashed')
     ax.set_ylim((0, 1.2))
+    ax.set_xlim((0, 47))
     ax.legend(fontsize=12)
     return fig, ax
 
@@ -139,36 +150,62 @@ if __name__=='__main__':
     # read input file from command line
     inputfile = sys.argv[1]
 
+    # set output dir
+    outputdir = os.path.splitext(inputfile)[0]+'_plots'
+    if not os.path.exists(outputdir): os.makedirs(outputdir)
+
     # load dataframe
     df = pd.read_parquet(inputfile)
     print(df)
 
+    # define subdetector masks
+    subdet_masks = {
+        'all': np.ones(len(df)).astype(bool),
+        'EE': (df['subdet'].values==0).astype(bool),
+        'HSi': (df['subdet'].values==1).astype(bool),
+        'HSci': (df['subdet'].values==2).astype(bool),
+    }
+
     # make plots
     # (todo: make configurable)
 
-    # counts vs layer number
-    counts_per_layer = get_counts_per_layer(df, absolute=True)
-    fig, ax = plot_counts_per_layer(counts_per_layer)
-    fig, ax = add_subdetector_labels(fig, ax)
-    fig.tight_layout()
-    fig.savefig('counts_vs_layer.png')
+    # loop over subdetectors
+    for subdet_name, subdet_mask in subdet_masks.items():
 
-    # purity vs layer number
-    purity_per_layer = get_purity_per_layer(df, absolute=True)
-    fig, ax = plot_purity_per_layer(purity_per_layer)
-    fig, ax = add_subdetector_labels(fig, ax)
-    fig.tight_layout()
-    fig.savefig('purity_vs_layer.png')
+        # select data
+        thisdf = df[subdet_mask]
 
-    # efficiency vs layer number
-    efficiency_per_layer = get_efficiency_per_layer(df, absolute=True)
-    fig, ax = plot_efficiency_per_layer(efficiency_per_layer)
-    fig, ax = add_subdetector_labels(fig, ax)
-    fig.tight_layout()
-    fig.savefig('efficiency_vs_layer.png')
+        # counts vs layer number
+        counts_per_layer = get_counts_per_layer(thisdf, per_event=True, absolute=True)
+        fig, ax = plot_counts_per_layer(counts_per_layer, per_event=True)
+        fig, ax = add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'counts_vs_layer_{subdet_name}.png'))
 
-    # purity and efficiency together vs layer number
-    fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
-    fig, ax = add_subdetector_labels(fig, ax)
-    fig.tight_layout()
-    fig.savefig('effandpur_vs_layer.png')
+        # purity vs layer number
+        purity_per_layer = get_purity_per_layer(thisdf, absolute=True)
+        fig, ax = plot_purity_per_layer(purity_per_layer)
+        fig, ax = add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'purity_vs_layer_{subdet_name}.png'))
+
+        # efficiency vs layer number
+        efficiency_per_layer = get_efficiency_per_layer(thisdf, absolute=True)
+        fig, ax = plot_efficiency_per_layer(efficiency_per_layer)
+        fig, ax = add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer_{subdet_name}.png'))
+
+        # purity and efficiency together vs layer number
+        fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
+        fig, ax = add_subdetector_labels(fig, ax)
+        ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
+            va='top', transform=ax.transAxes, fontsize=15)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outputdir, f'effandpur_vs_layer_{subdet_name}.png'))

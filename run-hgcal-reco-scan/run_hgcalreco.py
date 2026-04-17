@@ -55,9 +55,11 @@ if __name__=='__main__':
     print(f'Found following CMSSW: {cmssw}')
 
     # check file existence
-    if not os.path.exists(args.inputfile):
-        if args.inputfile.startswith('root:'): pass # exception for remote files
-        else: raise Exception(f'Input file {args.inputfile} does not exist.')
+    if args.inputfile.startswith('root:'): pass # exception for remote files
+    else:
+        args.inputfile = os.path.abspath(args.inputfile) # important for CMSSW, cannot read relative paths
+        if not os.path.exists(args.inputfile):
+            raise Exception(f'Input file {args.inputfile} does not exist.')
     if not os.path.exists(args.template):
         raise Exception(f'Template config {args.template} does not exist.')
 
@@ -129,7 +131,7 @@ if __name__=='__main__':
             f.write(f'cd {workdir}\n')
             # write actual commands to run
             f.write('cmsRun config.py\n')
-            cmd = 'python3 ../../../analysis/efficiency/calculate_associations.py -i hgcalreco_out.root -o efficiency.parquet'
+            cmd = 'python3 ../../../analysis/efficiency/calculate_associations.py -i hgcalreco_out.root -o .'
             cmd += ' --input_config ../../../analysis/configs/input_config_customreco.json'
             f.write(f'{cmd}\n')
         exes.append(jobscript)
