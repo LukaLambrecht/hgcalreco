@@ -1,24 +1,13 @@
 # Do some sanity checks.
 
-# In particular: check overlap between detector IDs for RecHits and CaloHits,
-# and check if their reported energies are the same.
-
-# Conclusions (so far):
-# - There are O(10) times more RecHits than CaloHits.
-#   Is this just electronics noise? Maybe cross-talk between neighbouring cells?
-# - Most CaloHits (60-90%) seem to have a match in the collection of RecHits,
-#   but obviously not the other way around.
-# - More puzzlingly, the number of RecHits transitions very sharply depending on the layer;
-#   the transition seems to be between the last all-silicon layer and the first mixed layer.
-# - Even for the ones that match, the energy is vastly different,
-#   probably completely different quantities and/or units;
-#   can definitely not compare directly to each other.
+# In particular: check distribution of RecHit energies per layer.
 
 
 import os
 import sys
 import argparse
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from DataFormats.FWLite import Events
 
@@ -28,7 +17,7 @@ sys.path.append(topdir)
 from tools.iotools import Reader
 from tools.geometrytools import get_detid_layer
 from tools.geometrytools import get_detid_subdetid
-from tools.layertools import get_layer_counts
+from tools.layertools import get_quantity_per_layer
 
 
 if __name__=='__main__':
@@ -46,10 +35,6 @@ if __name__=='__main__':
 
     # initialize counters
     nevents = 0
-    ncp = 0
-    nlc = 0
-    calohit_counts = None
-    rechit_counts = None
 
     # loop over event
     for event in events:
@@ -81,29 +66,15 @@ if __name__=='__main__':
         rechit_map.update({hit.id().rawId(): hit for hit in rechits_heb})
         rechit_map.update({hit.id().rawId(): hit for hit in rechits_hef})
 
-        # calculate overlap between detids between calohits and rechits
+        # get layers and subdetector IDs and energy of calohits and rechits
         calohit_ids = np.array(list(calohit_map.keys()))
         rechit_ids = np.array(list(rechit_map.keys()))
-        both_ids = np.intersect1d(calohit_ids, rechit_ids)
-
-        # do printouts
-        if False:
-            print(f'Number of CaloHits: {len(calohit_ids)}')
-            print(f'Number of RecHits: {len(rechit_ids)}')
-            print(f'Number of DetIds in both: {len(both_ids)}')
-            print(f'Fraction of CaloHits also in RecHits: {len(both_ids)/len(calohit_ids)}')
-
-        # check energy of common detids
-        if False:
-            test_id = both_ids[0]
-            print(calohit_map[test_id].energy())
-            print(rechit_map[test_id].energy())
-
-        # get layers and subdetector IDs of calohits and rechits
         calohit_layers = np.array([get_detid_layer(int(detid)) for detid in calohit_ids])
         rechit_layers = np.array([get_detid_layer(int(detid)) for detid in rechit_ids])
         calohit_subdets = np.array([get_detid_subdetid(int(detid)) for detid in calohit_ids])
         rechit_subdets = np.array([get_detid_subdetid(int(detid)) for detid in rechit_ids])
+        calohit_energy = np.array([calohit_map[detid].energy() for detid in calohit_ids])
+        rechit_energy = np.array([rechit_map[detid].energy() for detid in rechit_ids])
 
         # optional: select subdetector
         #calohit_mask = np.ones(len(calohit_ids)).astype(bool)
@@ -111,40 +82,41 @@ if __name__=='__main__':
         calohit_mask = (calohit_subdets==1)
         rechit_mask = (rechit_subdets==1)
 
-        # count number of hits per layer
+        # divide energy per layer
         xax = np.arange(1, 48)
-        calohit_count_per_layer = get_layer_counts(calohit_layers[calohit_mask], keys=xax, absolute=True)
-        rechit_count_per_layer = get_layer_counts(rechit_layers[rechit_mask], keys=xax, absolute=True)
+        this_calohit_energy_per_layer = get_quantity_per_layer(calohit_energy[calohit_mask], calohit_layers[calohit_mask], keys=xax, absolute=True)
+        this_rechit_energy_per_layer = get_quantity_per_layer(rechit_energy[rechit_mask], rechit_layers[rechit_mask], keys=xax, absolute=True)
         if nevents==1:
-            calohit_counts = np.array(list(calohit_count_per_layer.values()))
-            rechit_counts = np.array(list(rechit_count_per_layer.values()))
+            calohit_energy_per_layer = {key: [val] for key, val in this_calohit_energy_per_layer.items()}
+            rechit_energy_per_layer = {key: [val] for key, val in this_rechit_energy_per_layer.items()}
         else:
-            calohit_counts += np.array(list(calohit_count_per_layer.values()))
-            rechit_counts += np.array(list(rechit_count_per_layer.values()))
+            for key in this_calohit_energy_per_layer.keys(): calohit_energy_per_layer[key].append(this_calohit_energy_per_layer[key])
+            for key in this_rechit_energy_per_layer.keys(): rechit_energy_per_layer[key].append(this_rechit_energy_per_layer[key])
 
         if args.nevents > 0 and nevents >= args.nevents: break
 
-    # make a plot of number of rechits and calohits
-    fig, ax = plt.subplots()
-    xax = np.arange(1, len(calohit_counts)+1)
-    ax.errorbar(xax, calohit_counts/nevents, yerr=np.sqrt(calohit_counts)/nevents,
-        marker='o', markersize=5, fmt='o', color='b', label='CaloHits')
-    ax.errorbar(xax, rechit_counts/nevents, yerr=np.sqrt(rechit_counts)/nevents,
-        marker='o', markersize=5, fmt='o', color='r', label='RecHits')
-    ax.set_xlabel('Layer number', fontsize=12)
-    ax.set_ylabel('Number of hits per layer per event', fontsize=12)
-    ax.legend(fontsize=12)
-    ax.set_yscale('log')
-    fig.savefig('test.png')
+    # concatenate
+    for key in calohit_energy_per_layer.keys(): calohit_energy_per_layer[key] = np.concatenate(calohit_energy_per_layer[key])
+    for key in rechit_energy_per_layer.keys(): rechit_energy_per_layer[key] = np.concatenate(rechit_energy_per_layer[key])
 
-    # make a plot of the ratio
+    # make a plot of rechit energy distribution
     fig, ax = plt.subplots()
-    ratio = np.divide(rechit_counts, calohit_counts)
-    error = np.multiply(ratio, np.sqrt(1/rechit_counts + 1/calohit_counts))
-    xax = np.arange(1, len(ratio)+1)
-    ax.errorbar(xax, ratio, yerr=error, marker='o', markersize=5, fmt='o', color='b')
-    ax.axhline(y=1, color='grey', linestyle='--')
-    ax.set_xlabel('Layer number', fontsize=12)
-    ax.set_ylabel('Number of RecHits / number of CaloHits', fontsize=12)
+    cmap = plt.get_cmap('jet')
+    bins = np.linspace(0, 1, num=50)
+    for idx, (key, val) in enumerate(rechit_energy_per_layer.items()):
+        ax.hist(val, bins=bins, histtype='step', color=cmap(idx/len(rechit_energy_per_layer)))
+    ax.set_xlabel('Energy', fontsize=12)
+    ax.set_ylabel('Number of hits (normalized)', fontsize=12)
+    fig.savefig('test.png')
     ax.set_yscale('log')
-    fig.savefig('test2.png')
+    fig.savefig('test_log.png')
+    
+    # make a plot of rechit energy distribution
+    fig, ax = plt.subplots()
+    for idx, (key, val) in enumerate(rechit_energy_per_layer.items()):
+        ax.hist(val, bins=bins, density=True, histtype='step', color=cmap(idx/len(rechit_energy_per_layer)))
+    ax.set_xlabel('Energy', fontsize=12)
+    ax.set_ylabel('Number of hits (normalized)', fontsize=12)
+    fig.savefig('test_normalized.png')
+    ax.set_yscale('log')
+    fig.savefig('test_normalized_log.png')

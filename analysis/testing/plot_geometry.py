@@ -3,8 +3,13 @@
 # This is done by plotting the layer cluster position coloured by subdetector,
 # and aggregating many events
 
+# This serves as a check that the subdetector is correctly extracted
+# from the detector IDs from the hits belonging to the layerclusters.
+
+
 import os
 import sys
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from DataFormats.FWLite import Events
@@ -20,16 +25,17 @@ from tools.geometrytools import get_layercluster_subdetid
 
 if __name__=='__main__':
 
-    # read input file from command line
-    inputfile = sys.argv[1]
-
-    # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config_centralreco.json')
-    outputdir = 'output_plots_geometry'
+    # command line args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--inputfile', required=True)
+    parser.add_argument('-o', '--outputdir', default='output_plots_geometry')
+    parser.add_argument('-c', '--config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
+    parser.add_argument('-n', '--nevents', type=int, default=-1)
+    args = parser.parse_args()
 
     # read events
-    events = Events(inputfile)
-    reader = Reader(input_config)
+    events = Events(args.inputfile)
+    reader = Reader(args.config)
 
     # initialize counter
     event_counter = 0
@@ -75,9 +81,12 @@ if __name__=='__main__':
                 zsides.append(zside)
                 subdets.append(subdet)
 
+        if args.nevents > 0 and event_counter >= args.nevents: break
+
     xs = np.array(xs)
     ys = np.array(ys)
     zs = np.array(zs)
+    rs = np.sqrt(np.square(xs) + np.square(ys))
     es = np.array(es)
     trs = np.array(trs)
     lrs = np.array(lrs)
@@ -92,9 +101,9 @@ if __name__=='__main__':
     reles = es/maxe
 
     # make output dir
-    if not os.path.exists(outputdir): os.makedirs(outputdir)
+    if not os.path.exists(args.outputdir): os.makedirs(args.outputdir)
 
-    # make similar plot but coloured by layer
+    # plot layercluster position coloured by layer number
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     sc = ax.scatter(xs, ys, zs,
@@ -107,7 +116,7 @@ if __name__=='__main__':
     ax.set_zlabel("z [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(outputdir, f'test_lrs.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_lrs.png'))
     plt.close()
 
     # same plot in x-y projection
@@ -122,7 +131,7 @@ if __name__=='__main__':
     ax.set_ylabel("y [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(outputdir, f'test_lrs_xy.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_lrs_xy.png'))
     plt.close()
 
     # same plot in z-y projection
@@ -135,7 +144,33 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Layer")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(outputdir, f'test_lrs_zy.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_lrs_zy.png'))
+    plt.close()
+
+    # same plot but take absolute value of z coordinate
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    sc = ax.scatter(np.abs(zs), ys,
+            c=lrs,
+            cmap='jet',
+            s=1)
+    plt.colorbar(sc, label="Layer")
+    ax.set_xlabel("z [cm]")
+    ax.set_ylabel("y [cm]")
+    fig.savefig(os.path.join(args.outputdir, f'test_lrs_zy_abs.png'))
+    plt.close()
+
+    # same plot but in z-r projection
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    sc = ax.scatter(np.abs(zs), rs,
+            c=lrs,
+            cmap='jet',
+            s=1)
+    plt.colorbar(sc, label="Layer")
+    ax.set_xlabel("z [cm]")
+    ax.set_ylabel("r [cm]")
+    fig.savefig(os.path.join(args.outputdir, f'test_lrs_zr_abs.png'))
     plt.close()
 
     # make similar plot but coloured by zside
@@ -151,7 +186,7 @@ if __name__=='__main__':
     ax.set_zlabel("z [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(outputdir, f'test_zsides.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_zsides.png'))
     plt.close()
 
     # same plot in x-y projection
@@ -166,7 +201,7 @@ if __name__=='__main__':
     ax.set_ylabel("y [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(outputdir, f'test_zsides_xy.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_zsides_xy.png'))
     plt.close()
 
     # same plot in z-y projection
@@ -179,7 +214,20 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Z-side")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(outputdir, f'test_zsides_zy.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_zsides_zy.png'))
+    plt.close()
+
+    # same plot but take absolute value of z coordinate
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    sc = ax.scatter(np.abs(zs), ys,
+            c=zsides,
+            cmap='jet',
+            s=1)
+    plt.colorbar(sc, label="Z-side")
+    ax.set_xlabel("z [cm]")
+    ax.set_ylabel("y [cm]")
+    fig.savefig(os.path.join(args.outputdir, f'test_zsides_zy_abs.png'))
     plt.close()
 
     # make similar plot but coloured by subdetector
@@ -195,7 +243,7 @@ if __name__=='__main__':
     ax.set_zlabel("z [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(outputdir, f'test_subdets.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_subdets.png'))
     plt.close()
 
     # same plot in x-y projection
@@ -210,7 +258,7 @@ if __name__=='__main__':
     ax.set_ylabel("y [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(outputdir, f'test_subdets_xy.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_subdets_xy.png'))
     plt.close()
 
     # same plot in z-y projection
@@ -223,7 +271,33 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Subdetector")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(outputdir, f'test_subdets_zy.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_subdets_zy.png'))
+    plt.close()
+
+    # same plot but take absolute value of z coordinate
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    sc = ax.scatter(np.abs(zs), ys,
+            c=subdets,
+            cmap='jet',
+            s=1)
+    plt.colorbar(sc, label="Subdetector")
+    ax.set_xlabel("z [cm]")
+    ax.set_ylabel("y [cm]")
+    fig.savefig(os.path.join(args.outputdir, f'test_subdets_zy_abs.png'))
+    plt.close()
+
+    # same plot in z-r projection
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    sc = ax.scatter(np.abs(zs), rs,
+            c=subdets,
+            cmap='jet',
+            s=1)
+    plt.colorbar(sc, label="Subdetector")
+    ax.set_xlabel("z [cm]")
+    ax.set_ylabel("r [cm]")
+    fig.savefig(os.path.join(args.outputdir, f'test_subdets_zr_abs.png'))
     plt.close()
 
     # plot correlation between z coordinate and layer number
@@ -236,5 +310,5 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Layer")
     ax.set_xlabel("|Layer|")
     ax.set_ylabel("|z| [cm]")
-    fig.savefig(os.path.join(outputdir, f'test_layer_zcoord.png'))
+    fig.savefig(os.path.join(args.outputdir, f'test_layer_zcoord.png'))
     plt.close()
