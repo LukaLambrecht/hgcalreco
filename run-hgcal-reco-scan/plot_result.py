@@ -43,7 +43,7 @@ def main(inputdir):
         print(f'Now plotting {jobdir} ({idx+1} / {len(jobdirs)})', end='\r')
 
         # load dataframe
-        inputfile = os.path.join(inputdir, jobdir, 'metrics_lc.parquet')
+        inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_lc.parquet')
         if not os.path.exists(inputfile):
             msg = f'WARNING: file {inputfile} does not exist, skipping...'
             print(msg)
@@ -59,7 +59,7 @@ def main(inputdir):
         }
 
         # load parameters
-        with open(os.path.join(inputdir, jobdir, 'params.json'), 'r') as f:
+        with open(os.path.join(inputdir, jobdir, 'params_summary.json'), 'r') as f:
             paramdict = json.load(f)
         params[jobdir] = paramdict
 
