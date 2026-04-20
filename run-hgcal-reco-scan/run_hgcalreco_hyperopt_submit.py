@@ -1,14 +1,13 @@
 import os
 import sys
 import json
-import itertools
 import argparse
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
-from tools.gridtools import get_grid_points
 import tools.condortools as ct
+from run_hgcalreco_grid_submit import get_cmssw
 
 
 if __name__=='__main__':
@@ -35,25 +34,8 @@ if __name__=='__main__':
     if args.workdir == 'auto': args.workdir = os.path.abspath(f'output_{args.tag}')
     else: args.workdir = os.path.abspath(args.workdir)
 
-    # set CMSSW if provided
-    # priority:
-    # - command line arg
-    # - environment
-    cmssw = None
-    envcmssw = os.getenv('CMSSW_BASE')
-    if args.cmssw is not None:
-        cmssw = os.path.abspath(cmssw)
-        if not os.path.exists(cmssw):
-            raise Exception(f'Provided CMSSW {cmssw} does not exist.')
-        if envcmssw is not None and envcmssw!=cmssw:
-            msg = 'WARNING: provided CMSSW {cmssw} is different from current environment CMSSW {envcmssw}.'
-            print(msg)
-    elif envcmssw is not None:
-        cmssw = envcmssw
-    else:
-        msg = 'A CMSSW version must be provided either explicitly with --cmssw'
-        msg += ' or implicitly in the environment.'
-        raise Exception(msg)
+    # get CMSSW if provided
+    cmssw = get_cmssw(args)
     print(f'Found following CMSSW: {cmssw}')
 
     # check input file existence
@@ -77,7 +59,6 @@ if __name__=='__main__':
     os.makedirs(args.workdir)
 
     # make full context
-    # (shared between all jobs)
     context = {
         "template": args.template,
         "inputfile": args.inputfile,
@@ -88,45 +69,24 @@ if __name__=='__main__':
         "efficiency_config": os.path.join(topdir, 'analysis/configs/input_config_customreco.json'),
     }
 
-    # loop over all grid points
-    exes = []
-    gridpoints = get_grid_points(grid)
-    for jobidx, gridpoint in enumerate(gridpoints):
-        
-        # make job directory
-        jobdir = os.path.join(args.workdir, f'job{jobidx}')
-        if not os.path.exists(jobdir): os.makedirs(jobdir)
-
-        # copy script to run to job directory
-        cmd = f'cp templates/run_hgcalreco.py {jobdir}'
-        os.system(cmd)
-
-        # write context to job directory
-        context["workdir"] = jobdir
-        context_file = os.path.join(jobdir, "context.json")
-        with open(context_file, 'w') as f:
-            json.dump(context, f, indent=2)
-
-        # write parameters to job directory
-        param_file = os.path.join(jobdir, "params.json")
-        with open(param_file, 'w') as f:
-            json.dump(gridpoint, f, indent=2)
-        
-        # write short file with parameter values for easier retrieval later
-        param_dict = {key: val["value"] for key, val in gridpoint.items()}
-        param_file_short = os.path.join(jobdir, "params_summary.json")
-        with open(param_file_short, 'w') as f:
-            json.dump(param_dict, f, indent=2)
-
-        # make job script
-        jobscript = os.path.abspath(f'cjob_run_{args.tag}_{jobidx}.sh')
-        ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
-        with open(jobscript, 'a') as f:
-            # go to working directory
-            f.write(f'cd {jobdir}\n')
-            # write actual commands to run
-            f.write('python3 run_hgcalreco.py params.json context.json\n')
-        exes.append(jobscript)
+    # write all required files to working directory
+    cmd = f'cp templates/run_hgcalreco_hyperopt.py {args.workdir}'
+    os.system(cmd)
+    cmd = f'cp {args.grid} {os.path.join(args.workdir, "grid.json")}'
+    os.system(cmd)
+    context["workdir"] = args.workdir
+    context_file = os.path.join(args.workdir, "context.json")
+    with open(context_file, 'w') as f:
+        json.dump(context, f, indent=2)
+    
+    # make job script
+    jobscript = os.path.abspath(f'cjob_run_{args.tag}.sh')
+    ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
+    with open(jobscript, 'a') as f:
+        # go to working directory
+        f.write(f'cd {args.workdir}\n')
+        # write actual commands to run
+        f.write('python3 run_hgcalreco_hyperopt.py grid.json context.json\n')
 
     # make job description
     name = f'cjob_run_{args.tag}'
@@ -135,6 +95,7 @@ if __name__=='__main__':
         raise Exception('Not yet implemented: job descriptor already exists.')
     ct.makeJobDescription(jobdescriptor, '$(script)', doqueue=False,
         proxy=args.proxy, jobflavour='workday')
+    exes = [jobscript]
     with open(jobdescriptor, 'a') as f:
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')

@@ -1,8 +1,10 @@
 import os
 import sys
-import subprocess
-import tempfile
 import json
+import subprocess
+import numpy as np
+import pandas as pd
+rng = np.random.default_rng()
 
 
 def build_config(template, params, context):
@@ -24,13 +26,13 @@ def build_config(template, params, context):
     config = config.replace('TEMPLATE_GEOMETRY', context["geometry"])
 
     # specific parameter modifiers
-    modifiers = '\n'.join([val["mod"] for val in params.values()])
+    modifiers = '\n'.join([val["mod"].replace("VALUE", str(val["value"])) for val in params.values()])
     config = config.replace('TEMPLATE_MOD', modifiers)
 
     return config
 
 
-def run_local_evaluation(params, context):
+def run_local_evaluation(params, context, dryrun=False):
     """
     Runs a single evaluation locally.
     Input arguments:
@@ -60,6 +62,17 @@ def run_local_evaluation(params, context):
     with open(os.path.join(workdir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
+    # dryrun option: return dummy values without actually running something
+    if dryrun:
+        rnd = rng.random()
+        res = {
+            "loss": -rnd,
+            "status": "ok",
+            "metric": rnd,
+            "params": params,
+        }
+        return res
+
     # run cmsRun
     try:
         subprocess.run(["cmsRun", "config.py"], cwd=workdir, check=True)
@@ -83,7 +96,7 @@ def run_local_evaluation(params, context):
         return {"loss": 1e6, "status": "fail"}
 
     # metric extraction
-    metric = extract_metric(os.path.join(workdir, "efficiency.parquet"))
+    metric = extract_metric(os.path.join(workdir, "efficiency/metrics_lc.parquet"))
 
     return {
         "loss": -metric,
@@ -97,5 +110,8 @@ def extract_metric(parquet_file):
     """
     Calculate simple scalar metric from output file.
     """
-    # placeholder
-    return 0.5
+    # simple placeholder for now, to extend later
+    df = pd.read_parquet(parquet_file)
+    pur_avg = np.mean(df['pur'].values)
+    eff_avg = np.mean(df['eff'].values)
+    return (pur_avg + eff_avg)/2
