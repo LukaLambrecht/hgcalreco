@@ -28,6 +28,7 @@ sys.path.append(topdir)
 from tools.iotools import Reader
 from tools.geometrytools import get_detid_layer
 from tools.geometrytools import get_detid_subdetid
+from tools.geometrytools import get_detid_silicon_thickness
 from tools.layertools import get_layer_counts
 
 
@@ -35,13 +36,13 @@ if __name__=='__main__':
 
     # command line args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--inputfile', required=True)
+    parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-c', '--config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
     parser.add_argument('-n', '--nevents', type=int, default=-1)
     args = parser.parse_args()
 
     # read events
-    events = Events(args.inputfile)
+    events = Events(args.inputfiles)
     reader = Reader(args.config)
 
     # initialize counters
@@ -50,6 +51,14 @@ if __name__=='__main__':
     nlc = 0
     calohit_counts = None
     rechit_counts = None
+
+    # other initializations
+    calohit_layer = []
+    rechit_layer = []
+    calohit_subdet = []
+    rechit_subdet = []
+    calohit_thickness = []
+    rechit_thickness = []
 
     # loop over event
     for event in events:
@@ -99,52 +108,96 @@ if __name__=='__main__':
             print(calohit_map[test_id].energy())
             print(rechit_map[test_id].energy())
 
-        # get layers and subdetector IDs of calohits and rechits
-        calohit_layers = np.array([get_detid_layer(int(detid)) for detid in calohit_ids])
-        rechit_layers = np.array([get_detid_layer(int(detid)) for detid in rechit_ids])
-        calohit_subdets = np.array([get_detid_subdetid(int(detid)) for detid in calohit_ids])
-        rechit_subdets = np.array([get_detid_subdetid(int(detid)) for detid in rechit_ids])
-
-        # optional: select subdetector
-        #calohit_mask = np.ones(len(calohit_ids)).astype(bool)
-        #rechit_mask = np.ones(len(rechit_ids)).astype(bool)
-        calohit_mask = (calohit_subdets==1)
-        rechit_mask = (rechit_subdets==1)
-
-        # count number of hits per layer
-        xax = np.arange(1, 48)
-        calohit_count_per_layer = get_layer_counts(calohit_layers[calohit_mask], keys=xax, absolute=True)
-        rechit_count_per_layer = get_layer_counts(rechit_layers[rechit_mask], keys=xax, absolute=True)
-        if nevents==1:
-            calohit_counts = np.array(list(calohit_count_per_layer.values()))
-            rechit_counts = np.array(list(rechit_count_per_layer.values()))
-        else:
-            calohit_counts += np.array(list(calohit_count_per_layer.values()))
-            rechit_counts += np.array(list(rechit_count_per_layer.values()))
+        # get layers, subdetectors, and sensor thicknesses of calohits and rechits
+        calohit_layer.append( np.array([get_detid_layer(int(detid)) for detid in calohit_ids]) )
+        rechit_layer.append( np.array([get_detid_layer(int(detid)) for detid in rechit_ids]) )
+        calohit_subdet.append( np.array([get_detid_subdetid(int(detid)) for detid in calohit_ids]) )
+        rechit_subdet.append( np.array([get_detid_subdetid(int(detid)) for detid in rechit_ids]) )
+        calohit_thickness.append( np.array([get_detid_silicon_thickness(int(detid)) for detid in calohit_ids]) )
+        rechit_thickness.append( np.array([get_detid_silicon_thickness(int(detid)) for detid in rechit_ids]) )
 
         if args.nevents > 0 and nevents >= args.nevents: break
 
-    # make a plot of number of rechits and calohits
-    fig, ax = plt.subplots()
-    xax = np.arange(1, len(calohit_counts)+1)
-    ax.errorbar(xax, calohit_counts/nevents, yerr=np.sqrt(calohit_counts)/nevents,
-        marker='o', markersize=5, fmt='o', color='b', label='CaloHits')
-    ax.errorbar(xax, rechit_counts/nevents, yerr=np.sqrt(rechit_counts)/nevents,
-        marker='o', markersize=5, fmt='o', color='r', label='RecHits')
-    ax.set_xlabel('Layer number', fontsize=12)
-    ax.set_ylabel('Number of hits per layer per event', fontsize=12)
-    ax.legend(fontsize=12)
-    ax.set_yscale('log')
-    fig.savefig('test.png')
+    # concatenate
+    calohit_layer = np.concatenate(calohit_layer)
+    calohit_subdet = np.concatenate(calohit_subdet)
+    calohit_thickness = np.concatenate(calohit_thickness)
+    rechit_layer = np.concatenate(rechit_layer)
+    rechit_subdet = np.concatenate(rechit_subdet)
+    rechit_thickness = np.concatenate(rechit_thickness) 
 
-    # make a plot of the ratio
-    fig, ax = plt.subplots()
-    ratio = np.divide(rechit_counts, calohit_counts)
-    error = np.multiply(ratio, np.sqrt(1/rechit_counts + 1/calohit_counts))
-    xax = np.arange(1, len(ratio)+1)
-    ax.errorbar(xax, ratio, yerr=error, marker='o', markersize=5, fmt='o', color='b')
-    ax.axhline(y=1, color='grey', linestyle='--')
-    ax.set_xlabel('Layer number', fontsize=12)
-    ax.set_ylabel('Number of RecHits / number of CaloHits', fontsize=12)
-    ax.set_yscale('log')
-    fig.savefig('test2.png')
+    # make masks for subdetectors
+    calohit_subdet_masks = {
+        'all': np.ones(len(calohit_subdet)).astype(bool),
+        'EE': (calohit_subdet==0).astype(bool),
+        'HSi': (calohit_subdet==1).astype(bool),
+        'HSci': (calohit_subdet==2).astype(bool),
+    }
+    rechit_subdet_masks = {
+        'all': np.ones(len(rechit_subdet)).astype(bool),
+        'EE': (rechit_subdet==0).astype(bool),
+        'HSi': (rechit_subdet==1).astype(bool),
+        'HSci': (rechit_subdet==2).astype(bool),
+    }
+
+    # make masks for thicknesses
+    calohit_thickness_masks = {
+        'all': np.ones(len(calohit_thickness)).astype(bool),
+        'thin': (calohit_thickness==0).astype(bool),
+        'medium': (calohit_thickness==1).astype(bool),
+        'thick': (calohit_thickness==2).astype(bool),
+    }
+    rechit_thickness_masks = {
+        'all': np.ones(len(rechit_thickness)).astype(bool),
+        'thin': (rechit_thickness==0).astype(bool),
+        'medium': (rechit_thickness==1).astype(bool),
+        'thick': (rechit_thickness==2).astype(bool),
+    }
+
+    outputdir = 'output_plots_rechits_vs_calohits'
+    if not os.path.exists(outputdir): os.makedirs(outputdir)
+
+    # loop over subdetectors and thicknesses
+    for subdet_key in rechit_subdet_masks.keys():
+        for thickness_key in rechit_thickness_masks.keys():
+            rechit_mask = ((rechit_subdet_masks[subdet_key]) & (rechit_thickness_masks[thickness_key]))
+            calohit_mask = ((calohit_subdet_masks[subdet_key]) & (calohit_thickness_masks[thickness_key]))
+            tag = f'{subdet_key}_{thickness_key}'
+
+            # skip some combinations that don't make sense
+            if thickness_key!='all' and subdet_key not in ['EE', 'HSi']: continue
+
+            # divide counts per layer
+            xax = np.arange(1, 48)
+            calohit_counts = np.array(list(get_layer_counts(calohit_layer[calohit_mask], keys=xax, absolute=True).values()))
+            rechit_counts = np.array(list(get_layer_counts(rechit_layer[rechit_mask], keys=xax, absolute=True).values()))
+
+            # make text to write in plot
+            text = f'Subdetector: {subdet_key}'
+            if thickness_key!='all': text += f'\nSi thickness: {thickness_key}'
+
+            # make a plot of number of rechits and calohits
+            fig, ax = plt.subplots()
+            ax.errorbar(xax, calohit_counts/nevents, yerr=np.sqrt(calohit_counts)/nevents,
+                marker='o', markersize=5, fmt='o', color='b', label='CaloHits')
+            ax.errorbar(xax, rechit_counts/nevents, yerr=np.sqrt(rechit_counts)/nevents,
+                marker='o', markersize=5, fmt='o', color='r', label='RecHits')
+            ax.set_xlabel('Layer number', fontsize=12)
+            ax.set_ylabel('Number of hits per layer per event', fontsize=12)
+            ax.text(0.99, 0.99, text, ha='right', va='top', fontsize=12, transform=ax.transAxes)
+            ax.legend(fontsize=12)
+            ax.set_yscale('log')
+            fig.savefig(os.path.join(outputdir, f'test_absolute_{tag}.png'))
+
+            # make a plot of the ratio
+            fig, ax = plt.subplots()
+            ratio = np.divide(rechit_counts, calohit_counts)
+            error = np.multiply(ratio, np.sqrt(1/rechit_counts + 1/calohit_counts))
+            xax = np.arange(1, len(ratio)+1)
+            ax.errorbar(xax, ratio, yerr=error, marker='o', markersize=5, fmt='o', color='b')
+            ax.axhline(y=1, color='grey', linestyle='--')
+            ax.set_xlabel('Layer number', fontsize=12)
+            ax.set_ylabel('Number of RecHits / number of CaloHits', fontsize=12)
+            ax.text(0.99, 0.99, text, ha='right', va='top', fontsize=12, transform=ax.transAxes)
+            ax.set_yscale('log')
+            fig.savefig(os.path.join(outputdir, f'test_ratio_{tag}.png'))

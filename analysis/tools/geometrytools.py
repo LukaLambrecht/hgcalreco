@@ -52,6 +52,16 @@ def get_detid_layer(detid, absolute_value=False):
     if absolute_value: return layer
     else: return zside * layer
 
+def get_detid_silicon_thickness(detid):
+    detid = cast_detid(detid)
+    subdetid = get_detid_subdetid(detid)
+    # we use detid.type(), which for silicon sensors appears to map as follows:
+    # - 0: thin (120 micrometer)
+    # - 1: medium (200 micrometer)
+    # - 2: thick (300 micrometer)
+    if subdetid==0 or subdetid==1: return detid.type()
+    else: return -1
+    
 def get_layercluster_subdetid(layercluster):
     '''
     Get subdetector ID of a layer cluster
