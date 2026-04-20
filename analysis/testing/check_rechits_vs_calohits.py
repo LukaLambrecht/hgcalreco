@@ -90,6 +90,14 @@ if __name__=='__main__':
         rechit_map.update({hit.id().rawId(): hit for hit in rechits_heb})
         rechit_map.update({hit.id().rawId(): hit for hit in rechits_hef})
 
+        # optional: take only rechits that are clustered in layer clusters
+        filter_by_layercluster = True # hard-coded for now
+        if filter_by_layercluster:
+            layercluster_rechit_ids = []
+            for layercluster in layerclusters:
+                layercluster_rechit_ids += [el.first.rawId() for el in layercluster.hitsAndFractions()]
+            rechit_map = {key: val for key, val in rechit_map.items() if key in layercluster_rechit_ids}
+
         # calculate overlap between detids between calohits and rechits
         calohit_ids = np.array(list(calohit_map.keys()))
         rechit_ids = np.array(list(rechit_map.keys()))
