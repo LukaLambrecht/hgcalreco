@@ -55,4 +55,4 @@ if __name__=='__main__':
 
     # store results
     with open('trials.pkl', 'wb') as f:
-        pkl.dump(trials, f)
+        pickle.dump(trials, f)
