@@ -3,6 +3,7 @@
 # Typical use case: retrieve HGCal layer number(s) from LayerClusters and CaloParticles.
 
 
+import numpy as np
 import ROOT
 ROOT.gSystem.Load("libFWCoreFWLite")
 ROOT.FWLiteEnabler.enable()
@@ -105,6 +106,17 @@ def get_layercluster_hits(layercluster, rechits):
         if detid in rechits.keys(): energy = rechits[detid].energy()
         hits[detid] = (energy, fraction)
     return hits
+
+def get_layercluster_energy_sum_per_layer(layerclusters, keys=None):
+    # sum layer cluster energies per layer
+    lc_energies = np.array([lc.energy() for lc in layerclusters])
+    lc_layers = np.array([get_layercluster_layer(lc) for lc in layerclusters])
+    lc_energy_sum_per_layer = {}
+    if keys is not None: lc_energy_sum_per_layer = {layer: 0 for layer in keys}
+    for layer in np.unique(lc_layers):
+        energy_sum = np.sum(lc_energies[lc_layers==layer])
+        lc_energy_sum_per_layer[layer] = energy_sum
+    return lc_energy_sum_per_layer
 
 def get_simcluster_detids_per_layer(simcluster, **kwargs):
     '''
