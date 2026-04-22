@@ -41,7 +41,7 @@ if __name__=='__main__':
         paramdict = {}
         for param_name in params.keys():
             paramdict[param_name] = {"value": params[param_name], "mod": param_mods[param_name]}
-        return run_local_evaluation(paramdict, context)
+        return run_local_evaluation(paramdict, context, use_tmpdir=True)
 
     # run hyperopt
     trials = Trials()
@@ -49,7 +49,7 @@ if __name__=='__main__':
         fn = objective,
         space = space,
         algo = tpe.suggest,
-        max_evals = 20,
+        max_evals = 100,
         trials = trials
     )
 

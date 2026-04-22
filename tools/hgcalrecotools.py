@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import tempfile
 import subprocess
 import numpy as np
 import pandas as pd
@@ -32,7 +33,7 @@ def build_config(template, params, context):
     return config
 
 
-def run_local_evaluation(params, context, dryrun=False):
+def run_local_evaluation(params, context, dryrun=False, use_tmpdir=False):
     """
     Runs a single evaluation locally.
     Input arguments:
@@ -41,11 +42,13 @@ def run_local_evaluation(params, context, dryrun=False):
     Returns a dict with loss + metadata.
     """
 
-    # make a working directory if requested
-    if "workdir" in context.keys():
-        workdir = context["workdir"]
-        if not os.path.exists(workdir): os.makedirs(workdir)
+    # get working directory
+    if "workdir" in context.keys(): workdir = context["workdir"]
     else: workdir = '.'
+    if use_tmpdir: workdir = tempfile.mkdtemp(dir=workdir)
+
+    # make working directory
+    if not os.path.exists(workdir): os.makedirs(workdir)
 
     # read provided cmsRun template
     template_file = context["template"]
@@ -61,6 +64,11 @@ def run_local_evaluation(params, context, dryrun=False):
     # write params to workdir for later reference
     with open(os.path.join(workdir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
+
+    # also write parameter summary for easier reading
+    param_dict = {key: val["value"] for key, val in params.items()}
+    with open(os.path.join(workdir, "params_summary.json"), 'w') as f:
+        json.dump(param_dict, f, indent=2) 
 
     # dryrun option: return dummy values without actually running something
     if dryrun:
@@ -95,6 +103,11 @@ def run_local_evaluation(params, context, dryrun=False):
     except subprocess.CalledProcessError:
         return {"loss": 1e6, "status": "fail"}
 
+    # remove root file (to save disk space when running many trials)
+    try: subprocess.run(["rm", "hgcalreco_out.root"], cwd=workdir, check=True)
+    except subprocess.CalledProcessError:
+        print('WARNING: could not remove hgcalreco_out.root.')
+
     # metric extraction
     metric = extract_metric(os.path.join(workdir, "efficiency/metrics_lc.parquet"))
 
@@ -103,6 +116,8 @@ def run_local_evaluation(params, context, dryrun=False):
         "status": "ok",
         "metric": metric,
         "params": params,
+        "output_reco_file": os.path.join(workdir, "hgcalreco_out.root"),
+        "output_metrics_file": os.path.join(workdir, "efficiency/metrics_lc.parquet")
     }
 
 

@@ -118,12 +118,6 @@ if __name__=='__main__':
         with open(param_file, 'w') as f:
             json.dump(gridpoint, f, indent=2)
         
-        # write short file with parameter values for easier retrieval later
-        param_dict = {key: val["value"] for key, val in gridpoint.items()}
-        param_file_short = os.path.join(jobdir, "params_summary.json")
-        with open(param_file_short, 'w') as f:
-            json.dump(param_dict, f, indent=2)
-
         # make job script
         jobscript = os.path.abspath(f'cjob_run_{args.tag}_{jobidx}.sh')
         ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
