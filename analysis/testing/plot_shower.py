@@ -97,12 +97,15 @@ if __name__=='__main__':
             lc_es.append(lc_e)
 
             # make a plot of shower profile
-            if False:
+            if True:
                 fig, ax = plt.subplots()
-                ax.stairs(cp_e, edges=edges, label='CaloParticle shower profile')
-                ax.stairs(lc_e, edges=edges, label='LayerCluster shower profile')
-                ax.legend()
-                fig.savefig('test.png')
+                ax.stairs(cp_e, edges=edges, linewidth=2, color='crimson', label='CaloParticle shower profile')
+                ax.stairs(lc_e, edges=edges, linewidth=2, color='dodgerblue', label='LayerCluster shower profile')
+                ax.set_xlabel('Layer', fontsize=15)
+                ax.set_ylabel('Total energy per layer', fontsize=15)
+                ax.legend(fontsize=12)
+                fig.tight_layout()
+                fig.savefig(f'test_{event_counter}.png')
 
             if args.nevents > 0 and event_counter >= args.nevents: break
     
