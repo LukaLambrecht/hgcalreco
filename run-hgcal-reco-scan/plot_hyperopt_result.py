@@ -20,7 +20,7 @@ if __name__=='__main__':
     losses = np.array(trials.losses())
 
     # optional: do sorting
-    do_sort = False
+    do_sort = True
     if do_sort:
         sorted_ids = np.argsort(losses)[::-1]
         results = [results[idx] for idx in sorted_ids]

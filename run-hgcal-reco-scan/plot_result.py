@@ -46,6 +46,7 @@ def get_result_from_df(df):
 
     return result
 
+
 def plot_result(result, outputdir, params=None, legend_dict=None):
 
     # make output directory
@@ -68,6 +69,12 @@ def plot_result(result, outputdir, params=None, legend_dict=None):
                 value = '{:.2e}'.format(v)
                 this_params[param_key] = value
             labeldict[key] = ', '.join([f'{k} = {v}' for k, v in this_params.items()])
+
+    # optional: limit keys to put in legend
+    if len(labeldict) > 10:
+        for idx, (key, val) in enumerate(labeldict.items()):
+            if idx%2 == 0: continue
+            labeldict[key] = None
 
     # loop over subdetectors
     subdet_names = list(list(result.values())[0].keys()) # assume the same for all entries
