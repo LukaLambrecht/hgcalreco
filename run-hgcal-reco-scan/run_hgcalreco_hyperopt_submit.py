@@ -15,7 +15,7 @@ if __name__=='__main__':
     # read command line args
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--inputfile', required=True)
-    parser.add_argument('-g', '--grid', required=True)
+    parser.add_argument('-g', '--grid', required=True, nargs='+')
     parser.add_argument('-n', '--max_events', default=-1, type=int)
     parser.add_argument('-w', '--workdir', default='auto')
     parser.add_argument('--tag', default='auto')
@@ -50,8 +50,10 @@ if __name__=='__main__':
         raise Exception(f'Template config {args.template} does not exist.')
 
     # read grid
-    with open(args.grid, 'r') as f:
-        grid = json.load(f)
+    grid = []
+    for gridfile in args.grid:
+        with open(gridfile, 'r') as f:
+            grid += json.load(f)
 
     # make working directory
     if os.path.exists(args.workdir):
@@ -72,8 +74,9 @@ if __name__=='__main__':
     # write all required files to working directory
     cmd = f'cp templates/run_hgcalreco_hyperopt.py {args.workdir}'
     os.system(cmd)
-    cmd = f'cp {args.grid} {os.path.join(args.workdir, "grid.json")}'
-    os.system(cmd)
+    grid_file = os.path.join(args.workdir, "grid.json")
+    with open(grid_file, 'w') as f:
+        json.dump(grid, f, indent=2)
     context["workdir"] = args.workdir
     context_file = os.path.join(args.workdir, "context.json")
     with open(context_file, 'w') as f:

@@ -56,9 +56,8 @@ def main(inputdir):
             msg = f'WARNING: file {inputfile} does not exist, skipping...'
             print(msg)
             continue
-        metrics[jobdir] = extract_metric(inputfile)
-        df = pd.read_parquet(inputfile)
-        results_lc[jobdir] = get_lc_result_from_df(df)
+        df_lc = pd.read_parquet(inputfile)
+        results_lc[jobdir] = get_lc_result_from_df(df_lc)
 
         # load dataframe for caloparticles and get results
         inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_cp.parquet')
@@ -66,8 +65,11 @@ def main(inputdir):
             msg = f'WARNING: file {inputfile} does not exist, skipping...'
             print(msg)
             continue
-        df = pd.read_parquet(inputfile)
-        results_cp[jobdir] = get_cp_result_from_df(df)
+        df_cp = pd.read_parquet(inputfile)
+        results_cp[jobdir] = get_cp_result_from_df(df_cp)
+
+        # calculate metric
+        metrics[jobdir] = extract_metric(df_lc, df_cp)
 
         # load parameters
         with open(os.path.join(inputdir, jobdir, 'params_summary.json'), 'r') as f:
@@ -77,6 +79,8 @@ def main(inputdir):
     # plot results
     plot_lc_result(results_lc, outputdir, params=params, legend_dict=legend_dict)
     plot_cp_result(results_cp, outputdir, params=params, legend_dict=legend_dict)
+
+    jobdirs = list(params.keys()) # in case some directories got skipped
 
     # in case only 1 parameter was scanned, can plot metric vs this variable
     nparams = len(params[jobdirs[0]]) # assume it's the same for all job directories
@@ -102,6 +106,14 @@ def main(inputdir):
         figname = os.path.join(outputdir, f'metric_vs_{param_name}.png')
         fig.savefig(figname)
         print(f'Created figure {figname}.')
+
+        # same with x-axis in log scale
+        ax.set_xscale('log')
+        fig.tight_layout()
+        figname = os.path.join(outputdir, f'metric_vs_{param_name}_log.png')
+        fig.savefig(figname)
+        print(f'Created figure {figname}.')
+        plt.close()
 
 
 if __name__=='__main__':

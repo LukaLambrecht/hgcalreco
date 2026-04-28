@@ -109,7 +109,9 @@ def run_local_evaluation(params, context, dryrun=False, use_tmpdir=False):
         print('WARNING: could not remove hgcalreco_out.root.')
 
     # metric extraction
-    metric = extract_metric(os.path.join(workdir, "efficiency/metrics_lc.parquet"))
+    metrics_lc_file = os.path.join(workdir, "efficiency/metrics_lc.parquet")
+    metrics_cp_file = os.path.join(workdir, "efficiency/metrics_cp.parquet")
+    metric = extract_metric(metrics_lc_file, metrics_cp_file)
 
     return {
         "loss": -metric,
@@ -117,16 +119,26 @@ def run_local_evaluation(params, context, dryrun=False, use_tmpdir=False):
         "metric": metric,
         "params": params,
         "output_reco_file": os.path.join(workdir, "hgcalreco_out.root"),
-        "output_metrics_file": os.path.join(workdir, "efficiency/metrics_lc.parquet")
+        "output_metrics_files": [metrics_lc_file, metrics_cp_file]
     }
 
 
-def extract_metric(parquet_file):
+def extract_metric(results_lc, results_cp):
     """
-    Calculate simple scalar metric from output file.
+    Calculate simple scalar metric from dataframes with results
+    for LayerClusters and CaloParticles.
     """
     # simple placeholder for now, to extend later
-    df = pd.read_parquet(parquet_file)
-    pur_avg = np.mean(df['pur'].values)
-    eff_avg = np.mean(df['eff'].values)
-    return (pur_avg + eff_avg)/2
+
+    # read input file(s) if needed
+    if isinstance(results_lc, str):
+        results_lc = pd.read_parquet(results_lc)
+    if isinstance(results_cp, str):
+        results_cp = pd.read_parquet(results_cp)
+
+    # calculate metric
+    lc_pur_avg = np.mean(results_lc['pur'].values)
+    lc_eff_avg = np.mean(results_lc['eff'].values)
+    cp_eff_avg = np.mean(results_cp['eff'].values)
+
+    return (lc_pur_avg + lc_eff_avg + cp_eff_avg)/3.
