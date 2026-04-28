@@ -21,6 +21,7 @@ from tools.geometrytools import get_caloparticle_energy_per_layer
 from tools.geometrytools import get_layercluster_hits
 from tools.associationtools import get_mapping
 from tools.metrics import response
+from tools.metrics import efficiency
 
 
 if __name__=='__main__':
@@ -112,11 +113,25 @@ if __name__=='__main__':
             lc_layer = np.array([get_layercluster_layer(lc) for lc in layerclusters])
             lc_subdet = np.array([get_layercluster_subdetid(lc) for lc in layerclusters])
 
-            # calculate metrics for calo particles
+            # calculate response per calo particle
             cps_energy_per_layer = []
             for cp_hits_per_layer in cps_hits_per_layer:
-                cps_energy_per_layer.append(get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=True))
-            cp_layer, cp_res = response(caloparticles, cps_energy_per_layer, layerclusters, lc_ids, flatten=True)
+                energy_per_layer = get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=True)
+                cps_energy_per_layer.append(energy_per_layer)
+            cps_res = response(caloparticles, cps_energy_per_layer, layerclusters, lc_ids, flatten=False)
+
+            # calculate sum of layercluster efficiencies per layer and per calo particle.
+            # update: do not sum layercluster efficiencies, but recalculate efficiency on unity of layerclusters.
+            # note: this is not the same as the response, as only the energy fractions coming from the caloparticle
+            #       are taken into account, not the full layercluster energy;
+            #       hence this property can never by larger than one (while the response can).
+            cps_eff = efficiency(cps_hits_per_layer, lcs_hits_per_layer, lc_ids, flatten=False)
+
+            # flatten caloparticle metrics
+            layers_per_cp = [list(el.keys()) for el in cps_res]
+            cp_layer = np.array(sum(layers_per_cp, []))
+            cp_res = np.array([cps_res[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
+            cp_eff = np.array([cps_eff[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
 
             # store layercluster info in dataframe
             df_lc = pd.DataFrame.from_dict({
@@ -133,13 +148,14 @@ if __name__=='__main__':
             # store caloparticle info in dataframe
             df_cp = pd.DataFrame.from_dict({
                 'res': cp_res,
+                'eff': cp_eff,
                 'layer': cp_layer,
                 'event': eventid
             })
             dfs_cp.append(df_cp)
 
             # stop processing if sufficient events have been processed
-            if args.nentries > 0 and event_idx > args.nentries: break
+            if args.nentries > 0 and event_idx >= args.nentries-1: break
 
     # merge dataframes
     if len(dfs_lc) > 0: df_lc = pd.concat(dfs_lc)

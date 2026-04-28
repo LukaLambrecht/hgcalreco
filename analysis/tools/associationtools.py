@@ -15,10 +15,10 @@ from tools.geometrytools import get_caloparticle_hits_per_layer
 
 
 def get_associations(
-        caloparticles=None, calohits=None,
-        layerclusters=None, rechits=None,
-        cps_hits_per_layer=None,
-        lcs_hits_per_layer=None,
+        caloparticles = None, calohits = None,
+        layerclusters = None, rechits = None,
+        cps_hits_per_layer = None,
+        lcs_hits_per_layer = None,
         sum_lc_per_layer = False):
     '''
     Calculate association scores between collections of caloparticles and layerclusters.
@@ -67,7 +67,7 @@ def get_associations(
         for lc_hits_per_layer in lcs_hits_per_layer:
             layer = list(lc_hits_per_layer.keys())[0]
             hits = list(lc_hits_per_layer.values())[0]
-            if layer not in sum_hits_per_layer.keys(): sum_hits_per_layer[layer] = hits
+            if layer not in sum_hits_per_layer.keys(): sum_hits_per_layer[layer] = hits.copy()
             else:
                 for detid, (energy, fraction) in hits.items():
                     if detid not in sum_hits_per_layer[layer].keys():

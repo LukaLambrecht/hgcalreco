@@ -11,8 +11,10 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 from tools.hgcalrecotools import extract_metric
-from plot_result import get_result_from_df
-from plot_result import plot_result
+from plot_result_lc import get_lc_result_from_df
+from plot_result_lc import plot_lc_result
+from plot_result_cp import get_cp_result_from_df
+from plot_result_cp import plot_cp_result
 
 
 def main(inputdir):
@@ -40,14 +42,15 @@ def main(inputdir):
     if not os.path.exists(outputdir): os.makedirs(outputdir)
 
     # loop over job directories
-    results = {}
+    results_lc = {}
+    results_cp = {}
     params = {}
     metrics = {}
     jobdirs = [d for d in os.listdir(inputdir) if fnmatch(d, 'job*')]
     for idx, jobdir in enumerate(jobdirs):
         print(f'Retrieving results for {jobdir} ({idx+1} / {len(jobdirs)})', end='\r')
 
-        # load dataframe
+        # load dataframe for layerclusters and get results
         inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_lc.parquet')
         if not os.path.exists(inputfile):
             msg = f'WARNING: file {inputfile} does not exist, skipping...'
@@ -55,17 +58,25 @@ def main(inputdir):
             continue
         metrics[jobdir] = extract_metric(inputfile)
         df = pd.read_parquet(inputfile)
+        results_lc[jobdir] = get_lc_result_from_df(df)
+
+        # load dataframe for caloparticles and get results
+        inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_cp.parquet')
+        if not os.path.exists(inputfile):
+            msg = f'WARNING: file {inputfile} does not exist, skipping...'
+            print(msg)
+            continue
+        df = pd.read_parquet(inputfile)
+        results_cp[jobdir] = get_cp_result_from_df(df)
 
         # load parameters
         with open(os.path.join(inputdir, jobdir, 'params_summary.json'), 'r') as f:
             paramdict = json.load(f)
         params[jobdir] = paramdict
 
-        # gather results
-        results[jobdir] = get_result_from_df(df)
-
     # plot results
-    plot_result(results, outputdir, params=params, legend_dict=legend_dict)
+    plot_lc_result(results_lc, outputdir, params=params, legend_dict=legend_dict)
+    plot_cp_result(results_cp, outputdir, params=params, legend_dict=legend_dict)
 
     # in case only 1 parameter was scanned, can plot metric vs this variable
     nparams = len(params[jobdirs[0]]) # assume it's the same for all job directories

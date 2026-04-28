@@ -10,13 +10,14 @@ def plot(xbins, yvals, yerrs=None,
     xlabel=None, ylabel=None,
     color='dodgerblue', label=None,
     cliperrs=None,
-    fig=None, ax=None):
+    fig=None, ax=None,
+    **kwargs):
     # basic plotting function
     
     if fig is None or ax is None:
         fig, ax = plt.subplots()
         ax.grid()
-    ax.stairs(yvals, edges=xbins, linewidth=2, color=color, label=label)
+    ax.stairs(yvals, edges=xbins, color=color, label=label, **kwargs)
     if yerrs is not None and doerrs:
         upper = yvals + yerrs
         lower = yvals - yerrs
@@ -100,7 +101,7 @@ def plot_purity_per_layer(purity_per_layer, **kwargs):
     yvals = np.array([v[0] for v in purity_per_layer.values()])
     yerrs = np.array([v[1] for v in purity_per_layer.values()])
     fig, ax = plot(xbins, yvals, yerrs=yerrs, cliperrs=(0,1),
-                xlabel='Layer number', ylabel='Average purity',
+                xlabel='Layer number', ylabel='LayerCluster purity',
                 **kwargs)
     ax.axhline(y=1, color='grey', linestyle='dashed')
     ax.set_ylim((0, 1.2))
@@ -114,7 +115,7 @@ def plot_efficiency_per_layer(efficiency_per_layer, **kwargs):
     yvals = np.array([v[0] for v in efficiency_per_layer.values()])
     yerrs = np.array([v[1] for v in efficiency_per_layer.values()])
     fig, ax = plot(xbins, yvals, yerrs=yerrs, cliperrs=(0,1),
-                xlabel='Layer number', ylabel='Average efficiency',
+                xlabel='Layer number', ylabel='LayerCluster efficiency',
                 **kwargs)
     ax.axhline(y=1, color='grey', linestyle='dashed')
     ax.set_ylim((0, 1.2))
@@ -129,7 +130,7 @@ def plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, **kwargs):
     yerrs = np.array([v[1] for v in purity_per_layer.values()])
     fig, ax = plot(xbins, yvals,
                 color='dodgerblue', label='Purity',
-                xlabel='Layer number', ylabel='Average efficiency / purity',
+                xlabel='Layer number', ylabel='LayerCluster efficiency / purity',
                 **kwargs)
     xvals = np.array(list(efficiency_per_layer.keys()))
     xbins = np.concatenate((xvals - 0.5, [xvals[-1]+0.5]))
@@ -157,6 +158,20 @@ if __name__=='__main__':
     # load dataframe
     df = pd.read_parquet(inputfile)
     print(df)
+
+    # temp: printouts for testing
+    '''
+    layers = df['layer'].values
+    print(layers, len(layers))
+    print(np.unique(layers), len(np.unique(layers)))
+    for layer in np.unique(np.abs(layers)):
+        values = df[np.abs(df['layer'].values)==layer]['eff'].values
+        unique_values = np.unique(values)
+        print(layer)
+        print(sorted(values))
+        print(unique_values)
+        print(layer, np.mean(values), np.std(values), np.mean(unique_values), np.std(unique_values))
+    '''
 
     # define subdetector masks
     subdet_masks = {
@@ -186,7 +201,7 @@ if __name__=='__main__':
 
         # purity vs layer number
         purity_per_layer = get_purity_per_layer(thisdf, absolute=True)
-        fig, ax = plot_purity_per_layer(purity_per_layer)
+        fig, ax = plot_purity_per_layer(purity_per_layer, doerrs=False)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
@@ -195,7 +210,7 @@ if __name__=='__main__':
 
         # efficiency vs layer number
         efficiency_per_layer = get_efficiency_per_layer(thisdf, absolute=True)
-        fig, ax = plot_efficiency_per_layer(efficiency_per_layer)
+        fig, ax = plot_efficiency_per_layer(efficiency_per_layer, doerrs=False)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
@@ -203,7 +218,7 @@ if __name__=='__main__':
         fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer_{subdet_name}.png'))
 
         # purity and efficiency together vs layer number
-        fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer)
+        fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, doerrs=False)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
