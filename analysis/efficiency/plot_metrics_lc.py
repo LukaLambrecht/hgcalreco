@@ -192,7 +192,8 @@ if __name__=='__main__':
 
         # counts vs layer number
         counts_per_layer = get_counts_per_layer(thisdf, per_event=True, absolute=True)
-        fig, ax = plot_counts_per_layer(counts_per_layer, per_event=True)
+        fig, ax = plot_counts_per_layer(counts_per_layer, per_event=True,
+                    linewidth=3)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
@@ -201,7 +202,8 @@ if __name__=='__main__':
 
         # purity vs layer number
         purity_per_layer = get_purity_per_layer(thisdf, absolute=True)
-        fig, ax = plot_purity_per_layer(purity_per_layer, doerrs=False)
+        fig, ax = plot_purity_per_layer(purity_per_layer, doerrs=False,
+                    linewidth=3)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
@@ -210,7 +212,8 @@ if __name__=='__main__':
 
         # efficiency vs layer number
         efficiency_per_layer = get_efficiency_per_layer(thisdf, absolute=True)
-        fig, ax = plot_efficiency_per_layer(efficiency_per_layer, doerrs=False)
+        fig, ax = plot_efficiency_per_layer(efficiency_per_layer, doerrs=False,
+                    linewidth=3)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
@@ -218,7 +221,8 @@ if __name__=='__main__':
         fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer_{subdet_name}.png'))
 
         # purity and efficiency together vs layer number
-        fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, doerrs=False)
+        fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, doerrs=False,
+                    linewidth=3)
         fig, ax = add_subdetector_labels(fig, ax)
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)

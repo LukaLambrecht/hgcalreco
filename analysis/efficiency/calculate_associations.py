@@ -47,13 +47,13 @@ if __name__=='__main__':
 
         # loop over events
         for event_idx, event in enumerate(events):
-            if (event_idx+1) % 10 == 0:
+            if (event_idx+1) % 1 == 0:
                 print(f'Reading event {event_idx+1}...', end='\r')
 
             # make a unique event identifier
             # (note: only unique within one output file, not across files!)
             eventid = file_idx*1000000 + event_idx
-        
+       
             # get collections
             collections = reader.read_event(event)
             caloparticles = collections['caloparticles']
@@ -79,6 +79,12 @@ if __name__=='__main__':
             if len(caloparticles) < 2: continue
             if len(tracksters) < 1: continue
 
+            # optional: filter caloparticles to keep only those from the primary interaction
+            # and remove those from pileup.
+            # this filtering is done based on the event() property, which is supposed to be 0
+            # for the primary interaction and > 0 for pileup.
+            caloparticles = [cp for cp in caloparticles if cp.eventId().event()==0]
+
             # split caloparticles per layer
             cps_hits_per_layer = []
             for caloparticle in caloparticles:
@@ -92,40 +98,49 @@ if __name__=='__main__':
                 lcs_hits_per_layer.append(lc_hits_per_layer)
 
             # calculate associations
+            #delta_r_threshold = None
+            delta_r_threshold = 1.5
             associations = get_associations(
-                cps_hits_per_layer=cps_hits_per_layer,
-                lcs_hits_per_layer=lcs_hits_per_layer,
-                sum_lc_per_layer = args.sum_lc_per_layer)
+                caloparticles = caloparticles,
+                layerclusters = layerclusters,
+                cps_hits_per_layer = cps_hits_per_layer,
+                lcs_hits_per_layer = lcs_hits_per_layer,
+                sum_lc_per_layer = args.sum_lc_per_layer,
+                delta_r_threshold = delta_r_threshold)
             eff_matrix = get_cptolc_matrix(associations)
             pur_matrix = get_lctocp_matrix(associations)
 
             # make mapping based on purity
-            mapping = get_mapping(pur_matrix)
-            (lc_ids, cp_ids) = mapping
+            #threshold = None
+            threshold = 0.1
+            mapping = get_mapping(pur_matrix, threshold=threshold)
+            (cptolc_ids, lctocp_ids) = mapping
+            linked_lc_ids = np.nonzero(lctocp_ids!=-1)[0] # indices of layerclusters that are linked to a caloparticle
+            linked_lc_cp_ids = lctocp_ids[linked_lc_ids] # indices of corresponding caloparticles
 
             # calculate metrics for layer clusters
-            lc_pur = pur_matrix[cp_ids, range(len(layerclusters))]
-            lc_eff = eff_matrix[cp_ids, range(len(layerclusters))]
+            lc_pur = pur_matrix[linked_lc_cp_ids, linked_lc_ids]
+            lc_eff = eff_matrix[linked_lc_cp_ids, linked_lc_ids]
 
             # calculate auxiliary variables for layer clusters
-            lc_pt = np.array([caloparticles[int(idx)].pt() for idx in cp_ids])
-            lc_eta = np.array([caloparticles[int(idx)].eta() for idx in cp_ids])
-            lc_layer = np.array([get_layercluster_layer(lc) for lc in layerclusters])
-            lc_subdet = np.array([get_layercluster_subdetid(lc) for lc in layerclusters])
+            lc_pt = np.array([caloparticles[int(idx)].pt() for idx in linked_lc_cp_ids])
+            lc_eta = np.array([caloparticles[int(idx)].eta() for idx in linked_lc_cp_ids])
+            lc_layer = np.array([get_layercluster_layer(layerclusters[int(idx)]) for idx in linked_lc_ids])
+            lc_subdet = np.array([get_layercluster_subdetid(layerclusters[int(idx)]) for idx in linked_lc_ids])
 
             # calculate response per calo particle
             cps_energy_per_layer = []
             for cp_hits_per_layer in cps_hits_per_layer:
                 energy_per_layer = get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=True)
                 cps_energy_per_layer.append(energy_per_layer)
-            cps_res = response(caloparticles, cps_energy_per_layer, layerclusters, lc_ids, flatten=False)
+            cps_res = response(caloparticles, cps_energy_per_layer, layerclusters, cptolc_ids, flatten=False)
 
             # calculate sum of layercluster efficiencies per layer and per calo particle.
             # update: do not sum layercluster efficiencies, but recalculate efficiency on unity of layerclusters.
             # note: this is not the same as the response, as only the energy fractions coming from the caloparticle
             #       are taken into account, not the full layercluster energy;
             #       hence this property can never by larger than one (while the response can).
-            cps_eff = efficiency(cps_hits_per_layer, lcs_hits_per_layer, lc_ids, flatten=False)
+            cps_eff = efficiency(caloparticles, layerclusters, cps_hits_per_layer, lcs_hits_per_layer, cptolc_ids, flatten=False)
 
             # flatten caloparticle metrics
             layers_per_cp = [list(el.keys()) for el in cps_res]

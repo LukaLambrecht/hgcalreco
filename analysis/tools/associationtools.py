@@ -19,7 +19,8 @@ def get_associations(
         layerclusters = None, rechits = None,
         cps_hits_per_layer = None,
         lcs_hits_per_layer = None,
-        sum_lc_per_layer = False):
+        sum_lc_per_layer = False,
+        delta_r_threshold = None):
     '''
     Calculate association scores between collections of caloparticles and layerclusters.
     Input arguments:
@@ -91,9 +92,16 @@ def get_associations(
         for e, f in hits.values(): denom += (f * e) ** 2
         lc_norms.append(denom)
 
+    # pre-fetch eta and phi (used for quick filtering in the loop below)
+    cps_eta = [cp.eta() for cp in caloparticles]
+    cps_phi = [cp.phi() for cp in caloparticles]
+    lcs_eta = [lc.eta() for lc in layerclusters]
+    lcs_phi = [lc.phi() for lc in layerclusters]
+    dr2max = None if delta_r_threshold is None else delta_r_threshold**2
+
     # loop over calo particles
     res = []
-    for cp_hits_per_layer in cps_hits_per_layer:
+    for cp_idx, cp_hits_per_layer in enumerate(cps_hits_per_layer):
         res.append([])
 
         # precompute norm per layer (denominator)
@@ -112,6 +120,16 @@ def get_associations(
                 msg = f'Something went wrong; expected 1 layer but found {len(layers)} ({layers}).'
                 raise Exception(msg)
 
+            # do geometric prefiltering
+            if dr2max is not None:
+                delta_eta = cps_eta[cp_idx] - lcs_eta[lc_idx]
+                delta_phi = cps_phi[cp_idx] - lcs_phi[lc_idx]
+                delta_phi = (delta_phi + np.pi) % (2*np.pi) - np.pi
+                dr2 = delta_eta**2 + delta_phi**2
+                if dr2 > dr2max:
+                    res[-1].append({"cptolc": 0, "lctocp": 0})
+                    continue
+
             # get hits for layer cluster and calo particle in this layer
             layer = layers[0]
             lc_hits = lc_hits_per_layer[layer]
@@ -125,7 +143,7 @@ def get_associations(
                 "cptolc": associations[0],
                 "lctocp": associations[1]
             })
-        
+
     return res
 
 
@@ -185,17 +203,23 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
     return (association_12, association_21)
 
 
-def get_mapping(association_matrix):
+def get_mapping(association_matrix, threshold=None):
     '''
     Calculate unique mapping between calo particles and layer clusters,
     based on a provided association score matrix.
     The association matrix is supposed to have shape (len(caloparticles), len(layerclusters)).
     Returns: a tuple of 2 elements:
-    - list of lenght caloparticles, each element is an array with indices of mapped layerclusters
-    - array of length layerclusters with indices of mapped caloparticles
+    - lc_ids: list of lenght caloparticles, each element is an array with indices of mapped layerclusters
+    - cp_ids: array of length layerclusters with index of mapped caloparticle
+    If a threshold is provided, cp_ids can contain -1 if no caloparticle is above threshold for a layercluster,
+    and lc_ids can contain empty lists if no layercluster is linked to a caloparticle.
     '''
     ncp, nlc = association_matrix.shape
     cp_ids = np.argmax(association_matrix, axis=0).astype(int)
+    if threshold is not None:
+        scores = association_matrix[cp_ids, range(nlc)]
+        mask = (scores < threshold).astype(bool)
+        cp_ids[mask] = -1
     lc_ids = []
     for cp_idx in range(ncp):
         lc_ids.append(np.nonzero(cp_ids==cp_idx)[0])

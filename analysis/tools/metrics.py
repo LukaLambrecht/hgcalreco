@@ -82,7 +82,7 @@ def response(caloparticles, cps_energy_per_layer, layerclusters, lcs_ids, flatte
     else: return response
 
 
-def caloparticle_efficiency(cp_hits_per_layer, lcs_hits_per_layer):
+def caloparticle_efficiency(caloparticle, layerclusters, cp_hits_per_layer, lcs_hits_per_layer):
     '''
     Calculate efficiency, i.e. fraction of CaloParticle energy found in LayerClusters.
     Note: this is calculated re-using the same code as calculating the efficiency-based association
@@ -98,16 +98,20 @@ def caloparticle_efficiency(cp_hits_per_layer, lcs_hits_per_layer):
     layers = np.unique([list(el.keys())[0] for el in lcs_hits_per_layer])
     for layer in layers:
         # find clusters for this layer
-        this_lcs = [el for el in lcs_hits_per_layer if list(el.keys())[0]==layer]
+        this_lcs_ids = [idx for idx in range(len(lcs_hits_per_layer)) if list(lcs_hits_per_layer[idx].keys())[0]==layer]
+        this_lcs = [layerclusters[idx] for idx in this_lcs_ids]
+        this_lcs_hits = [lcs_hits_per_layer[idx] for idx in this_lcs_ids]
         # calculate efficiency
         efficiency[layer] = get_associations(
+            caloparticles = [caloparticle],
+            layerclusters = this_lcs,
             cps_hits_per_layer = [cp_hits_per_layer],
-            lcs_hits_per_layer = this_lcs,
+            lcs_hits_per_layer = this_lcs_hits,
             sum_lc_per_layer=True)[0][0]["cptolc"]
     return efficiency
 
 
-def efficiency(cps_hits_per_layer, lcs_hits_per_layer, lcs_ids, flatten=False):
+def efficiency(caloparticles, layerclusters, cps_hits_per_layer, lcs_hits_per_layer, lcs_ids, flatten=False):
     '''
     Calculate efficiency, i.e. fraction of CaloParticle energy found in LayerClusters.
     Same as caloparticle_efficiency, but loop over multiple CaloParticles per event.
@@ -120,13 +124,14 @@ def efficiency(cps_hits_per_layer, lcs_hits_per_layer, lcs_ids, flatten=False):
     efficiency = []
 
     # loop over calo particles
-    for cp_hits_per_layer, lc_ids in zip(cps_hits_per_layer, lcs_ids):
+    for cp, cp_hits_per_layer, lc_ids in zip(caloparticles, cps_hits_per_layer, lcs_ids):
 
         # get layerclusters for this caloparticle
+        this_lcs = [layerclusters[int(idx)] for idx in lc_ids]
         this_lcs_hits_per_layer = [lcs_hits_per_layer[int(idx)] for idx in lc_ids]
 
         # calculate efficiency
-        efficiency.append(caloparticle_efficiency(cp_hits_per_layer, this_lcs_hits_per_layer))
+        efficiency.append(caloparticle_efficiency(cp, this_lcs, cp_hits_per_layer, this_lcs_hits_per_layer))
 
     # flatten if requested
     if flatten:
