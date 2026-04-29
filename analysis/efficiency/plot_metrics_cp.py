@@ -75,7 +75,8 @@ if __name__=='__main__':
 
     # counts vs layer number
     counts_per_layer = get_counts_per_layer(df, per_event=True, absolute=True)
-    fig, ax = plot_counts_per_layer(counts_per_layer, per_event=True)
+    fig, ax = plot_counts_per_layer(counts_per_layer, per_event=True,
+                linewidth=3)
     fig, ax = add_subdetector_labels(fig, ax)
     fig.tight_layout()
     figname = os.path.join(outputdir, 'counts_vs_layer.png')
@@ -83,7 +84,8 @@ if __name__=='__main__':
 
     # response vs layer number
     response_per_layer = get_response_per_layer(df, absolute=True)
-    fig, ax = plot_response_per_layer(response_per_layer, doerrs=False)
+    fig, ax = plot_response_per_layer(response_per_layer, doerrs=False,
+                linewidth=3)
     fig, ax = add_subdetector_labels(fig, ax)
     fig.tight_layout()
     figname = os.path.join(outputdir, 'response_vs_layer.png')
@@ -91,7 +93,8 @@ if __name__=='__main__':
 
     # response vs layer number
     efficiency_per_layer = get_efficiency_per_layer(df, absolute=True)
-    fig, ax = plot_efficiency_per_layer(efficiency_per_layer, doerrs=False)
+    fig, ax = plot_efficiency_per_layer(efficiency_per_layer, doerrs=False,
+                linewidth=3)
     fig, ax = add_subdetector_labels(fig, ax)
     fig.tight_layout()
     figname = os.path.join(outputdir, 'efficiency_vs_layer.png')

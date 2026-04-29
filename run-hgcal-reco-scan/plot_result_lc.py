@@ -73,6 +73,7 @@ def plot_lc_result(result, outputdir, params=None, legend_dict=None):
     labeldict = {key: legend_dict.get(key, key) for key in result.keys()}
     if params is not None:
         for key in params.keys():
+            if params[key] is None: continue
             this_params = {}
             for p, v in params[key].items():
                 param_key = legend_dict.get(p, p)

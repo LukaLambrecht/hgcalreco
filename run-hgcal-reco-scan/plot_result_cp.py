@@ -59,6 +59,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
     labeldict = {key: legend_dict.get(key, key) for key in result.keys()}
     if params is not None:
         for key in params.keys():
+            if params[key] is None: continue
             this_params = {}
             for p, v in params[key].items():
                 param_key = legend_dict.get(p, p)
@@ -78,7 +79,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
         fig, ax = plot_metrics_lc.plot_counts_per_layer(result[key]['num'],
                         per_event = True,
                         fig=fig, ax=ax,
-                        linewidth=3,
+                        linewidth=4,
                         color=colordict[key],
                         label=labeldict[key])
     fig, ax = plot_metrics_lc.add_subdetector_labels(fig, ax)
@@ -93,7 +94,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
     for key in result.keys():
         fig, ax = plot_metrics_cp.plot_response_per_layer(result[key]['res'],
                         fig=fig, ax=ax,
-                        linewidth=3,
+                        linewidth=4,
                         color=colordict[key],
                         label=labeldict[key],
                         doerrs=False)
@@ -110,7 +111,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
     for key in result.keys():
         fig, ax = plot_metrics_cp.plot_efficiency_per_layer(result[key]['eff'],
                         fig=fig, ax=ax,
-                        linewidth=3,
+                        linewidth=4,
                         color=colordict[key],
                         label=labeldict[key],
                         doerrs=False)
@@ -140,4 +141,5 @@ if __name__=='__main__':
     # get and plot result
     result = get_cp_result_from_df(df)
     result = {'_': result}
+    params = {'_': params}
     plot_cp_result(result, outputdir, params=params)
