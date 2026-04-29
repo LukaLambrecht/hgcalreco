@@ -98,13 +98,14 @@ def get_layercluster_hits(layercluster, rechits):
       where energy is the total energy deposted in that detector element,
       and  fraction is the fraction of that energy coming from this layercluster.
     '''
-    layer = get_layercluster_layer(layercluster)
+
     hits = {}
     for hf in layercluster.hitsAndFractions():
         detid = hf.first
-        fraction = hf.second
-        if detid in rechits.keys(): energy = rechits[detid].energy()
-        hits[detid] = (energy, fraction)
+        rechit = rechits.get(detid, None)
+        if rechit is None: continue
+        energy = rechit.energy()
+        hits[detid] = (energy, hf.second)
     return hits
 
 def get_layercluster_energy_sum_per_layer(layerclusters, keys=None):
@@ -194,3 +195,14 @@ def get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=False):
         for key, val in energy_per_layer.items():
             energy_per_layer[key] = val / total
     return energy_per_layer
+
+def mindr(collection_1, collection_2):
+    dr2min = 99.
+    for p1 in collection_1:
+        for p2 in collection_2:
+            delta_eta = p1.eta() - p2.eta()
+            delta_phi = p1.phi() - p2.phi()
+            delta_phi = (delta_phi + np.pi) % (2*np.pi) - np.pi
+            dr2 = delta_eta**2 + delta_phi**2
+            if dr2 < dr2min: dr2min = dr2
+    return np.sqrt(dr2min)

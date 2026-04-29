@@ -133,6 +133,9 @@ def get_associations(
             # get hits for layer cluster and calo particle in this layer
             layer = layers[0]
             lc_hits = lc_hits_per_layer[layer]
+            if layer not in cp_hits_per_layer:
+                res[-1].append({"cptolc": 0, "lctocp": 0})
+                continue
             cp_hits = cp_hits_per_layer.get(layer, {})
 
             # calculate association between the two collections of hits
@@ -178,29 +181,39 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
     '''
 
     # calculate denominators if not provided
-    if denominator_1 is None:
-        denominator_1 = sum([e*f for (e, f) in hits_1.values()])
-    if denominator_2 is None:
-        denominator_2 = sum([e*f for (e, f) in hits_2.values()])
+    if denominator_1 is None: denominator_1 = sum((e*f)**2 for e, f in hits_1.values())
+    if denominator_2 is None: denominator_2 = sum((e*f)**2 for e, f in hits_2.values())
+
+    # get keys that are in both hits_1 and hits_2
+    common = hits_1.keys() & hits_2.keys()
 
     # calculate association of 1 to 2
     numerator_12 = 0.
-    for detid, (e1, f1) in hits_1.items():
-        f2 = hits_2.get(detid, (0., 0.))[1]
+    # shared hits
+    for detid in common:
+        e1, f1 = hits_1[detid]
+        _, f2 = hits_2[detid]
         numerator_12 += (1 - f2)**2 * f1**2 * e1**2
-    if denominator_1 < 1e-12: association_12 = 0.
-    else: association_12 = 1. - numerator_12 / denominator_1
+    # non-shared hits (f2 = 0)
+    for detid in hits_1.keys() - common:
+        e1, f1 = hits_1[detid]
+        numerator_12 += f1**2 * e1**2
+    association_12 = 0. if denominator_1 < 1e-12 else 1. - numerator_12 / denominator_1
 
     # calculate association of 2 to 1
     numerator_21 = 0.
-    for detid, (e2, f2) in hits_2.items():
-        f1 = hits_1.get(detid, (0., 0.))[1]
+    # shared hits
+    for detid in common:
+        e2, f2 = hits_2[detid]
+        _, f1 = hits_1[detid]
         numerator_21 += (1 - f1)**2 * f2**2 * e2**2
-    if denominator_2 < 1e-12: association_21 = 0.
-    else: association_21 = 1. - numerator_21 / denominator_2
+    # non-shared hits (f1 = 0)
+    for detid in hits_2.keys() - common:
+        e2, f2 = hits_2[detid]
+        numerator_21 += f2**2 * e2**2
+    association_21 = 0. if denominator_2 < 1e-12 else 1. - numerator_21 / denominator_2
 
-    # return results
-    return (association_12, association_21)
+    return association_12, association_21
 
 
 def get_mapping(association_matrix, threshold=None):

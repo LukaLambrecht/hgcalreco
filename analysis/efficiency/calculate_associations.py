@@ -3,6 +3,7 @@
 
 import os
 import sys
+import time
 import argparse
 import numpy as np
 import pandas as pd
@@ -19,6 +20,7 @@ from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
 from tools.geometrytools import get_caloparticle_hits_per_layer
 from tools.geometrytools import get_caloparticle_energy_per_layer
 from tools.geometrytools import get_layercluster_hits
+from tools.geometrytools import mindr
 from tools.associationtools import get_mapping
 from tools.metrics import response
 from tools.metrics import efficiency
@@ -55,13 +57,13 @@ if __name__=='__main__':
             eventid = file_idx*1000000 + event_idx
        
             # get collections
+            starttime = time.time()
             collections = reader.read_event(event)
             caloparticles = collections['caloparticles']
-            simclusters = collections['simclusters']
             calohits_ee = collections['calohitees']
             calohits_heb = collections['calohithebs']
             calohits_hef = collections['calohithefs']
-            tracksters = collections['tracksters']
+            #tracksters = collections['tracksters']
             layerclusters = collections['layerclusters']
             rechits_ee = collections['rechitees']
             rechits_heb = collections['rechithebs']
@@ -74,10 +76,12 @@ if __name__=='__main__':
             rechit_map = {hit.id(): hit for hit in rechits_ee}
             rechit_map.update({hit.id(): hit for hit in rechits_heb})
             rechit_map.update({hit.id(): hit for hit in rechits_hef})
+            stoptime = time.time()
+            print(f'Loading event: {stoptime - starttime}')
 
             # do some event selection
             if len(caloparticles) < 2: continue
-            if len(tracksters) < 1: continue
+            #if len(tracksters) < 1: continue
 
             # optional: filter caloparticles to keep only those from the primary interaction
             # and remove those from pileup.
@@ -86,20 +90,30 @@ if __name__=='__main__':
             caloparticles = [cp for cp in caloparticles if cp.eventId().event()==0]
 
             # split caloparticles per layer
+            starttime = time.time()
             cps_hits_per_layer = []
             for caloparticle in caloparticles:
                 cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, calohit_map))
             
             # get layerclusters in the same format
             lcs_hits_per_layer = []
+            #delta_r_threshold = None
+            detla_r_threshold = 1.5
             for layercluster in layerclusters:
+                # optional: skip this step for layerclusters that are too far away
+                # from any caloparticle anyway
+                if mindr([layercluster], caloparticles) > delta_r_threshold:
+                    lcs_hits_per_layer.append({0: {}})
+                    continue 
+                # get layer and hits
                 layer = get_layercluster_layer(layercluster)
                 lc_hits_per_layer = {layer: get_layercluster_hits(layercluster, rechit_map)}
                 lcs_hits_per_layer.append(lc_hits_per_layer)
+            stoptime = time.time()
+            print(f'Preprocessing: {stoptime - starttime}')
 
             # calculate associations
-            #delta_r_threshold = None
-            delta_r_threshold = 1.5
+            starttime = time.time()
             associations = get_associations(
                 caloparticles = caloparticles,
                 layerclusters = layerclusters,
@@ -107,6 +121,8 @@ if __name__=='__main__':
                 lcs_hits_per_layer = lcs_hits_per_layer,
                 sum_lc_per_layer = args.sum_lc_per_layer,
                 delta_r_threshold = delta_r_threshold)
+            stoptime = time.time()
+            print(f'Association calculation: {stoptime - starttime}')
             eff_matrix = get_cptolc_matrix(associations)
             pur_matrix = get_lctocp_matrix(associations)
 
