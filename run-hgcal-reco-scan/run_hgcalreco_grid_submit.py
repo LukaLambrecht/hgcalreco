@@ -8,30 +8,8 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 from tools.gridtools import get_grid_points
+from tools.jobtools import get_cmssw
 import tools.condortools as ct
-
-
-def get_cmssw(args):
-    # get CMSSW version if provided
-    # priority:
-    # - command line arg
-    # - environment
-    cmssw = None
-    envcmssw = os.getenv('CMSSW_BASE')
-    if args.cmssw is not None:
-        cmssw = os.path.abspath(args.cmssw)
-        if not os.path.exists(cmssw):
-            raise Exception(f'Provided CMSSW {cmssw} does not exist.')
-        if envcmssw is not None and envcmssw!=cmssw:
-            msg = 'WARNING: provided CMSSW {cmssw} is different from current environment CMSSW {envcmssw}.'
-            print(msg)
-    elif envcmssw is not None:
-        cmssw = envcmssw
-    else:
-        msg = 'A CMSSW version must be provided either explicitly with --cmssw'
-        msg += ' or implicitly in the environment.'
-        raise Exception(msg)
-    return cmssw
 
 
 if __name__=='__main__':
@@ -59,7 +37,7 @@ if __name__=='__main__':
     else: args.workdir = os.path.abspath(args.workdir)
 
     # get CMSSW if provided
-    cmssw = get_cmssw(args)
+    cmssw = get_cmssw(args.cmssw, error_if_none=True)
     print(f'Found following CMSSW: {cmssw}')
 
     # check input file existence

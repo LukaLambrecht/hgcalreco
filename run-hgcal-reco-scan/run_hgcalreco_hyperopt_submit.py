@@ -6,8 +6,8 @@ import argparse
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
+from tools.jobtools import get_cmssw
 import tools.condortools as ct
-from run_hgcalreco_grid_submit import get_cmssw
 
 
 if __name__=='__main__':
@@ -35,7 +35,7 @@ if __name__=='__main__':
     else: args.workdir = os.path.abspath(args.workdir)
 
     # get CMSSW if provided
-    cmssw = get_cmssw(args)
+    cmssw = get_cmssw(args.cmssw, error_if_none=True)
     print(f'Found following CMSSW: {cmssw}')
 
     # check input file existence

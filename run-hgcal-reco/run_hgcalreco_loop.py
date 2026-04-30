@@ -7,8 +7,8 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 from tools.filetools import format_input_files
+from tools.jobtools import get_cmssw
 import tools.condortools as ct
-CMSSW_VERSION = os.path.abspath('../CMSSW_14_0_9')
 
 
 if __name__=='__main__':
@@ -20,6 +20,7 @@ if __name__=='__main__':
     parser.add_argument('-w', '--workdir', default='.')
     parser.add_argument('-r', '--runmode', default='local', choices=['local', 'condor'])
     parser.add_argument('-p', '--proxy', default=None)
+    parser.add_argument('--cmssw', default=None)
     parser.add_argument('--template', default='templates/hgcalreco_cff_template.py')
     parser.add_argument('--globaltag', default='150X_mcRun4_realistic_v1')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
@@ -29,6 +30,9 @@ if __name__=='__main__':
     # check file existence
     if not os.path.exists(args.template):
         raise Exception(f'Template config {args.template} does not exist.')
+
+    # get cmssw
+    cmssw = get_cmssw(args.cmssw, error_if_none=True)
 
     # find input files depending on what is provided
     print('Finding input files...')
@@ -63,4 +67,4 @@ if __name__=='__main__':
             os.system(cmd)
     elif args.runmode=='condor':
         ct.submitCommandsAsCondorCluster('cjob_run_hgcalreco', cmds,
-          jobflavour='workday', cmssw_version=CMSSW_VERSION, proxy=args.proxy) 
+          jobflavour='workday', cmssw_version=cmssw, proxy=args.proxy) 
