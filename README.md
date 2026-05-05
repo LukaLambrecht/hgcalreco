@@ -1,6 +1,36 @@
 # Run and tune HGCAL reconstruction for hadronic showers
 
 
+### Introduction
+This repo contains tools for producing custom HGCAL validation samples,
+running the HGCAL reconstruction (specifically known as TICL) within CMSSW,
+and investigating the effects of TICL parameter tuning.
+
+A typical workflow consists of the following steps:
+- Generate a sample for the case you want to study (see [sample-production](sample-production)).
+- Run the reconstruction, either HGCAL-specific (see [run-hgcal-reco](run-hgcal-reco)) or full reco (see [run-full-reco](run-full-reco)).
+- Analyze the output (see [analysis](analysis)).
+- Run the whole sequence in a grid scan or other optimization strategy (see [run-hgcal-reco-scan](run-hgcal-reco-scan)).
+
+See more information on each of the steps in the dedicated READMEs.
+
+
+### How to install
+Just clone this repository as usual.
+The only other dependency is a CMSSW installation (see more details below).
+
+
+### CMSSW versions
+The annoying part is that a lot of the details depend crucially on the exact CMSSW version being used,
+and it seems very hard if not impossible to automatically generalize this.
+The currently supported version is mostly `CMSSW_16_0_5`.
+Examples of dependencies include:
+- Exact syntax of cmsDriver commands or cmsRun config fragments.
+- Available detector geometries.
+- What TICL does under the hood.
+- ...
+
+
 ### How to modify clustering parameters in HGCAL reconstruction?
 
 The safest option seems to be to modify the cmsRun configuration fragment (`_cff.py`).
@@ -142,5 +172,8 @@ Notes:
 
 ### Other tips and tricks
 
-Run `edmDumpEventContent.py <input file>` to see file contents.
+- Run `edmDumpEventContent.py <input file>` to see file contents.
 Use the same followed by `| grep <search term>` to filter.
+
+- Run `edmConfigDump.py <config fragment>` to get the full config.
+Use the same followed by ` >> <some txt file>` to redirect the output (can be 10k - 100k lines) to a file.
