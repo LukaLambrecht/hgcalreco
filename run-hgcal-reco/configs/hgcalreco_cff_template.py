@@ -67,22 +67,37 @@ process.hgcal_step = cms.Path(
     * process.iterTICLSequence)
 process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
 
+# optional: calculate association scores between objects
+process.load('SimCalorimetry.HGCalAssociatorProducers.LCToCPAssociation_cfi');
+process.load('SimCalorimetry.HGCalAssociatorProducers.LCToSCAssociation_cfi');
+process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi');
+process.hgcalAssociatorTask = cms.Task(
+    process.lcAssocByEnergyScoreProducer,
+    process.scAssocByEnergyScoreProducer,
+    process.layerClusterCaloParticleAssociation,
+    process.layerClusterSimClusterAssociation
+);
+process.hgcal_step.associate(process.hgcalAssociatorTask)
+
 # set output
 process.out = cms.OutputModule("PoolOutputModule",
     fileName = cms.untracked.string("hgcalreco_out.root"),
     outputCommands = cms.untracked.vstring(
-        # reco output
+        # reco-level output
         "keep *_HGCalRecHit_*_*",
         "keep *_hgcalMergeLayerClusters_*_*",
         "keep *_ticlTracksters*_*_*",
-        # gen output
+        # gen-level output
         "keep *GenParticle*_*_*_*",
         "keep *TrackingParticle*_*_*_*",
         "keep *TrackingVertex*_*_*_*",
         "keep *SimTrack*_*_*_*",
         "keep *CaloParticle*_*_*_*",
         "keep *SimCluster*_*_*_*",
-        "keep *CaloHit*_*_*_*"
+        "keep *CaloHit*_*_*_*",
+        # links and associations
+        "keep *_layerClusterCaloParticleAssociation_*_*",
+        "keep *_layerClusterSimClusterAssociation_*_*"
     )
 )
 
