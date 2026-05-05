@@ -1,6 +1,18 @@
 # Run minimal HGCAL reco
 
-Note: still to figure out in a somewhat systematic way which combinations of CMSSW versions, arguments, and input files are working...
+### Introduction
+This code runs a minimalistic HGCAL-specific re-reco.
+It relies on a custom cmsRun config fragment rather than a cmsDriver command running the full default reco chain.
+
+Note: this approach is somewhat brittle as a function of CMSSW version;
+still to figure out in a somewhat systematic way which combinations of CMSSW versions, arguments, and input files are working...
+But at the current time of writing, this works well for custom samples produced in `CMSSW_16_0_5`,
+with the default geometries and conditions given in the script.
+
+
+### How to run
+Run `python3 run_hgcalreco.py -h` or `python3 run_hgcalreco_loop.py -h` to see all available options.
+The actual cmsRun config to run is in [configs](configs).
 
 
 ### First version (10 March 2026)
@@ -34,17 +46,8 @@ Maybe try to find cleaner solution later, but at least for now the templates for
 to work in their respective targeted release, so good enough for now.
 
 
-# Expected input format
+### Expected input format
 
 Currently there is no complete list of objects / collections that are strictly required in the input file.
 See the `sample-production` folder for `cmsDriver` commands that produce files that have been tested to work.
-
-Note: currently only the files produced with "minimal" HGCAL-specific output seem to work with this re-reco code.
-Files produced with the "full" output seem to have missing products, so probably not so full after all.
-It seems some RECO collections (in particular the HGCalRecHits) are not written to the output by default in "full" mode,
-while they are required as input for this "minimal" HGCAL-specific re-reco.
-
-Follow-up on the issue above: try to explicitly add all required collections / objects to the "full" output mode
-for the produced samples to work with this re-reco code.
--> Seems to work after adding the "hgcalDigis" collection to the "full" output.
-Now this "minimal" HGCAL-specific re-reco works on input files produced with both minimal and full output mode.
+This "minimal" HGCAL-specific re-reco works on input files produced with both minimal and full output mode.
