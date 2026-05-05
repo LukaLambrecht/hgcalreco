@@ -94,37 +94,54 @@ if __name__=='__main__':
         # note: this currently assumes the last step is MiniAOD level,
         #       maybe later try to generalize.
         if stepidx == len(cmds)-1:
+
+            output_mode = "full" # choose from "full" or "hgcal", maybe later add as argument
             
             # option 1: keep everything
-            # note: directly copied from example sample, see README for more info.
-            # note: gives very large files, but contains all info to re-run HGCAL reco.
-            #customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_HLT\')')
-            #customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_SIM\')')
+            # note: gives very large files, but contains all info to re-run the reco step.
+            # note: copied from examples, see README for more info
+            if output_mode == "full":
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_HLT\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_SIM\')')
+                # custom additions to be able to run the "minimal" (i.e. HGCAL-specific) re-reco on these files
+                # note: without this addition, some RECO products (in particular the HGCalRecHits)
+                #       seem to be missing from the produced files; not sure why because other RECO
+                #       collections are present.
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalRecHit_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalUncalibRecHit_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hgcalDigis_*_*\')')
 
             # option 2: minimal content
             # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
-            #       update: seems like they do (at least with the minimal setup in run-hgcal-reco, probably not the full reco)!
-            drop = [
-              '*_*_*_*'
-            ]
-            keep = [
-              '*_hgcalDigis_*_*',
-              '*_HGCalUncalibRecHit_*_*',
-              '*_HGCalRecHit_*_*',
-              '*_hgcalMergeLayerClusters_*_*',
-              '*_ticlTracksters*_*_*',
-              '*GenParticle*_*_*_*',
-              '*TrackingParticle*_*_*_*',
-              '*TrackingVertex*_*_*_*',
-              '*SimTrack*_*_*_*',
-              '*CaloParticle*_*_*_*',
-              '*SimCluster*_*_*_*',
-              '*CaloHit*_*_*_*'
-            ]
-            for collection in drop:
-                customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')
-            for collection in keep:
-                customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'keep {collection}\')')
+            #       update: in fact they do, but only with the minimal/selective setup in run-hgcal-reco,
+            #       does not contain all needed info for re-running the full reco!
+            elif output_mode == "hgcal":
+
+                drop = [
+                '*_*_*_*'
+                ]
+                keep = [
+                  '*_hgcalDigis_*_*',
+                  '*_HGCalUncalibRecHit_*_*',
+                  '*_HGCalRecHit_*_*',
+                  '*_hgcalMergeLayerClusters_*_*',
+                  '*_ticlTracksters*_*_*',
+                  '*GenParticle*_*_*_*',
+                  '*TrackingParticle*_*_*_*',
+                  '*TrackingVertex*_*_*_*',
+                  '*SimTrack*_*_*_*',
+                  '*CaloParticle*_*_*_*',
+                  '*SimCluster*_*_*_*',
+                  '*CaloHit*_*_*_*'
+                ]
+                for collection in drop:
+                    customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')
+                for collection in keep:
+                    customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'keep {collection}\')')
+
+            else:
+                msg = f'Output mode "{output_mode}" not recognized.'
+                raise Exception(msg)
 
         # others: to do as the need arises
 
