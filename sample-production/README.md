@@ -1,5 +1,30 @@
 # Custom sample production
 
+### Basic instructions to use this code
+
+First, if you run for the first time in a new CMSSW environment, run `./prepare_cmssw.sh`.
+This just creates a directory in CMSSW to hold the generator fragments and recompiles.
+This only needs to be done once, until you switch to a not-yet-prepared CMSSW release.
+
+Then, prepare a fragment (see [fragments](fragments) for examples),
+a chain of cmsDriver commands (see [cmsdriver](cmsdriver) for examples),
+and run `python3 produce.py` with the appropriate options
+(use `python3 produce.py -h` to see all available options).
+
+Which collections to keep in the output files?
+Currently this is hard-coded in `produce.py`, but maybe to make more flexible later.
+In any case, it seems that the option with "reduced" output is good enough for all practical purposes so far
+(and probably can be trimmed even further).
+This includes:
+- Re-running the HGCAL-specific reconstruction on the produced samples.
+- Potentially after changing some of the TICL parameters.
+- Calculating purities, efficiencies and correlations.
+- Calculating LayerCluster-to-CaloParticle association scores (both offline in FWLite and during the re-reco).
+
+The only exception so far is if you want to run the full re-reco (rather than the HGCAL-specific one),
+for this you need to produce the samples with the "full" output option.
+But then at the time of writing there is no good reason to want to the full re-reco as opposed to the HGCAL-specific one.
+
 ### Baseline reference sample
 Start from this example:
 ```
