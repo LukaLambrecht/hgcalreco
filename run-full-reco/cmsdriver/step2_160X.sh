@@ -12,6 +12,4 @@ cmsDriver.py step2 \
   -n -1 \
   --filein file:FILEIN \
   --fileout FILEOUT \
-  --processName HGCALTICL \
-  --customise_commands "process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi'); process.lcAssocTask = cms.Task(process.lcAssocByEnergyScoreProducer);
-process.schedule.associate(process.lcAssocTask)" \
+  --processName HGCALTICL

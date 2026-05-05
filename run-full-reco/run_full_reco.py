@@ -75,18 +75,23 @@ if __name__=='__main__':
             '*_*_*_*'
         ]
         keep = [
+            # add reco-level objects of interest
             '*_hgcalDigis_*_HGCALTICL',
             '*_HGCalUncalibRecHit_*_HGCALTICL',
             '*_HGCalRecHit_*_HGCALTICL',
             '*_hgcalMergeLayerClusters_*_HGCALTICL',
             '*_ticlTracksters*_*_HGCALTICL',
+            # add gen-level objects of interest
             '*GenParticle*_*_*_*',
             '*TrackingParticle*_*_*_*',
             '*TrackingVertex*_*_*_*',
             '*SimTrack*_*_*_*',
             '*CaloParticle*_*_*_*',
             '*SimCluster*_*_*_*',
-            '*CaloHit*_*_*_*'
+            '*CaloHit*_*_*_*',
+            # add links and associations
+            '*_layerClusterCaloParticleAssociation_*_HGCALTICL',
+            '*_layerClusterSimClusterAssociation_*_HGCALTICL'
         ]
         for collection in drop:
             customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')
