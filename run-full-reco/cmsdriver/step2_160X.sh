@@ -1,0 +1,17 @@
+cmsDriver.py step2 \
+  --python_filename step2_MINIAOD.py \
+  --eventcontent MINIAODSIM \
+  --customise SLHCUpgradeSimulations/Configuration/aging.customise_aging_1000 \
+  --datatier GEN-SIM-DIGI-RAW-MINIAOD \
+  --inputCommands "keep *" \
+  --conditions auto:phase2_realistic_T33 \
+  --step RAW2DIGI,RECO,RECOSIM,PAT \
+  --geometry ExtendedRun4D121 \
+  --era Phase2C22I13M9 \
+  --mc \
+  -n -1 \
+  --filein file:FILEIN \
+  --fileout FILEOUT \
+  --processName HGCALTICL \
+  --customise_commands "process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi'); process.lcAssocTask = cms.Task(process.lcAssocByEnergyScoreProducer);
+process.schedule.associate(process.lcAssocTask)" \
