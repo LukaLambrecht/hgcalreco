@@ -99,7 +99,9 @@ if __name__=='__main__':
             
             # option 1: keep everything
             # note: gives very large files, but contains all info to re-run the reco step.
-            # note: copied from examples, see README for more info
+            # note: copied from examples, see README for more info.
+            # note: does not actually seem to keep everything, some RECO products are dropped
+            #       (but not sure which ones or why...)
             if output_mode == "full":
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_HLT\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_SIM\')')
