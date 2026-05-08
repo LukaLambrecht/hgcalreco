@@ -1,0 +1,6 @@
+{
+    "cptolcassociation": ["edm::AssociationMap<edm::OneToManyWithQualityGeneric<vector<CaloParticle>,vector<reco::CaloCluster>,pair<float,float>,unsigned int> >", "newLayerClusterCaloParticleAssociation", "", "HGCALTICL"],
+    "sctolcassociation": ["edm::AssociationMap<edm::OneToManyWithQualityGeneric<vector<SimCluster>,vector<reco::CaloCluster>,pair<float,float>,unsigned int> >", "newLayerClusterSimClusterAssociation", "", "HGCALTICL"],
+    "lctocpassociation": ["edm::AssociationMap<edm::OneToManyWithQualityGeneric<vector<reco::CaloCluster>,vector<CaloParticle>,float,unsigned int> >", "newLayerClusterCaloParticleAssociation", "", "HGCALTICL"],
+    "lctoscassociation": ["edm::AssociationMap<edm::OneToManyWithQualityGeneric<vector<reco::CaloCluster>,vector<SimCluster>,float,unsigned int> >", "newLayerClusterSimClusterAssociation", "", "HGCALTICL"]
+}

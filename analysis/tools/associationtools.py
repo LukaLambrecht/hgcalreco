@@ -10,6 +10,7 @@ import numpy as np
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
+from tools.geometrytools import get_layercluster_layer
 from tools.geometrytools import get_layercluster_hits
 from tools.geometrytools import get_caloparticle_hits_per_layer
 
@@ -159,14 +160,52 @@ def get_matrix(associations, field):
 def get_cptolc_matrix(associations):
     '''
     Utility function to extract matrix of calo particle to layer cluster scores.
+    Input arguments:
+    - associations: a 2D list of dicts of the form {"cptolc": ..., "lctocp": ...}
+      (i.e. the output of get_associations).
+    Returns:
+    - a 2D numpy array with the cptolc scores.
     '''
     return get_matrix(associations, "cptolc")
 
 def get_lctocp_matrix(associations):
     '''
     Utility function to extract matrix of layer cluster to calo particle scores.
+    Input arguments:
+    - associations: a 2D list of dicts of the form {"cptolc": ..., "lctocp": ...}
+      (i.e. the output of get_associations).
+    Returns:
+    - a 2D numpy array with the lctocp scores.
     '''
     return get_matrix(associations, "lctocp")
+
+
+def get_cptolc_matrix_from_builtin():
+    raise Exception('Not yet implemented.')
+
+def get_lctocp_matrix_from_builtin(lcids, cpids, scores, nlc, ncp):
+    '''
+    Utility function to extract matrix of layer cluster to calo particle scores.
+    Input arguments:
+    - lcids, cpids, scores: flat arrays of the same length representing the flattened map
+    - nlc, ncp: number of layerclusters and number of caloparticles
+    Returns:
+    - a 2D numpy array with the lctocp scores.
+      the shape of the array is (number of caloparticles, number of layerclusters)
+    '''
+
+    # initializations
+    res = np.ones((ncp, nlc))
+
+    # loop over flat map
+    for lcidx, cpidx, score in zip(lcids, cpids, scores):
+        res[cpidx, lcidx] = score
+
+    # convert from 0-is-good to 1-is-good convention
+    res = 1 - res
+    
+    # return the matrix
+    return res
 
 
 def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominator_2=None):
