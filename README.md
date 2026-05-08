@@ -172,8 +172,10 @@ Notes:
 
 ### Other tips and tricks
 
-- Run `edmDumpEventContent.py <input file>` to see file contents.
+- Run `edmDumpEventContent <input file>` to see file contents.
 Use the same followed by `| grep <search term>` to filter.
 
-- Run `edmConfigDump.py <config fragment>` to get the full config.
+- Run `edmConfigDump <config fragment>` to get the full config.
 Use the same followed by ` >> <some txt file>` to redirect the output (can be 10k - 100k lines) to a file.
+
+- Run `edmProvDump <input file> >> <some txt file>` to see which input collections are being used by each module.

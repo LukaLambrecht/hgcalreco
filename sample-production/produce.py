@@ -95,7 +95,7 @@ if __name__=='__main__':
         #       maybe later try to generalize.
         if stepidx == len(cmds)-1:
 
-            output_mode = "full" # choose from "full" or "hgcal", maybe later add as argument
+            output_mode = "hgcal" # choose from "full" or "hgcal", maybe later add as argument
             
             # option 1: keep everything
             # note: gives very large files, but contains all info to re-run the reco step.
@@ -123,18 +123,26 @@ if __name__=='__main__':
                 '*_*_*_*'
                 ]
                 keep = [
+                  # add reco-level objects of interest
                   '*_hgcalDigis_*_*',
                   '*_HGCalUncalibRecHit_*_*',
                   '*_HGCalRecHit_*_*',
                   '*_hgcalMergeLayerClusters_*_*',
                   '*_ticlTracksters*_*_*',
+                  # add gen-level objects of interest
                   '*GenParticle*_*_*_*',
                   '*TrackingParticle*_*_*_*',
                   '*TrackingVertex*_*_*_*',
                   '*SimTrack*_*_*_*',
                   '*CaloParticle*_*_*_*',
                   '*SimCluster*_*_*_*',
-                  '*CaloHit*_*_*_*'
+                  '*CaloHit*_*_*_*',
+                  # add links and associations
+                  # (if produced in the reconstruction chain;
+                  # not enabled by default, but can be added by a small cmsDriver customization command,
+                  # see examples in the cmsdriver/steps folder)
+                  '*_layerClusterCaloParticleAssociation_*_*',
+                  '*_layerClusterSimClusterAssociation_*_*'
                 ]
                 for collection in drop:
                     customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')

@@ -1,0 +1,10 @@
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/Utilities"/>
+<use name="DataFormats/Common"/>
+<use name="SimDataFormats/CaloAnalysis"/>
+<use name="DataFormats/CaloRecHit"/>
+
+<export>
+  <lib name="1"/>
+</export>

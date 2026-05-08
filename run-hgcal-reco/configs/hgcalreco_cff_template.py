@@ -31,13 +31,17 @@ process.source = cms.Source("PoolSource",
 )
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE_MAX_EVENTS')))
 
-# HGCAL reconstruction
+########################
+# Run basic HGCAL reco #
+########################
+
+# load modules for HGCAL reconstruction
 # local reco (RecHits + LayerClusters)
 process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 # TICL (Tracksters)
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 
-# define digis to use
+# define digis to use as input for clustering
 # note: syntax is a little unclear; apparently the name RECO should not be declared explicitly;
 #       instead CMSSW looks for the collections under all available processes (e.g. RECO, HLT, etc)
 #       and exposes them to the current process.
@@ -61,23 +65,61 @@ process.hgcalDigis = cms.EDAlias(
     )
 )
 
+# add HGCAL reconstruction to the path to execute
 process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
     process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
 process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
 
-# optional: calculate association scores between objects
+################################################
+# Calculate and parse sim to reco associatiors #
+################################################
+
+# load modules for calculating association scores between objects
 process.load('SimCalorimetry.HGCalAssociatorProducers.LCToCPAssociation_cfi');
 process.load('SimCalorimetry.HGCalAssociatorProducers.LCToSCAssociation_cfi');
 process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi');
+
+# set layer clusters and calo particles to use as input for association scores
+# note: needs to be set to those from the current process,
+#       otherwise it seems by default the ones from the RECO process
+#       (already present in the input files) might be used (?)
+process.recHitMapProducer.hits = cms.VInputTag(
+        cms.InputTag("HGCalRecHit", "HGCEERecHits", "HGCALTICL"),
+        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", "HGCALTICL"),
+        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", "HGCALTICL"),
+)
+process.layerClusterCaloParticleAssociation.label_lc = cms.InputTag("hgcalMergeLayerClusters", "", "HGCALTICL")
+process.layerClusterCaloParticleAssociation.label_cp = cms.InputTag("mix", "MergedCaloTruth", "HLT")
+process.layerClusterSimClusterAssociation.label_lcl = cms.InputTag("hgcalMergeLayerClusters", "", "HGCALTICL")
+process.layerClusterSimClusterAssociation.label_scl = cms.InputTag("mix", "MergedCaloTruth", "HLT")
+process.flattenLCToCP = cms.EDProducer(
+    "FlattenLCToCPAssociator",
+    src = cms.InputTag("layerClusterCaloParticleAssociation"),
+    dest = cms.string("layerClusterCaloParticleAssociationFlat")
+)
+process.flattenLCToSC = cms.EDProducer(
+    "FlattenLCToSCAssociator",
+    src = cms.InputTag("layerClusterSimClusterAssociation"),
+    dest = cms.string("layerClusterSimClusterAssociationFlat")
+)
+
+# add association scores to the path to execute
 process.hgcalAssociatorTask = cms.Task(
+    process.recHitMapProducer,
     process.lcAssocByEnergyScoreProducer,
     process.scAssocByEnergyScoreProducer,
     process.layerClusterCaloParticleAssociation,
-    process.layerClusterSimClusterAssociation
-);
+    process.layerClusterSimClusterAssociation,
+    process.flattenLCToCP,
+    process.flattenLCToSC
+)
 process.hgcal_step.associate(process.hgcalAssociatorTask)
+
+#########################
+# Define output content #
+#########################
 
 # set output
 process.out = cms.OutputModule("PoolOutputModule",
@@ -97,7 +139,9 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *CaloHit*_*_*_*",
         # links and associations
         "keep *_layerClusterCaloParticleAssociation_*_*",
-        "keep *_layerClusterSimClusterAssociation_*_*"
+        "keep *_layerClusterSimClusterAssociation_*_*",
+        "keep *_*_layerClusterCaloParticleAssociationFlat*_*",
+        "keep *_*_layerClusterSimClusterAssociationFlat*_*",
     )
 )
 
