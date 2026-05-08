@@ -10,24 +10,39 @@ from DataFormats.FWLite import Events, Handle
 class Reader(object):
 
 
-    def __init__(self, input_config):
+    def __init__(self, input_configs):
         '''
         Set labels and handles
         '''
 
-        # read input config    
-        if isinstance(input_config, dict): pass
-        elif isinstance(input_config, str):
-            with open(input_config, 'r') as f:
-                input_config = json.load(f)
-
-        # parse handles and labels
+        # initialization
         self.config = {}
-        for collection_name, input_data in input_config.items():
-            dtype = input_data[0]
-            label = tuple(input_data[1:])
-            handle = Handle(dtype)
-            self.config[collection_name] = {'handle': handle, 'label': label}
+
+        # loop over input configs
+        if not isinstance(input_configs, list):
+            input_configs = [input_configs]
+        for input_config in input_configs:
+
+            # read input config    
+            if isinstance(input_config, dict): pass
+            elif isinstance(input_config, str):
+                with open(input_config, 'r') as f:
+                    input_config = json.load(f)
+
+            # loop over collections to set handles and labels for
+            for collection_name, input_data in input_config.items():
+                dtype = input_data[0]
+                label = tuple(input_data[1:])
+                
+                # check duplication
+                if collection_name in self.config and self.config[collection_name] != label:
+                    msg = f'WARNING: in Reader.__init__: found duplicate collection name "{collection_name}";'
+                    msg += ' will use latest dtype "{dtype}" and label "{label}".'
+                    print(msg)
+
+                # set the handle and label
+                handle = Handle(dtype)
+                self.config[collection_name] = {'handle': handle, 'label': label}
 
 
     def read_event(self, event):

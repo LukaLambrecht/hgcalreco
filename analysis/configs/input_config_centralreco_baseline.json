@@ -1,0 +1,6 @@
+{
+    "caloparticles": ["std::vector<CaloParticle>", "mix", "MergedCaloTruth", "HLT"],
+    "simclusters": ["std::vector<SimCluster>", "mix", "MergedCaloTruth", "HLT"],
+    "tracksters": ["std::vector<ticl::Trackster>", "ticlTrackstersCLUE3DHigh", "", "RECO"],
+    "layerclusters": ["std::vector<reco::CaloCluster>", "hgcalMergeLayerClusters", "", "RECO"]
+}

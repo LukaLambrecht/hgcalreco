@@ -1,0 +1,5 @@
+{
+    "lctocpassociation_lcids": ["std::vector<unsigned int>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatLCIdx", "HGCALTICL"],
+    "lctocpassociation_cpids": ["std::vector<unsigned int>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatCPIdx", "HGCALTICL"],
+    "lctocpassociation_scores": ["std::vector<float>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatScore", "HGCALTICL"]
+}
