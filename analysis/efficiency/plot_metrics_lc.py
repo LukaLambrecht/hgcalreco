@@ -198,7 +198,9 @@ if __name__=='__main__':
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
         fig.tight_layout()
-        fig.savefig(os.path.join(outputdir, f'counts_vs_layer_{subdet_name}.png'))
+        figname = os.path.join(outputdir, f'counts_vs_layer_{subdet_name}.png')
+        fig.savefig(figname)
+        print(f'Saved figure {figname}.')
 
         # purity vs layer number
         purity_per_layer = get_purity_per_layer(thisdf, absolute=True)
@@ -208,7 +210,9 @@ if __name__=='__main__':
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
         fig.tight_layout()
-        fig.savefig(os.path.join(outputdir, f'purity_vs_layer_{subdet_name}.png'))
+        figname = os.path.join(outputdir, f'purity_vs_layer_{subdet_name}.png')
+        fig.savefig(figname)
+        print(f'Saved figure {figname}.')
 
         # efficiency vs layer number
         efficiency_per_layer = get_efficiency_per_layer(thisdf, absolute=True)
@@ -218,7 +222,9 @@ if __name__=='__main__':
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
         fig.tight_layout()
-        fig.savefig(os.path.join(outputdir, f'efficiency_vs_layer_{subdet_name}.png'))
+        figname = os.path.join(outputdir, f'efficiency_vs_layer_{subdet_name}.png')
+        fig.savefig(figname)
+        print(f'Saved figure {figname}.')
 
         # purity and efficiency together vs layer number
         fig, ax = plot_effandpur_per_layer(efficiency_per_layer, purity_per_layer, doerrs=False,
@@ -227,4 +233,6 @@ if __name__=='__main__':
         ax.text(0.05, 0.8, f'Subdetector:\n{subdet_name}',
             va='top', transform=ax.transAxes, fontsize=15)
         fig.tight_layout()
-        fig.savefig(os.path.join(outputdir, f'effandpur_vs_layer_{subdet_name}.png'))
+        figname = os.path.join(outputdir, f'effandpur_vs_layer_{subdet_name}.png')
+        fig.savefig(figname)
+        print(f'Saved figure {figname}.')

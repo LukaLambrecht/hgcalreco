@@ -21,13 +21,16 @@ This is similar to the approach in the selective HGCAL re-reco approach.
 
 
 ### Notes on usability
+
 Original use case:
 The selective HGCAL re-reco worked well enough so far,
 but it seems very hard to add the LayerCluster-CaloParticle associators to the output in that way.
 So try if it is easier by running the full (instead of selective) re-reco...
 
 Status: runs correctly, both with and without associators.
-But did not try to add TICL parameter modifications yet in this paradigm.
+But did not check yet whether the associations make sense!
+This could be non-trivial as different process names are involved.
+Also did not try to add TICL parameter modifications yet in this paradigm.
 
 However, in the meantime, the associators are also running correctly in the HGCAL-specific re-reco.
 So at the current time of writing, there is no reason to run the full re-reco,

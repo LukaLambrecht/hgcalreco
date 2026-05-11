@@ -180,8 +180,30 @@ def get_lctocp_matrix(associations):
     return get_matrix(associations, "lctocp")
 
 
-def get_cptolc_matrix_from_builtin():
-    raise Exception('Not yet implemented.')
+def get_cptolc_matrix_from_builtin(cpids, lcids, scores, ncp, nlc):
+    '''
+    Utility function to extract matrix of calo particle to layer cluster scores.
+    Input arguments:
+    - cpids, lcids, scores: flat arrays of the same length representing the flattened map
+    - ncp, nlc: number of caloparticles and number of layerclusters
+    Returns:
+    - a 2D numpy array with the cptolc scores.
+      the shape of the array is (number of caloparticles, number of layerclusters)
+    '''
+
+    # initializations
+    res = np.ones((ncp, nlc))
+
+    # loop over flat map
+    for cpidx, lcidx, score in zip(cpids, lcids, scores):
+        res[cpidx, lcidx] = score
+
+    # convert from 0-is-good to 1-is-good convention
+    res = 1 - res
+    
+    # return the matrix
+    return res
+    
 
 def get_lctocp_matrix_from_builtin(lcids, cpids, scores, nlc, ncp):
     '''
@@ -233,6 +255,7 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
         e1, f1 = hits_1[detid]
         _, f2 = hits_2[detid]
         numerator_12 += (1 - f2)**2 * f1**2 * e1**2
+        #numerator_12 += min((f2-f1)**2, f1**2) * e1**2
     # non-shared hits (f2 = 0)
     for detid in hits_1.keys() - common:
         e1, f1 = hits_1[detid]

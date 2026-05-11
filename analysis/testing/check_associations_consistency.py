@@ -3,6 +3,7 @@
 import os
 import sys
 import numpy as np
+import matplotlib.pyplot as plt
 from DataFormats.FWLite import Events, Handle
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -33,6 +34,8 @@ if __name__=='__main__':
     reader = Reader(input_configs)
 
     # loop over input files
+    lc_pur_diffs = []
+    lc_eff_diffs = []
     for file_idx, inputfile in enumerate(inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(inputfiles)}...')
         events = Events(inputfile)
@@ -58,6 +61,10 @@ if __name__=='__main__':
             lctocp_lcidx = collections['lctocpassociation_lcids']
             lctocp_cpidx = collections['lctocpassociation_cpids']
             lctocp_score = collections['lctocpassociation_scores']
+            cptolc_cpidx = collections['cptolcassociation_cpids']
+            cptolc_lcidx = collections['cptolcassociation_lcids']
+            cptolc_score = collections['cptolcassociation_scores']
+            cptolc_efrac = collections['cptolcassociation_efracs']
 
             # make dicts mapping ID to object
             calohit_map = {hit.id(): hit for hit in calohits_ee}
@@ -69,12 +76,13 @@ if __name__=='__main__':
 
             # get builtin associations
             pur_builtin = get_lctocp_matrix_from_builtin(lctocp_lcidx, lctocp_cpidx, lctocp_score, len(layerclusters), len(caloparticles))
+            eff_builtin = get_cptolc_matrix_from_builtin(cptolc_cpidx, cptolc_lcidx, cptolc_efrac, len(caloparticles), len(layerclusters))
             mapping_builtin = get_mapping(pur_builtin)
             cp_ids_builtin = mapping_builtin[1]
 
             # calculate associations
             associations = get_associations(caloparticles, calohit_map, layerclusters, rechit_map)
-            #eff = get_cptolc_matrix(associations)
+            eff = get_cptolc_matrix(associations)
             pur = get_lctocp_matrix(associations)
             mapping = get_mapping(pur)
             cp_ids = mapping[1]
@@ -98,8 +106,40 @@ if __name__=='__main__':
                 print('CP[1] eta: ', caloparticles[1].eta())
 
             # do some printouts
-            print(pur_builtin[:, :10])
-            print(pur[:, :10])
-            print('---')
+            #print(pur_builtin[:, :10])
+            #print(pur[:, :10])
+            #print('---')
+
+            # store purity and efficiency difference for later plotting
+            pur_diff = np.abs(pur_builtin - pur).flatten()
+            lc_pur_diffs.append(pur_diff)
+            eff_diff = np.abs(eff_builtin - eff).flatten()
+            lc_eff_diffs.append(eff_diff)
 
             #if event_idx >= 10: break
+
+    # plot distribution of purity difference
+    lc_pur_diffs = np.concatenate(lc_pur_diffs)
+    bins = np.linspace(0, 1, num=101)
+    hist = np.histogram(lc_pur_diffs, bins=bins)[0]
+    fig, ax = plt.subplots()
+    ax.stairs(hist, edges=bins, color='b', linewidth=2)
+    ax.grid()
+    ax.set_yscale('log')
+    ax.set_ylabel('LayerClusters', fontsize=12)
+    ax.set_xlabel('Difference between built-in and custom purity (LC to CP)', fontsize=12)
+    fig.tight_layout()
+    fig.savefig('test_pur_diff.png')
+
+    # plot distribution of efficiency difference
+    lc_eff_diffs = np.concatenate(lc_eff_diffs)
+    bins = np.linspace(0, 1, num=101)
+    hist = np.histogram(lc_eff_diffs, bins=bins)[0]
+    fig, ax = plt.subplots()
+    ax.stairs(hist, edges=bins, color='b', linewidth=2)
+    ax.grid()
+    ax.set_yscale('log')
+    ax.set_ylabel('LayerClusters', fontsize=12)
+    ax.set_xlabel('Difference between built-in and custom efficiency (CP to LC)', fontsize=12)
+    fig.tight_layout()
+    fig.savefig('test_eff_diff.png')

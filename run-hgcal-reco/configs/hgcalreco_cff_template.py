@@ -104,6 +104,16 @@ process.flattenLCToSC = cms.EDProducer(
     src = cms.InputTag("layerClusterSimClusterAssociation"),
     dest = cms.string("layerClusterSimClusterAssociationFlat")
 )
+process.flattenCPToLC = cms.EDProducer(
+    "FlattenCPToLCAssociator",
+    src = cms.InputTag("layerClusterCaloParticleAssociation"),
+    dest = cms.string("caloParticleLayerClusterAssociationFlat")
+)
+process.flattenSCToLC = cms.EDProducer(
+    "FlattenSCToLCAssociator",
+    src = cms.InputTag("layerClusterSimClusterAssociation"),
+    dest = cms.string("simClusterLayerClusterAssociationFlat")
+)
 
 # add association scores to the path to execute
 process.hgcalAssociatorTask = cms.Task(
@@ -113,7 +123,9 @@ process.hgcalAssociatorTask = cms.Task(
     process.layerClusterCaloParticleAssociation,
     process.layerClusterSimClusterAssociation,
     process.flattenLCToCP,
-    process.flattenLCToSC
+    process.flattenLCToSC,
+    process.flattenCPToLC,
+    process.flattenSCToLC
 )
 process.hgcal_step.associate(process.hgcalAssociatorTask)
 
@@ -130,18 +142,14 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *_hgcalMergeLayerClusters_*_*",
         "keep *_ticlTracksters*_*_*",
         # gen-level output
-        "keep *GenParticle*_*_*_*",
-        "keep *TrackingParticle*_*_*_*",
-        "keep *TrackingVertex*_*_*_*",
-        "keep *SimTrack*_*_*_*",
-        "keep *CaloParticle*_*_*_*",
-        "keep *SimCluster*_*_*_*",
+        "keep *CaloParticle*_mix_MergedCaloTruth_*",
+        "keep *SimCluster*_mix_MergedCaloTruth_*",
         "keep *CaloHit*_*_*_*",
         # links and associations
-        "keep *_layerClusterCaloParticleAssociation_*_*",
-        "keep *_layerClusterSimClusterAssociation_*_*",
         "keep *_*_layerClusterCaloParticleAssociationFlat*_*",
         "keep *_*_layerClusterSimClusterAssociationFlat*_*",
+        "keep *_*_caloParticleLayerClusterAssociationFlat*_*",
+        "keep *_*_simClusterLayerClusterAssociationFlat*_*",
     )
 )
 

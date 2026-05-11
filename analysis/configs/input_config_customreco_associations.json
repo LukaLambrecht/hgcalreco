@@ -1,5 +1,9 @@
 {
     "lctocpassociation_lcids": ["std::vector<unsigned int>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatLCIdx", "HGCALTICL"],
     "lctocpassociation_cpids": ["std::vector<unsigned int>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatCPIdx", "HGCALTICL"],
-    "lctocpassociation_scores": ["std::vector<float>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatScore", "HGCALTICL"]
+    "lctocpassociation_scores": ["std::vector<float>", "flattenLCToCP", "layerClusterCaloParticleAssociationFlatScore", "HGCALTICL"],
+    "cptolcassociation_cpids": ["std::vector<unsigned int>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatCPIdx", "HGCALTICL"],
+    "cptolcassociation_lcids": ["std::vector<unsigned int>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatLCIdx", "HGCALTICL"],
+    "cptolcassociation_scores": ["std::vector<float>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatScore", "HGCALTICL"],
+    "cptolcassociation_efracs": ["std::vector<float>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatSharedEnergyFraction", "HGCALTICL"]
 }

@@ -3,6 +3,7 @@
 
 import os
 import sys
+import json
 import time
 import argparse
 import numpy as np
@@ -15,13 +16,15 @@ sys.path.append(topdir)
 from tools.iotools import Reader
 from tools.geometrytools import get_layercluster_layer
 from tools.geometrytools import get_layercluster_subdetid
-from tools.associationtools import get_associations
-from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
 from tools.geometrytools import get_caloparticle_hits_per_layer
 from tools.geometrytools import get_caloparticle_energy_per_layer
 from tools.geometrytools import get_layercluster_hits
 from tools.geometrytools import mindr
+from tools.associationtools import get_associations
+from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
 from tools.associationtools import get_mapping
+from tools.associationtools import get_cptolc_matrix_from_builtin
+from tools.associationtools import get_lctocp_matrix_from_builtin
 from tools.metrics import response
 from tools.metrics import efficiency
 
@@ -33,12 +36,30 @@ if __name__=='__main__':
     parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-o', '--outputdir', default='output_test')
     parser.add_argument('-n', '--nentries', default=-1, type=int)
-    parser.add_argument('--input_config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
+    parser.add_argument('-r', '--recalculate', default=False, action='store_true')
+    parser.add_argument('--input_config', default=None, nargs='+')
+    parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
+    parser.add_argument('--verbose', default=False, action='store_true')
     args = parser.parse_args()
 
+    # set input configs
+    input_configs = []
+    if args.input_config is not None:
+        # if input configs are specified on the command line, they take precedence
+        input_configs = args.input_config[:]
+    else:
+        # else determine input configs automatically
+        input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_baseline.json'))
+        if args.recalculate:
+            input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_hits.json'))
+        else:
+            input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_associations.json'))
+    print('Found following input configs:')
+    print(json.dumps(input_configs, indent=2))
+
     # initialize reader
-    reader = Reader(args.input_config)
+    reader = Reader(input_configs)
 
     # loop over input files
     dfs_lc = []
@@ -49,39 +70,22 @@ if __name__=='__main__':
 
         # loop over events
         for event_idx, event in enumerate(events):
-            if (event_idx+1) % 1 == 0:
-                print(f'Reading event {event_idx+1}...', end='\r')
+            if args.verbose:
+                if (event_idx+1) % 1 == 0: print(f'Reading event {event_idx+1}...')
+            else:
+                if (event_idx+1) % 1 == 0: print(f'Reading event {event_idx+1}...', end='\r')
 
             # make a unique event identifier
             # (note: only unique within one output file, not across files!)
             eventid = file_idx*1000000 + event_idx
        
-            # get collections
-            starttime = time.time()
+            # get baseline collections
             collections = reader.read_event(event)
             caloparticles = collections['caloparticles']
-            calohits_ee = collections['calohitees']
-            calohits_heb = collections['calohithebs']
-            calohits_hef = collections['calohithefs']
-            #tracksters = collections['tracksters']
             layerclusters = collections['layerclusters']
-            rechits_ee = collections['rechitees']
-            rechits_heb = collections['rechithebs']
-            rechits_hef = collections['rechithefs']
-
-            # make dicts mapping ID to object
-            calohit_map = {hit.id(): hit for hit in calohits_ee}
-            calohit_map.update({hit.id(): hit for hit in calohits_heb})
-            calohit_map.update({hit.id(): hit for hit in calohits_hef})
-            rechit_map = {hit.id(): hit for hit in rechits_ee}
-            rechit_map.update({hit.id(): hit for hit in rechits_heb})
-            rechit_map.update({hit.id(): hit for hit in rechits_hef})
-            stoptime = time.time()
-            print(f'Loading event: {stoptime - starttime}')
 
             # do some event selection
             if len(caloparticles) < 2: continue
-            #if len(tracksters) < 1: continue
 
             # optional: filter caloparticles to keep only those from the primary interaction
             # and remove those from pileup.
@@ -89,42 +93,71 @@ if __name__=='__main__':
             # for the primary interaction and > 0 for pileup.
             caloparticles = [cp for cp in caloparticles if cp.eventId().event()==0]
 
-            # split caloparticles per layer
-            starttime = time.time()
-            cps_hits_per_layer = []
-            for caloparticle in caloparticles:
-                cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, calohit_map))
-            
-            # get layerclusters in the same format
-            lcs_hits_per_layer = []
-            #delta_r_threshold = None
-            detla_r_threshold = 1.5
-            for layercluster in layerclusters:
-                # optional: skip this step for layerclusters that are too far away
-                # from any caloparticle anyway
-                if mindr([layercluster], caloparticles) > delta_r_threshold:
-                    lcs_hits_per_layer.append({0: {}})
-                    continue 
-                # get layer and hits
-                layer = get_layercluster_layer(layercluster)
-                lc_hits_per_layer = {layer: get_layercluster_hits(layercluster, rechit_map)}
-                lcs_hits_per_layer.append(lc_hits_per_layer)
-            stoptime = time.time()
-            print(f'Preprocessing: {stoptime - starttime}')
+            # case of recalculating associations
+            if args.recalculate:
 
-            # calculate associations
-            starttime = time.time()
-            associations = get_associations(
-                caloparticles = caloparticles,
-                layerclusters = layerclusters,
-                cps_hits_per_layer = cps_hits_per_layer,
-                lcs_hits_per_layer = lcs_hits_per_layer,
-                sum_lc_per_layer = args.sum_lc_per_layer,
-                delta_r_threshold = delta_r_threshold)
-            stoptime = time.time()
-            print(f'Association calculation: {stoptime - starttime}')
-            eff_matrix = get_cptolc_matrix(associations)
-            pur_matrix = get_lctocp_matrix(associations)
+                # load extra collections needed
+                calohits_ee = collections['calohitees']
+                calohits_heb = collections['calohithebs']
+                calohits_hef = collections['calohithefs']
+                rechits_ee = collections['rechitees']
+                rechits_heb = collections['rechithebs']
+                rechits_hef = collections['rechithefs']
+
+                # make dicts mapping ID to object
+                calohit_map = {hit.id(): hit for hit in calohits_ee}
+                calohit_map.update({hit.id(): hit for hit in calohits_heb})
+                calohit_map.update({hit.id(): hit for hit in calohits_hef})
+                rechit_map = {hit.id(): hit for hit in rechits_ee}
+                rechit_map.update({hit.id(): hit for hit in rechits_heb})
+                rechit_map.update({hit.id(): hit for hit in rechits_hef})
+
+                # split caloparticles per layer
+                cps_hits_per_layer = []
+                for caloparticle in caloparticles:
+                    cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, calohit_map))
+            
+                # get layerclusters in the same format
+                lcs_hits_per_layer = []
+                #delta_r_threshold = None
+                delta_r_threshold = 1.5
+                for layercluster in layerclusters:
+                    # optional: skip this step for layerclusters that are too far away
+                    # from any caloparticle anyway
+                    if mindr([layercluster], caloparticles) > delta_r_threshold:
+                        lcs_hits_per_layer.append({0: {}})
+                        continue 
+                    # get layer and hits
+                    layer = get_layercluster_layer(layercluster)
+                    lc_hits_per_layer = {layer: get_layercluster_hits(layercluster, rechit_map)}
+                    lcs_hits_per_layer.append(lc_hits_per_layer)
+
+                # calculate associations
+                associations = get_associations(
+                    caloparticles = caloparticles,
+                    layerclusters = layerclusters,
+                    cps_hits_per_layer = cps_hits_per_layer,
+                    lcs_hits_per_layer = lcs_hits_per_layer,
+                    sum_lc_per_layer = args.sum_lc_per_layer,
+                    delta_r_threshold = delta_r_threshold)
+                eff_matrix = get_cptolc_matrix(associations)
+                pur_matrix = get_lctocp_matrix(associations)
+
+            # case of using builtin associations
+            else:
+                
+                # load extra collections needed
+                lctocp_lcidx = collections['lctocpassociation_lcids']
+                lctocp_cpidx = collections['lctocpassociation_cpids']
+                lctocp_score = collections['lctocpassociation_scores']
+                cptolc_cpidx = collections['cptolcassociation_cpids']
+                cptolc_lcidx = collections['cptolcassociation_lcids']
+                cptolc_score = collections['cptolcassociation_scores']
+                cptolc_efrac = collections['cptolcassociation_efracs']
+
+                # get builtin associations
+                pur_matrix = get_lctocp_matrix_from_builtin(lctocp_lcidx, lctocp_cpidx, lctocp_score, len(layerclusters), len(caloparticles))
+                eff_matrix = get_cptolc_matrix_from_builtin(cptolc_cpidx, cptolc_lcidx, cptolc_efrac, len(caloparticles), len(layerclusters))
 
             # make mapping based on purity
             #threshold = None
@@ -145,24 +178,24 @@ if __name__=='__main__':
             lc_subdet = np.array([get_layercluster_subdetid(layerclusters[int(idx)]) for idx in linked_lc_ids])
 
             # calculate response per calo particle
-            cps_energy_per_layer = []
-            for cp_hits_per_layer in cps_hits_per_layer:
-                energy_per_layer = get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=True)
-                cps_energy_per_layer.append(energy_per_layer)
-            cps_res = response(caloparticles, cps_energy_per_layer, layerclusters, cptolc_ids, flatten=False)
+            #cps_energy_per_layer = []
+            #for cp_hits_per_layer in cps_hits_per_layer:
+            #    energy_per_layer = get_caloparticle_energy_per_layer(cp_hits_per_layer, normalize=True)
+            #    cps_energy_per_layer.append(energy_per_layer)
+            #cps_res = response(caloparticles, cps_energy_per_layer, layerclusters, cptolc_ids, flatten=False)
 
             # calculate sum of layercluster efficiencies per layer and per calo particle.
             # update: do not sum layercluster efficiencies, but recalculate efficiency on unity of layerclusters.
             # note: this is not the same as the response, as only the energy fractions coming from the caloparticle
             #       are taken into account, not the full layercluster energy;
             #       hence this property can never by larger than one (while the response can).
-            cps_eff = efficiency(caloparticles, layerclusters, cps_hits_per_layer, lcs_hits_per_layer, cptolc_ids, flatten=False)
+            #cps_eff = efficiency(caloparticles, layerclusters, cps_hits_per_layer, lcs_hits_per_layer, cptolc_ids, flatten=False)
 
             # flatten caloparticle metrics
-            layers_per_cp = [list(el.keys()) for el in cps_res]
-            cp_layer = np.array(sum(layers_per_cp, []))
-            cp_res = np.array([cps_res[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
-            cp_eff = np.array([cps_eff[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
+            #layers_per_cp = [list(el.keys()) for el in cps_res]
+            #cp_layer = np.array(sum(layers_per_cp, []))
+            #cp_res = np.array([cps_res[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
+            #cp_eff = np.array([cps_eff[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
 
             # store layercluster info in dataframe
             df_lc = pd.DataFrame.from_dict({
@@ -178,10 +211,10 @@ if __name__=='__main__':
 
             # store caloparticle info in dataframe
             df_cp = pd.DataFrame.from_dict({
-                'res': cp_res,
-                'eff': cp_eff,
-                'layer': cp_layer,
-                'event': eventid
+                #'res': cp_res,
+                #'eff': cp_eff,
+                #'layer': cp_layer,
+                'event': np.ones(len(caloparticles))*eventid
             })
             dfs_cp.append(df_cp)
 
@@ -208,6 +241,7 @@ if __name__=='__main__':
         # e.g. if there are no reconstructed tracksters
         df_cp = pd.DataFrame.from_dict({
             'res': [],
+            'eff': [],
             'layer': [],
             'event': []
         })

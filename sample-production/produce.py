@@ -25,6 +25,7 @@ if __name__=='__main__':
     parser.add_argument('--proxy', default=None)
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--remove-intermediate-output', default=False, action='store_true')
+    parser.add_argument('--output-mode', default='hgcal', choices=['hgcal', 'full'])
     args = parser.parse_args()
 
     # parse tag
@@ -95,14 +96,12 @@ if __name__=='__main__':
         #       maybe later try to generalize.
         if stepidx == len(cmds)-1:
 
-            output_mode = "hgcal" # choose from "full" or "hgcal", maybe later add as argument
-            
             # option 1: keep everything
             # note: gives very large files, but contains all info to re-run the reco step.
             # note: copied from examples, see README for more info.
             # note: does not actually seem to keep everything, some RECO products are dropped
             #       (but not sure which ones or why...)
-            if output_mode == "full":
+            if args.output_mode == "full":
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_HLT\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_*_*_SIM\')')
                 # custom additions to be able to run the "minimal" (i.e. HGCAL-specific) re-reco on these files
@@ -113,11 +112,11 @@ if __name__=='__main__':
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalUncalibRecHit_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hgcalDigis_*_*\')')
 
-            # option 2: minimal content
+            # option 2: hgcal-specific minimal content
             # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
             #       update: in fact they do, but only with the minimal/selective setup in run-hgcal-reco,
             #       does not contain all needed info for re-running the full reco!
-            elif output_mode == "hgcal":
+            elif args.output_mode == "hgcal":
 
                 drop = [
                 '*_*_*_*'
@@ -150,7 +149,7 @@ if __name__=='__main__':
                     customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'keep {collection}\')')
 
             else:
-                msg = f'Output mode "{output_mode}" not recognized.'
+                msg = f'Output mode "{args.output_mode}" not recognized.'
                 raise Exception(msg)
 
         # others: to do as the need arises
