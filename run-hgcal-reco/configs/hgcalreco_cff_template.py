@@ -9,7 +9,8 @@
 import FWCore.ParameterSet.Config as cms
 
 # initialize process
-process = cms.Process("HGCALTICL")
+processName = "HGCALTICL"
+process = cms.Process(processName)
 
 # load basic configs
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
@@ -86,13 +87,13 @@ process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi');
 #       otherwise it seems by default the ones from the RECO process
 #       (already present in the input files) might be used (?)
 process.recHitMapProducer.hits = cms.VInputTag(
-        cms.InputTag("HGCalRecHit", "HGCEERecHits", "HGCALTICL"),
-        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", "HGCALTICL"),
-        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", "HGCALTICL"),
+        cms.InputTag("HGCalRecHit", "HGCEERecHits", processName),
+        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", processName),
+        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", processName),
 )
-process.layerClusterCaloParticleAssociation.label_lc = cms.InputTag("hgcalMergeLayerClusters", "", "HGCALTICL")
+process.layerClusterCaloParticleAssociation.label_lc = cms.InputTag("hgcalMergeLayerClusters", "", processName)
 process.layerClusterCaloParticleAssociation.label_cp = cms.InputTag("mix", "MergedCaloTruth", "HLT")
-process.layerClusterSimClusterAssociation.label_lcl = cms.InputTag("hgcalMergeLayerClusters", "", "HGCALTICL")
+process.layerClusterSimClusterAssociation.label_lcl = cms.InputTag("hgcalMergeLayerClusters", "", processName)
 process.layerClusterSimClusterAssociation.label_scl = cms.InputTag("mix", "MergedCaloTruth", "HLT")
 process.flattenLCToCP = cms.EDProducer(
     "FlattenLCToCPAssociator",

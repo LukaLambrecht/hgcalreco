@@ -33,7 +33,11 @@ def build_config(template, params, context):
     return config
 
 
-def run_local_evaluation(params, context, dryrun=False, use_tmpdir=False):
+def run_local_evaluation(params, context,
+    dryrun=False,
+    use_subdir=False,
+    use_tmpdir=False,
+    keep_root_output=False):
     """
     Runs a single evaluation locally.
     Input arguments:
@@ -45,10 +49,18 @@ def run_local_evaluation(params, context, dryrun=False, use_tmpdir=False):
     # get working directory
     if "workdir" in context.keys(): workdir = context["workdir"]
     else: workdir = '.'
-    if use_tmpdir: workdir = tempfile.mkdtemp(dir=workdir)
+    if use_subdir: workdir = tempfile.mkdtemp(dir=workdir)
 
-    # make working directory
+    # optional: do the actual running in a temporary directory in /tmp
+    # (for large ouptput files), while final results will still be stored in workdir.
+    rundir = workdir
+    if use_tmpdir:
+        basetmpdir = '/tmp'
+        rundir = tempfile.mkdtemp(dir=basetmpdir)
+
+    # make working directory (and potentially different running directory)
     if not os.path.exists(workdir): os.makedirs(workdir)
+    if not os.path.exists(rundir): os.makedirs(rundir)
 
     # read provided cmsRun template
     template_file = context["template"]
@@ -81,36 +93,49 @@ def run_local_evaluation(params, context, dryrun=False, use_tmpdir=False):
         }
         return res
 
+    # in case the actual running directory is a temporary directory different from workdir,
+    # copy the cmsRun config to that directory
+    if rundir != workdir:
+        cmd = ["cp", config_path, rundir]
+        try: subprocess.run(cmd, cwd=workdir, check=True)
+        except subprocess.CalledProcessError:
+            print('WARNING: could not copy config to rundir.')
+
     # run cmsRun
     try:
-        subprocess.run(["cmsRun", "config.py"], cwd=workdir, check=True)
+        subprocess.run(["cmsRun", "config.py"], cwd=rundir, check=True)
     except subprocess.CalledProcessError:
         return {"loss": 1e6, "status": "fail"}
 
     # run efficiency calculation
+    outputdir = os.path.join(workdir, "efficiency")
+    cmd = ([
+        "python3",
+        context["efficiency_script"],
+        "-i", "hgcalreco_out.root",
+        "-o", outputdir,
+        "--input_config_type", context["efficiency_config_type"]
+    ])
+    if context["efficiency_recalculate"]: cmd.append("--recalculate")
     try:
         subprocess.run(
-            [
-                "python3",
-                context["efficiency_script"],
-                "-i", "hgcalreco_out.root",
-                "-o", "efficiency",
-                "--input_config", context["efficiency_config"],
-            ],
-            cwd=workdir,
-            check=True,
+            cmd,
+            cwd = rundir,
+            check = True,
         )
     except subprocess.CalledProcessError:
         return {"loss": 1e6, "status": "fail"}
 
     # remove root file (to save disk space when running many trials)
-    try: subprocess.run(["rm", "hgcalreco_out.root"], cwd=workdir, check=True)
-    except subprocess.CalledProcessError:
-        print('WARNING: could not remove hgcalreco_out.root.')
+    if keep_root_output: pass
+    else:
+        try: subprocess.run(["rm", "hgcalreco_out.root"], cwd=rundir, check=True)
+        except subprocess.CalledProcessError:
+            print('WARNING: could not remove hgcalreco_out.root.')
 
     # metric extraction
-    metrics_lc_file = os.path.join(workdir, "efficiency/metrics_lc.parquet")
-    metrics_cp_file = os.path.join(workdir, "efficiency/metrics_cp.parquet")
+    metrics_lc_file = os.path.join(outputdir, "metrics_lc.parquet")
+    metrics_cp_file = os.path.join(outputdir, "metrics_cp.parquet")
     metric = extract_metric(metrics_lc_file, metrics_cp_file)
 
     return {
@@ -141,4 +166,7 @@ def extract_metric(results_lc, results_cp):
     lc_eff_avg = np.mean(results_lc['eff'].values)
     cp_eff_avg = np.mean(results_cp['eff'].values)
 
-    return (lc_pur_avg + lc_eff_avg + cp_eff_avg)/3.
+    metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg)/3.
+    #metric = lc_pur_avg * lc_eff_avg * cp_eff_avg
+
+    return metric

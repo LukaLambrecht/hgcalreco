@@ -26,13 +26,20 @@ if __name__=='__main__':
     # command line args
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
-    parser.add_argument('-c', '--config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
+    parser.add_argument('-c', '--configs', nargs='+',
+        default = [
+            os.path.join(topdir, 'configs/input_config_centralreco_baseline.json'),
+            os.path.join(topdir, 'configs/input_config_centralreco_hits.json'),
+        ]
+    )
     parser.add_argument('-n', '--nevents', type=int, default=-1)
+    parser.add_argument('-o', '--outputdir', default='output_plots_rechit_energy')
+    parser.add_argument('--filter-by-layercluster', default=False, action='store_true')
     args = parser.parse_args()
 
     # read events
     events = Events(args.inputfiles)
-    reader = Reader(args.config)
+    reader = Reader(args.configs)
 
     # initialize counters
     nevents = 0
@@ -73,6 +80,13 @@ if __name__=='__main__':
         rechit_map.update({hit.id().rawId(): hit for hit in rechits_heb})
         rechit_map.update({hit.id().rawId(): hit for hit in rechits_hef})
 
+        # optional: take only rechits that are clustered in layer clusters
+        if args.filter_by_layercluster:
+            layercluster_rechit_ids = []
+            for layercluster in layerclusters:
+                layercluster_rechit_ids += [el.first.rawId() for el in layercluster.hitsAndFractions()]
+            rechit_map = {key: val for key, val in rechit_map.items() if key in layercluster_rechit_ids}
+
         # get layers, subdetectors, thicknesses, and energy of calohits and rechits
         calohit_ids = np.array(list(calohit_map.keys()))
         rechit_ids = np.array(list(rechit_map.keys()))
@@ -105,8 +119,7 @@ if __name__=='__main__':
         'thick': (rechit_thickness==2).astype(bool),
     }
 
-    outputdir = 'output_plots_rechit_energy'
-    if not os.path.exists(outputdir): os.makedirs(outputdir)
+    if not os.path.exists(args.outputdir): os.makedirs(args.outputdir)
 
     # loop over subdetectors and thicknesses
     for subdet_key, subdet_mask in subdet_masks.items():
@@ -134,9 +147,9 @@ if __name__=='__main__':
             ax.set_xlabel('Energy', fontsize=12)
             ax.set_ylabel('Number of hits', fontsize=12)
             ax.text(0.99, 0.99, text, ha='right', va='top', fontsize=12, transform=ax.transAxes)
-            fig.savefig(os.path.join(outputdir, f'test_{tag}.png'))
+            fig.savefig(os.path.join(args.outputdir, f'test_{tag}.png'))
             ax.set_yscale('log')
-            fig.savefig(os.path.join(outputdir, f'test_{tag}_log.png'))
+            fig.savefig(os.path.join(args.outputdir, f'test_{tag}_log.png'))
     
             # make a plot of normalized rechit energy distribution
             fig, ax = plt.subplots()
@@ -145,8 +158,8 @@ if __name__=='__main__':
             ax.set_xlabel('Energy', fontsize=12)
             ax.set_ylabel('Number of hits (normalized)', fontsize=12)
             ax.text(0.99, 0.99, text, ha='right', va='top', fontsize=12, transform=ax.transAxes)
-            fig.savefig(os.path.join(outputdir, f'test_{tag}_normalized.png'))
+            fig.savefig(os.path.join(args.outputdir, f'test_{tag}_normalized.png'))
             ax.set_yscale('log')
-            fig.savefig(os.path.join(outputdir, f'test_{tag}_normalized_log.png'))
+            fig.savefig(os.path.join(args.outputdir, f'test_{tag}_normalized_log.png'))
 
             plt.close()
