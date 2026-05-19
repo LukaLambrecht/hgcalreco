@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 rng = np.random.default_rng()
 
+topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(topdir)
+from tools.layertools import get_layer_counts
+
 
 def build_config(template, params, context):
     """
@@ -161,12 +165,27 @@ def extract_metric(results_lc, results_cp):
     if isinstance(results_cp, str):
         results_cp = pd.read_parquet(results_cp)
 
-    # calculate metric
+    # calculate metrics
     lc_pur_avg = np.mean(results_lc['pur'].values)
     lc_eff_avg = np.mean(results_lc['eff'].values)
     cp_eff_avg = np.mean(results_cp['eff'].values)
+    layers = results_lc['layer'].values
+    eventids = results_lc['event'].values
+    counts_per_layer = get_layer_counts(layers, eventids=eventids, absolute=True)
+    counts_per_layer_avg = np.mean(list(counts_per_layer.values())) / 40.
 
+    # combine them into a single metric
     metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg)/3.
     #metric = lc_pur_avg * lc_eff_avg * cp_eff_avg
+    #metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg + (1-counts_per_layer_avg)) / 4.
+
+    # printouts for testing
+    '''print()
+    print(lc_pur_avg)
+    print(lc_eff_avg)
+    print(cp_eff_avg)
+    print(counts_per_layer_avg)
+    print(metric)
+    print()'''
 
     return metric
