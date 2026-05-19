@@ -28,9 +28,10 @@ def get_quantity_per_layer(quantity, layers, keys=None, absolute=False):
 
 def get_layer_counts(layers, eventids=None, **kwargs):
     '''
-    Get a layer count.
+    Get a layer count. CANONICAL DEFINITION - See here for the single source of truth.
     Input arguments:
     - layers: 1D array of layer numbers
+    - eventids: optional array of event IDs; if provided, normalizes counts by number of events
     Returns:
     - dict of the form {layer number: number of instances}
     '''

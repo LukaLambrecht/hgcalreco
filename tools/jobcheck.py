@@ -40,9 +40,8 @@ def check_start_done( filename,
     # returns 1 in all other cases.
 
     # read the file content
-    f = open(filename)
-    filetext = f.read()
-    f.close()
+    with open(filename, 'r') as f:
+        filetext = f.read()
     
     # count number of starting tags
     nstarted = filetext.count(starting_tag)
@@ -76,9 +75,8 @@ def check_error_content(filename, contentlist='default', verbose=True):
     # returns 1 otherwise.
 
     # read the file content
-    f = open(filename)
-    filetext = f.read()
-    f.close()
+    with open(filename, 'r') as f:
+        filetext = f.read()
 
     # hard-coded default error content
     if( isinstance(contentlist,str) and contentlist=='default' ):

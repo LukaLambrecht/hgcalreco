@@ -5,6 +5,7 @@
 
 import sys
 import os
+import subprocess
 
 
 def format_input_files( datasetname,
@@ -88,19 +89,29 @@ def format_input_files( datasetname,
       if verbose: print('Running DAS client with following query: {}...'.format(dasquery))
       dascmd = "dasgoclient -query '{}' --limit 0".format(dasquery)
       # run the DAS client command
-      dasstdout = os.popen(dascmd).read().strip(' \t\n')
-      # check for DAS errors
-      if 'X509_USER_PROXY' in dasstdout:
-        msg = 'ERROR: DAS returned a proxy error:\n'+dasstdout
+      try:
+        result = subprocess.run(dascmd, shell=True, capture_output=True, text=True, check=True)
+        dasstdout = result.stdout.strip()
+      except subprocess.CalledProcessError as e:
+        msg = 'ERROR: DAS query failed with return code {}.\nStderr: {}'.format(e.returncode, e.stderr)
         raise Exception(msg)
-      # format the files
-      dasfiles = sorted([el.strip(' \t') for el in dasstdout.split('\n')])
-      # do printouts
-      if verbose:
-        print('DAS client ready; found following files ({}):'.format(len(dasfiles)))
-        for f in dasfiles: print('  - {}'.format(f))
-      # prefix files with redirector
-      filenames = [redirector+f for f in dasfiles]
+      # check for DAS errors
+      if not dasstdout:
+        msg = 'WARNING: DAS query returned empty result'
+        if verbose: print(msg)
+        filenames = []
+      elif 'error' in dasstdout.lower() or 'X509_USER_PROXY' in dasstdout:
+        msg = 'ERROR: DAS returned an error:\n'+dasstdout
+        raise Exception(msg)
+      else:
+        # format the files
+        dasfiles = sorted([el.strip(' \t') for el in dasstdout.split('\n') if el.strip()])
+        # do printouts
+        if verbose:
+          print('DAS client ready; found following files ({}):'.format(len(dasfiles)))
+          for f in dasfiles: print('  - {}'.format(f))
+        # prefix files with redirector
+        filenames = [redirector+f for f in dasfiles]
   elif location=='local':
     # read all root files in the given directory
     filenames = ([os.path.join(datasetname,f) for f in os.listdir(datasetname) if f.endswith('.root')])

@@ -107,9 +107,16 @@ def run_local_evaluation(params, context,
 
     # run cmsRun
     try:
-        subprocess.run(["cmsRun", "config.py"], cwd=rundir, check=True)
-    except subprocess.CalledProcessError:
-        return {"loss": 1e6, "status": "fail"}
+        result = subprocess.run(["cmsRun", "config.py"], cwd=rundir, check=True, 
+                              capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        error_msg = f"cmsRun failed with return code {e.returncode}"
+        if e.stdout:
+            error_msg += f"\nStdout:\n{e.stdout[-1000:]}"  # Last 1000 chars to avoid huge logs
+        if e.stderr:
+            error_msg += f"\nStderr:\n{e.stderr[-1000:]}"
+        print(error_msg, file=sys.stderr)
+        return {"loss": 1e6, "status": "fail", "error": error_msg}
 
     # run efficiency calculation
     outputdir = os.path.join(workdir, "efficiency")
@@ -122,13 +129,21 @@ def run_local_evaluation(params, context,
     ])
     if context["efficiency_recalculate"]: cmd.append("--recalculate")
     try:
-        subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd = rundir,
             check = True,
+            capture_output=True,
+            text=True
         )
-    except subprocess.CalledProcessError:
-        return {"loss": 1e6, "status": "fail"}
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Efficiency calculation failed with return code {e.returncode}"
+        if e.stdout:
+            error_msg += f"\nStdout:\n{e.stdout[-1000:]}"
+        if e.stderr:
+            error_msg += f"\nStderr:\n{e.stderr[-1000:]}"
+        print(error_msg, file=sys.stderr)
+        return {"loss": 1e6, "status": "fail", "error": error_msg}
 
     # remove root file (to save disk space when running many trials)
     if keep_root_output: pass

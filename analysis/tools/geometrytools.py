@@ -11,6 +11,18 @@ ROOT.gSystem.Load("libDataFormatsDetId")
 ROOT.gSystem.Load("libDataFormatsForwardDetId")
 ROOT.gInterpreter.Declare('#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"')
 
+# HGCal layer offset constants
+# These offsets map relative layer numbers (within each subdetector) to absolute layer numbers
+# References:
+#   - EE (Endcap) layers: 0-25 (26 total)
+#   - HSi (High Granularity Silicon) layers: 26-51 (starts after EE)
+#   - HSc (High Granularity Scintillator) layers: 26-51 (uses same offset as HSi)
+HGCAL_LAYER_OFFSETS = {
+    0: 0,    # EE (HGCalEE) starts at layer 0
+    1: 26,   # HSi (HGCalHSi) starts at layer 26
+    2: 26,   # HSc (HGCalHSc) starts at layer 26
+}
+
 
 def get_detid_subdetid(detid):
     detid = ROOT.DetId(detid)
@@ -40,16 +52,11 @@ def get_detid_layer(detid, absolute_value=False):
     layer = detid.layer()
     zside = detid.zside()
     subdetid = get_detid_subdetid(detid)
-    # offsets:
-    # - EE starts at 0
-    # - HSi starts at however many EE layers there are; exact value to check
-    #   (and may also depend on exact geometry used).
-    # - HSc physically starts only a few layers after HSi (i.e. the first few HE layers are all HSi),
-    #   but the layer index seems to use the same offset.
-    if subdetid == 0: pass # EE starts at 0
-    elif subdetid == 1: layer += 26
-    elif subdetid == 2: layer += 26
-    else: raise Exception('Subdetector id not recognized.')
+    # Add layer offset based on subdetector type
+    layer_offset = HGCAL_LAYER_OFFSETS.get(subdetid)
+    if layer_offset is None:
+        raise ValueError(f'Unknown subdetector ID: {subdetid}')
+    layer += layer_offset
     if absolute_value: return layer
     else: return zside * layer
 
@@ -67,8 +74,12 @@ def get_layercluster_subdetid(layercluster):
     '''
     Get subdetector ID of a layer cluster
     Note: assumes all hits are in the same subdetector!
+    Raises ValueError if the layer cluster has no hits.
     '''
-    detid = layercluster.hitsAndFractions()[0].first
+    hits_and_fractions = layercluster.hitsAndFractions()
+    if len(hits_and_fractions) == 0:
+        raise ValueError("Layer cluster has no hits, cannot determine subdetector ID")
+    detid = hits_and_fractions[0].first
     subdetid = get_detid_subdetid(detid)
     return subdetid
    
@@ -76,8 +87,12 @@ def get_layercluster_layer(layercluster, **kwargs):
     '''
     Get layer number of a layer cluster
     Note: assumes all hits are in the same layer!
+    Raises ValueError if the layer cluster has no hits.
     '''
-    detid = layercluster.hitsAndFractions()[0].first
+    hits_and_fractions = layercluster.hitsAndFractions()
+    if len(hits_and_fractions) == 0:
+        raise ValueError("Layer cluster has no hits, cannot determine layer number")
+    detid = hits_and_fractions[0].first
     layer = get_detid_layer(detid, **kwargs)
     return layer
 
@@ -85,10 +100,14 @@ def get_layercluster_zside(layercluster):
     '''
     Get z-side of a layer cluster
     Note: assumes all hits are on the same side!
+    Raises ValueError if the layer cluster has no hits.
     '''
-    detid = layercluster.hitsAndFractions()[0].first
-    layer = get_detid_zside(detid)
-    return layer
+    hits_and_fractions = layercluster.hitsAndFractions()
+    if len(hits_and_fractions) == 0:
+        raise ValueError("Layer cluster has no hits, cannot determine z-side")
+    detid = hits_and_fractions[0].first
+    zside = get_detid_zside(detid)
+    return zside
 
 def get_layercluster_hits(layercluster, rechits):
     '''

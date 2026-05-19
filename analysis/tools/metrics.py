@@ -13,6 +13,10 @@ from tools.geometrytools import get_layercluster_zside
 from tools.geometrytools import get_layercluster_energy_sum_per_layer
 from tools.associationtools import get_associations
 
+# Energy threshold constants (in GeV)
+# Energies below this threshold are treated as zero to avoid numerical noise
+ENERGY_THRESHOLD_MEV = 1e-12  # Threshold for treating energy as zero (GeV)
+
 
 def caloparticle_response(caloparticle, cp_energy_per_layer, layerclusters):
     '''
@@ -39,9 +43,9 @@ def caloparticle_response(caloparticle, cp_energy_per_layer, layerclusters):
     # calculate response
     response = {}
     for layer, cp_energy in cp_energy_per_layer.items():
-        if cp_energy < 1e-12: continue
+        if cp_energy < ENERGY_THRESHOLD_MEV: continue
         lc_energy = lc_energy_sum_per_layer[layer]
-        if lc_energy < 1e-12: continue # to check if this improves the distribution, but not clear if it makes sense
+        if lc_energy < ENERGY_THRESHOLD_MEV: continue
         cp_energy_scaled = scale*cp_energy
         response[layer] = lc_energy / cp_energy_scaled
 

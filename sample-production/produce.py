@@ -38,7 +38,7 @@ if __name__=='__main__':
     cmssw = None
     envcmssw = os.getenv('CMSSW_BASE')
     if args.cmssw is not None:
-        cmssw = os.path.abspath(cmssw)
+        cmssw = os.path.abspath(args.cmssw)
         if not os.path.exists(cmssw):
             raise Exception(f'Provided CMSSW {cmssw} does not exist.')
         if envcmssw is not None and envcmssw!=cmssw:

@@ -54,6 +54,14 @@ class Reader(object):
         for collection_name, read_data in self.config.items():
             label = read_data['label']
             handle = read_data['handle']
-            event.getByLabel(label, handle)
-            collections[collection_name] = handle.product()
+            if not event.getByLabel(label, handle):
+                msg = f"WARNING: Could not find collection '{collection_name}' with label {label}"
+                print(msg, file=sys.stderr)
+                collections[collection_name] = None
+                continue
+            product = handle.product()
+            if product is None:
+                msg = f"WARNING: Collection '{collection_name}' is None after getByLabel"
+                print(msg, file=sys.stderr)
+            collections[collection_name] = product
         return collections
