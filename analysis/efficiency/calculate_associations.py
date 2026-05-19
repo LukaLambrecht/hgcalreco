@@ -189,13 +189,26 @@ if __name__=='__main__':
             # note: this is not the same as the response, as only the energy fractions coming from the caloparticle
             #       are taken into account, not the full layercluster energy;
             #       hence this property can never by larger than one (while the response can).
-            #cps_eff = efficiency(caloparticles, layerclusters, cps_hits_per_layer, lcs_hits_per_layer, cptolc_ids, flatten=False)
+            # note: cps_eff is a list (corresponding to caloparticles) of dicts of the form {layer: efficiency}
+            if args.recalculate:
+                cps_eff = efficiency(caloparticles, layerclusters, cps_hits_per_layer, lcs_hits_per_layer, cptolc_ids, flatten=False)
+            else:
+                cps_eff = []
+                for cp_idx in range(len(caloparticles)):
+                    this_cp_mask = (linked_lc_cp_ids == cp_idx)
+                    layers = np.unique(lc_layer[this_cp_mask])
+                    this_cp_eff = {}
+                    for layer in layers:
+                        this_layer_mask = (lc_layer == layer)
+                        eff = np.sum(lc_eff[this_cp_mask & this_layer_mask])
+                        this_cp_eff[layer] = eff
+                    cps_eff.append(this_cp_eff)
 
             # flatten caloparticle metrics
-            #layers_per_cp = [list(el.keys()) for el in cps_res]
-            #cp_layer = np.array(sum(layers_per_cp, []))
+            layers_per_cp = [list(el.keys()) for el in cps_eff]
+            cp_layer = np.array(sum(layers_per_cp, []))
             #cp_res = np.array([cps_res[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
-            #cp_eff = np.array([cps_eff[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
+            cp_eff = np.array([cps_eff[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
 
             # store layercluster info in dataframe
             df_lc = pd.DataFrame.from_dict({
@@ -212,9 +225,9 @@ if __name__=='__main__':
             # store caloparticle info in dataframe
             df_cp = pd.DataFrame.from_dict({
                 #'res': cp_res,
-                #'eff': cp_eff,
-                #'layer': cp_layer,
-                'event': np.ones(len(caloparticles))*eventid
+                'eff': cp_eff,
+                'layer': cp_layer,
+                'event': eventid
             })
             dfs_cp.append(df_cp)
 
