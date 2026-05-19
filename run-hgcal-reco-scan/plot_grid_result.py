@@ -66,6 +66,8 @@ def main(inputdir):
             print(msg)
             continue
         df_cp = pd.read_parquet(inputfile)
+        # temp for missing response column
+        if 'res' not in df_cp.columns: df_cp['res'] = 0
         results_cp[jobdir] = get_cp_result_from_df(df_cp)
 
         # calculate metric

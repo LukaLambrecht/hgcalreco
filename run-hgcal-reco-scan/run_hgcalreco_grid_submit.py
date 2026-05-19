@@ -21,7 +21,7 @@ if __name__=='__main__':
     parser.add_argument('-n', '--max_events', default=-1, type=int)
     parser.add_argument('-w', '--workdir', default='auto')
     parser.add_argument('--tag', default='auto')
-    parser.add_argument('--template', default=os.path.abspath('templates/hgcalreco_cff_template.py'))
+    parser.add_argument('--config', default=os.path.abspath('configs/hgcalreco_cff_template.py'))
     parser.add_argument('--globaltag', default='150X_mcRun4_realistic_v1')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
     parser.add_argument('--cmssw', default=None)
@@ -47,9 +47,9 @@ if __name__=='__main__':
         if not os.path.exists(args.inputfile):
             raise Exception(f'Input file {args.inputfile} does not exist.')
     
-    # check template file existence
-    if not os.path.exists(args.template):
-        raise Exception(f'Template config {args.template} does not exist.')
+    # check config template file existence
+    if not os.path.exists(args.config):
+        raise Exception(f'Template config {args.config} does not exist.')
 
     # read grid
     with open(args.grid, 'r') as f:
@@ -63,13 +63,14 @@ if __name__=='__main__':
     # make full context
     # (shared between all jobs)
     context = {
-        "template": args.template,
+        "template": args.config,
         "inputfile": args.inputfile,
         "max_events": args.max_events,
         "globaltag": args.globaltag,
         "geometry": args.geometry,
         "efficiency_script": os.path.join(topdir, 'analysis/efficiency/calculate_associations.py'),
-        "efficiency_config": os.path.join(topdir, 'analysis/configs/input_config_customreco.json'),
+        "efficiency_config_type": "customreco",
+        "efficiency_recalculate": False
     }
 
     # loop over all grid points

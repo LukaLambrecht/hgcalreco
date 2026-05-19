@@ -27,7 +27,10 @@ if __name__=='__main__':
         context = json.load(f)
 
     # run full evaluation
-    result = run_local_evaluation(params, context)
+    result = run_local_evaluation(params, context,
+        use_tmpdir=False, # temp for testing
+        keep_root_output=True # temp for testing
+    )
 
     # write final result
     outputfile = os.path.join(context["workdir"], "result.json")

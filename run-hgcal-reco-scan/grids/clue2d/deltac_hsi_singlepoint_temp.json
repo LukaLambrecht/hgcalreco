@@ -1,0 +1,8 @@
+[
+{
+    "name": "deltac_hsi",
+    "mod": "process.hgcalLayerClustersHSi.plugin.deltac = cms.vdouble(VALUE, VALUE, VALUE, 0.0315)",
+    "values": [30],
+    "info": "Clustering distance parameter in HSi part. Default value is 1.3 for all sensor thicknesses."
+}
+]

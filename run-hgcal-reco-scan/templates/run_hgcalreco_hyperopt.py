@@ -41,7 +41,7 @@ if __name__=='__main__':
         paramdict = {}
         for param_name in params.keys():
             paramdict[param_name] = {"value": params[param_name], "mod": param_mods[param_name]}
-        return run_local_evaluation(paramdict, context, use_tmpdir=True)
+        return run_local_evaluation(paramdict, context, use_subdir=True, use_tmpdir=True)
 
     # define helper function for running hyperopt just a few times before storing the result,
     # so that progress does not get lost if the job crashes at some later point.
