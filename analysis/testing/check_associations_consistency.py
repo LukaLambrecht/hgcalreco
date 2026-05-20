@@ -85,7 +85,8 @@ if __name__=='__main__':
                 caloparticles=caloparticles,
                 calohits=calohit_map,
                 layerclusters=layerclusters,
-                rechits=rechit_map
+                rechits=rechit_map,
+                #remove_unmatched_rechits = True,
             )
             eff = get_cptolc_matrix(associations)
             pur = get_lctocp_matrix(associations)

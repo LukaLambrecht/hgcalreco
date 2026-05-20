@@ -299,13 +299,16 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
         e1, f1 = hits_1[detid]
         _, f2 = hits_2[detid]
         # custom definition
-        #numerator_12 += (1 - f2)**2 * f1**2 * e1**2
+        numerator_12 += (1 - f2)**2 * f1**2 * e1**2
         # CMSSW-synced definition
-        numerator_12 += min((f2-f1)**2, f1**2) * (f1 * e1)**2
+        #numerator_12 += min((f2-f1)**2, f1**2) * (f1 * e1)**2
     # non-shared hits (f2 = 0)
     for detid in hits_1.keys() - common:
         e1, f1 = hits_1[detid]
-        numerator_12 += f1**2 * (f1 * e1)**2
+        # custom definition
+        numerator_12 += (f1 * e1)**2
+        # CMSSW-synced definition
+        #numerator_12 += f1**2 * (f1 * e1)**2
     association_12 = 0. if denominator_1 < 1e-12 else 1. - numerator_12 / denominator_1
 
     # calculate association of 2 to 1
@@ -315,13 +318,16 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
         e2, f2 = hits_2[detid]
         _, f1 = hits_1[detid]
         # custom definition
-        #numerator_21 += (1 - f1)**2 * f2**2 * e2**2
+        numerator_21 += (1 - f1)**2 * f2**2 * e2**2
         # CMSSW-synced definition
-        numerator_21 += min((f2-f1)**2, f2**2) * (f2 * e2)**2
+        #numerator_21 += min((f2-f1)**2, f2**2) * (f2 * e2)**2
     # non-shared hits (f1 = 0)
     for detid in hits_2.keys() - common:
         e2, f2 = hits_2[detid]
-        numerator_21 += f2**2 * (f2 * e2)**2
+        # custom definition
+        numerator_21 += (f2 * e2)**2
+        # CMSSW-synced definition
+        #numerator_21 += f2**2 * (f2 * e2)**2
     association_21 = 0. if denominator_2 < 1e-12 else 1. - numerator_21 / denominator_2
 
     return association_12, association_21
