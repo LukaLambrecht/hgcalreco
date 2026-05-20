@@ -39,6 +39,7 @@ if __name__=='__main__':
     parser.add_argument('-r', '--recalculate', default=False, action='store_true')
     parser.add_argument('--input_config', default=None, nargs='+')
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
+    parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     args = parser.parse_args()
@@ -115,7 +116,9 @@ if __name__=='__main__':
                 # split caloparticles per layer
                 cps_hits_per_layer = []
                 for caloparticle in caloparticles:
-                    cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, calohit_map))
+                    # note: use the rechit collection when building the
+                    # caloparticle hit lists for association re-calculation!
+                    cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, rechit_map))
             
                 # get layerclusters in the same format
                 lcs_hits_per_layer = []
@@ -138,6 +141,7 @@ if __name__=='__main__':
                     layerclusters = layerclusters,
                     cps_hits_per_layer = cps_hits_per_layer,
                     lcs_hits_per_layer = lcs_hits_per_layer,
+                    remove_unmatched_rechits = args.remove_unmatched_rechits,
                     sum_lc_per_layer = args.sum_lc_per_layer,
                     delta_r_threshold = delta_r_threshold)
                 eff_matrix = get_cptolc_matrix(associations)

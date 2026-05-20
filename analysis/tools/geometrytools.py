@@ -140,7 +140,12 @@ def get_layercluster_energy_sum_per_layer(layerclusters, keys=None):
 
 def get_simcluster_detids_per_layer(simcluster, **kwargs):
     '''
-    Get layer numbers with corresponding detids and fractions of a sim cluster
+    Get layer numbers with corresponding detids and fractions of a sim cluster.
+    Input arguments:
+    - simcluster: SimCluster object
+    - kwargs: passed down to get_detid_layer for each individual detid
+    Returns:
+    - a dict of the form {layer: {detid: fraction}} for this simcluster
     '''
     res = {}
     hits = simcluster.hits_and_fractions()
@@ -148,16 +153,23 @@ def get_simcluster_detids_per_layer(simcluster, **kwargs):
         detid = hit.first
         fraction = hit.second
         layer = get_detid_layer(detid, **kwargs)
-        if layer in res: res[layer].append((detid, fraction))
-        else: res[layer] = [(detid, fraction)]
+        if layer in res:
+            if detid in res[layer]: res[layer][detid] += fraction
+            else: res[layer][detid] = fraction
+        else: res[layer] = {detid: fraction}
     return res
 
 def get_caloparticle_detids_per_layer(caloparticle, split_per_simcluster=False, **kwargs):
     '''
-    Get layer numbers with corresponding detids of a calo particle
-    Note: If split_per_simcluster is False, the output is a simple dict
-          of the form <layer number> -> <list of detids>.
-          Else it is a list of such dicts (one per simcluster).
+    Get layer numbers with corresponding detids of a calo particle.
+    Input arguments:
+    - caloparticle: CaloParticle object
+    Returns:
+    - If split_per_simcluster is False, returns a dict of the form 
+      {layer number: {detid: fraction}}
+    - Else it is a list of such dicts (one per simcluster).
+    Note: if split_per_simcluster is False and multiple simclusters contain the same detid,
+    the fractions are added together.
     '''
     
     # get result per simcluster
@@ -170,13 +182,19 @@ def get_caloparticle_detids_per_layer(caloparticle, split_per_simcluster=False, 
     # merge
     merged = {}
     for el in res:
-        for key, val in el.items():
-            if key in merged: merged[key] += val
-            else: merged[key] = val
+        for layer, detids_and_fractions in el.items():
+            if layer in merged:
+                for detid, fraction in detids_and_fractions.items():
+                    if detid in merged[layer]: merged[layer][detid] += fraction
+                    else: merged[layer][detid] = fraction
+            else: merged[layer] = detids_and_fractions
     return merged
 
 def get_caloparticle_hits_per_layer(caloparticle, calohits):
     '''
+    Get layer numbers with corresponding detids, energies and fractions of a caloparticle.
+    Input arguments:
+    - caloparticle: CaloParticle object
     Returns:
     - a dict of the form {layer: {detid: (energy, fraction)}},
       where energy is the total energy deposited in that detector element,
@@ -188,9 +206,9 @@ def get_caloparticle_hits_per_layer(caloparticle, calohits):
     '''
     caloparticle_per_layer = get_caloparticle_detids_per_layer(caloparticle)
     hits_per_layer = {}
-    for layer, detids in caloparticle_per_layer.items():
+    for layer, detids_and_fractions in caloparticle_per_layer.items():
         hits_per_layer[layer] = {}
-        for (detid, fraction) in detids:
+        for detid, fraction in detids_and_fractions.items():
             energy = 0
             if detid in calohits.keys(): energy = calohits[detid].energy()
             hits_per_layer[layer][detid] = (energy, fraction)

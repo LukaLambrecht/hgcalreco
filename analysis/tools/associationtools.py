@@ -6,6 +6,7 @@
 import os
 import sys
 import numpy as np
+import bisect
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
@@ -15,11 +16,22 @@ from tools.geometrytools import get_layercluster_hits
 from tools.geometrytools import get_caloparticle_hits_per_layer
 
 
+def find_in_sorted_list(elem, sorted_list):
+    i = bisect.bisect_left(sorted_list, elem)
+    if i != len(sorted_list) and sorted_list[i] == elem: return i
+    return -1
+
+def in_sorted_list(elem, sorted_list):
+    i = find_in_sorted_list(elem, sorted_list)
+    return (i != -1)
+
+
 def get_associations(
         caloparticles = None, calohits = None,
         layerclusters = None, rechits = None,
         cps_hits_per_layer = None,
         lcs_hits_per_layer = None,
+        remove_unmatched_rechits = False,
         sum_lc_per_layer = False,
         delta_r_threshold = None):
     '''
@@ -49,7 +61,10 @@ def get_associations(
     if cps_hits_per_layer is None:
         cps_hits_per_layer = []
         for caloparticle in caloparticles:
-            hits_per_layer = get_caloparticle_hits_per_layer(caloparticle, calohits)
+            # note: need to use the rechits for retrieving the energy here, not the calohits!
+            #       this is to be consistent with the layercluster energy scale,
+            #       and was checked to be in sync with the definition in CMSSW.
+            hits_per_layer = get_caloparticle_hits_per_layer(caloparticle, rechits)
             cps_hits_per_layer.append(hits_per_layer)
 
     # retrieve layer cluster energy deposits, if not yet provided
@@ -59,6 +74,26 @@ def get_associations(
             layer = get_layercluster_layer(layercluster)
             hits_per_layer = {layer: get_layercluster_hits(layercluster, rechits)}
             lcs_hits_per_layer.append(hits_per_layer)
+
+    # optional: remove rechits that do not correspond to a calo hit (e.g. detector noise)
+    if remove_unmatched_rechits:
+
+        # make a list of all calohit detids
+        all_calohit_detids = []
+        for cp in cps_hits_per_layer:
+            for layer, dets in cp.items():
+                for detid in dets.keys():
+                    bisect.insort(all_calohit_detids, detid)
+        
+        # remove rechits not in this list of calohits
+        for lc in lcs_hits_per_layer:
+            for layer, dets in lc.items():
+                newdets = {}
+                for detid, val in dets.items():
+                    detid_to_check = detid.rawId()
+                    if not in_sorted_list(detid_to_check, all_calohit_detids): continue
+                    newdets[detid] = val
+                lc[layer] = newdets
 
     # optional (mainly intended for testing):
     # for each layer cluster, replace hits of the layer cluster
@@ -90,7 +125,8 @@ def get_associations(
         layer = next(iter(lc_hits_per_layer))
         hits = lc_hits_per_layer[layer]
         denom = 0.
-        for e, f in hits.values(): denom += (f * e) ** 2
+        for e, f in hits.values():
+            denom += e ** 2 # (in principle f*e but f is always 1)
         lc_norms.append(denom)
 
     # pre-fetch eta and phi (used for quick filtering in the loop below)
@@ -114,6 +150,14 @@ def get_associations(
 
         # loop over layer clusters
         for lc_idx, lc_hits_per_layer in enumerate(lcs_hits_per_layer):
+
+            # temp printouts for debugging
+            #if cp_idx==0 and lc_idx==6:
+            #    layer = list(lc_hits_per_layer.keys())[0]
+            #    print('CaloParticle')
+            #    for detid, val in cp_hits_per_layer.get(layer, {}).items(): print(detid, val)
+            #    print('LayerCluster')
+            #    for detid, val in lc_hits_per_layer[layer].items(): print(detid.rawId(), val)
 
             # check number of layers for this layer cluster (should be 1)
             layers = list(lc_hits_per_layer.keys())
@@ -180,7 +224,7 @@ def get_lctocp_matrix(associations):
     return get_matrix(associations, "lctocp")
 
 
-def get_cptolc_matrix_from_builtin(cpids, lcids, scores, ncp, nlc):
+def get_cptolc_matrix_from_builtin(cpids, lcids, scores, ncp, nlc, invert=True):
     '''
     Utility function to extract matrix of calo particle to layer cluster scores.
     Input arguments:
@@ -198,14 +242,14 @@ def get_cptolc_matrix_from_builtin(cpids, lcids, scores, ncp, nlc):
     for cpidx, lcidx, score in zip(cpids, lcids, scores):
         res[cpidx, lcidx] = score
 
-    # convert from 0-is-good to 1-is-good convention
-    res = 1 - res
+    # convert from 0-is-good to 1-is-good convention when requested.
+    if invert: res = 1 - res
     
     # return the matrix
     return res
     
 
-def get_lctocp_matrix_from_builtin(lcids, cpids, scores, nlc, ncp):
+def get_lctocp_matrix_from_builtin(lcids, cpids, scores, nlc, ncp, invert=True):
     '''
     Utility function to extract matrix of layer cluster to calo particle scores.
     Input arguments:
@@ -223,8 +267,8 @@ def get_lctocp_matrix_from_builtin(lcids, cpids, scores, nlc, ncp):
     for lcidx, cpidx, score in zip(lcids, cpids, scores):
         res[cpidx, lcidx] = score
 
-    # convert from 0-is-good to 1-is-good convention
-    res = 1 - res
+    # convert from 0-is-good to 1-is-good convention when requested.
+    if invert: res = 1 - res
     
     # return the matrix
     return res
@@ -254,12 +298,14 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
     for detid in common:
         e1, f1 = hits_1[detid]
         _, f2 = hits_2[detid]
-        numerator_12 += (1 - f2)**2 * f1**2 * e1**2
-        #numerator_12 += min((f2-f1)**2, f1**2) * e1**2
+        # custom definition
+        #numerator_12 += (1 - f2)**2 * f1**2 * e1**2
+        # CMSSW-synced definition
+        numerator_12 += min((f2-f1)**2, f1**2) * (f1 * e1)**2
     # non-shared hits (f2 = 0)
     for detid in hits_1.keys() - common:
         e1, f1 = hits_1[detid]
-        numerator_12 += f1**2 * e1**2
+        numerator_12 += f1**2 * (f1 * e1)**2
     association_12 = 0. if denominator_1 < 1e-12 else 1. - numerator_12 / denominator_1
 
     # calculate association of 2 to 1
@@ -268,11 +314,14 @@ def get_hitcollection_association(hits_1, hits_2, denominator_1=None, denominato
     for detid in common:
         e2, f2 = hits_2[detid]
         _, f1 = hits_1[detid]
-        numerator_21 += (1 - f1)**2 * f2**2 * e2**2
+        # custom definition
+        #numerator_21 += (1 - f1)**2 * f2**2 * e2**2
+        # CMSSW-synced definition
+        numerator_21 += min((f2-f1)**2, f2**2) * (f2 * e2)**2
     # non-shared hits (f1 = 0)
     for detid in hits_2.keys() - common:
         e2, f2 = hits_2[detid]
-        numerator_21 += f2**2 * e2**2
+        numerator_21 += f2**2 * (f2 * e2)**2
     association_21 = 0. if denominator_2 < 1e-12 else 1. - numerator_21 / denominator_2
 
     return association_12, association_21

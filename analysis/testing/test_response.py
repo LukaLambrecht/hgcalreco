@@ -69,9 +69,10 @@ if __name__=='__main__':
             rechit_map.update({hit.id(): hit for hit in rechits_hef})
 
             # split caloparticles per layer
+            # note: use rechit energies rather than calohit energies, so association scores match LC side!
             cps_hits_per_layer = []
             for caloparticle in caloparticles:
-                cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, calohit_map))
+                cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, rechit_map))
             
             # get layerclusters in the same format
             lcs_hits_per_layer = []
@@ -82,6 +83,8 @@ if __name__=='__main__':
 
             # calculate associations
             associations = get_associations(
+                caloparticles=caloparticles,
+                layerclusters=layerclusters,
                 cps_hits_per_layer=cps_hits_per_layer,
                 lcs_hits_per_layer=lcs_hits_per_layer,
                 sum_lc_per_layer = False)

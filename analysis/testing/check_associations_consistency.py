@@ -81,7 +81,12 @@ if __name__=='__main__':
             cp_ids_builtin = mapping_builtin[1]
 
             # calculate associations
-            associations = get_associations(caloparticles, calohit_map, layerclusters, rechit_map)
+            associations = get_associations(
+                caloparticles=caloparticles,
+                calohits=calohit_map,
+                layerclusters=layerclusters,
+                rechits=rechit_map
+            )
             eff = get_cptolc_matrix(associations)
             pur = get_lctocp_matrix(associations)
             mapping = get_mapping(pur)
@@ -104,11 +109,6 @@ if __name__=='__main__':
                 print('Layer: ', get_layercluster_layer(lc))
                 print('CP[0] eta: ', caloparticles[0].eta())
                 print('CP[1] eta: ', caloparticles[1].eta())
-
-            # do some printouts
-            #print(pur_builtin[:, :10])
-            #print(pur[:, :10])
-            #print('---')
 
             # store purity and efficiency difference for later plotting
             pur_diff = np.abs(pur_builtin - pur).flatten()

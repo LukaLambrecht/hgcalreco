@@ -59,7 +59,12 @@ if __name__=='__main__':
 
             # loop over calo particles and layer clusters
             print(f'--- Event with {len(caloparticles)} calo particles and {len(layerclusters)} layer clusters ---')
-            associations = get_associations(caloparticles, calohit_map, layerclusters, rechit_map)
+            associations = get_associations(
+                caloparticles=caloparticles,
+                calohits=calohit_map,
+                layerclusters=layerclusters,
+                rechits=rechit_map
+            )
             print('Efficiency:')
             eff = get_cptolc_matrix(associations)
             print(np.transpose(eff))
