@@ -130,6 +130,11 @@ process.hgcalAssociatorTask = cms.Task(
 )
 process.hgcal_step.associate(process.hgcalAssociatorTask)
 
+##########################
+# Parameter modification #
+##########################
+TEMPLATE_MOD
+
 #########################
 # Define output content #
 #########################

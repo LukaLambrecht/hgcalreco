@@ -119,15 +119,15 @@ if __name__=='__main__':
                     # note: use the rechit collection when building the
                     # caloparticle hit lists for association re-calculation!
                     cps_hits_per_layer.append(get_caloparticle_hits_per_layer(caloparticle, rechit_map))
-            
+
                 # get layerclusters in the same format
                 lcs_hits_per_layer = []
-                #delta_r_threshold = None
-                delta_r_threshold = 1.5
+                delta_r_threshold = None
+                #delta_r_threshold = 1.5
                 for layercluster in layerclusters:
                     # optional: skip this step for layerclusters that are too far away
                     # from any caloparticle anyway
-                    if mindr([layercluster], caloparticles) > delta_r_threshold:
+                    if delta_r_threshold is not None and mindr([layercluster], caloparticles) > delta_r_threshold:
                         lcs_hits_per_layer.append({0: {}})
                         continue 
                     # get layer and hits

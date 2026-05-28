@@ -13,6 +13,7 @@ if __name__=='__main__':
     parser.add_argument('--template', default='configs/hgcalreco_cff_template.py')
     parser.add_argument('--globaltag', default='150X_mcRun4_realistic_v1')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
+    parser.add_argument('--modifiers', default=None)
     parser.add_argument('--no_exec', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -27,12 +28,19 @@ if __name__=='__main__':
     with open(args.template, 'r') as f:
         lines = f.readlines()
 
+    # read modifiers
+    modifier = '# (no modifiers added)'
+    if args.modifiers is not None:
+        with open(args.modifiers, 'r') as f:
+            modifier = f.read()
+
     # replace tags
     for idx, line in enumerate(lines):
         line = line.replace('TEMPLATE_INPUT_FILE', args.inputfile)
         line = line.replace('TEMPLATE_MAX_EVENTS', str(args.max_events))
         line = line.replace('TEMPLATE_GLOBAL_TAG', args.globaltag)
         line = line.replace('TEMPLATE_GEOMETRY', args.geometry)
+        line = line.replace('TEMPLATE_MOD', modifier)
         lines[idx] = line
 
     # make working directory
