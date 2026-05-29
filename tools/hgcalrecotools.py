@@ -9,7 +9,7 @@ rng = np.random.default_rng()
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
-from tools.layertools import get_layer_counts
+from analysis.tools.layertools import get_layer_counts
 
 
 def build_config(template, params, context):
