@@ -164,8 +164,8 @@ if __name__=='__main__':
                 eff_matrix = get_cptolc_matrix_from_builtin(cptolc_cpidx, cptolc_lcidx, cptolc_efrac, len(caloparticles), len(layerclusters))
 
             # make mapping based on purity
-            #threshold = None
-            threshold = 0.1
+            threshold = None
+            #threshold = 0.1
             mapping = get_mapping(pur_matrix, threshold=threshold)
             (cptolc_ids, lctocp_ids) = mapping
             linked_lc_ids = np.nonzero(lctocp_ids!=-1)[0] # indices of layerclusters that are linked to a caloparticle
