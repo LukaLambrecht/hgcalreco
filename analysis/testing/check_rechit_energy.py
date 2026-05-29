@@ -9,6 +9,7 @@ import argparse
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from DataFormats.FWLite import Events
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -128,7 +129,7 @@ if __name__=='__main__':
             tag = f'{subdet_key}_{thickness_key}'
 
             # skip some combinations that don't make sense
-            if thickness_key!='all' and subdet_key not in ['EE', 'HSi']: continue
+            #if thickness_key!='all' and subdet_key not in ['EE', 'HSi']: continue
 
             # divide energy per layer
             xax = np.arange(1, 48)
@@ -139,25 +140,42 @@ if __name__=='__main__':
             if thickness_key!='all': text += f'\nSi thickness: {thickness_key}'
     
             # make a plot of rechit energy distribution
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(8,6))
             cmap = plt.get_cmap('jet')
             bins = np.linspace(0, 1, num=50)
+            legend_labels = []
+            legend_entries = []
             for idx, (key, val) in enumerate(rechit_energy_per_layer.items()):
-                ax.hist(val, bins=bins, histtype='step', color=cmap(idx/len(rechit_energy_per_layer)))
+                color = cmap(idx/len(rechit_energy_per_layer))
+                if ((key-1) % 2) == 0:
+                    legend_labels.append(f'Layer {key}')
+                    legend_entries.append(Line2D([0], [0], color=color, linewidth=4))
+                ax.hist(val, bins=bins, histtype='step',
+                        linewidth = 2,
+                        color = color
+                )
             ax.set_xlabel('Energy', fontsize=12)
             ax.set_ylabel('Number of hits', fontsize=12)
+            ax.legend(legend_entries, legend_labels, loc='upper left', bbox_to_anchor=(1.02, 1))
             ax.text(0.99, 0.99, text, ha='right', va='top', fontsize=12, transform=ax.transAxes)
+            fig.tight_layout()
             fig.savefig(os.path.join(args.outputdir, f'test_{tag}.png'))
             ax.set_yscale('log')
             fig.savefig(os.path.join(args.outputdir, f'test_{tag}_log.png'))
     
             # make a plot of normalized rechit energy distribution
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(8,6))
             for idx, (key, val) in enumerate(rechit_energy_per_layer.items()):
-                ax.hist(val, bins=bins, density=True, histtype='step', color=cmap(idx/len(rechit_energy_per_layer)))
+                label = f'Layer {key}' if ((key-1) % 2) == 0 else None
+                ax.hist(val, bins=bins, density=True, histtype='step',
+                        linewidth = 2,
+                        color=cmap(idx/len(rechit_energy_per_layer))
+                )
             ax.set_xlabel('Energy', fontsize=12)
             ax.set_ylabel('Number of hits (normalized)', fontsize=12)
+            ax.legend(legend_entries, legend_labels, loc='upper left', bbox_to_anchor=(1.02, 1))
             ax.text(0.99, 0.99, text, ha='right', va='top', fontsize=12, transform=ax.transAxes)
+            fig.tight_layout()
             fig.savefig(os.path.join(args.outputdir, f'test_{tag}_normalized.png'))
             ax.set_yscale('log')
             fig.savefig(os.path.join(args.outputdir, f'test_{tag}_normalized_log.png'))
