@@ -6,12 +6,18 @@
 import os
 import sys
 import glob
+import argparse
 
 
 if __name__=='__main__':
 
-    # read production directory from the command line
-    proddir = sys.argv[1]
+    # read command line args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--directory', required=True)
+    args = parser.parse_args()
+
+    # initialize production directory
+    proddir = args.directory # just to use older argument convention
     # expected content: subdirectories named job{idx},
     # each of which has the job script, the cmsRun configs,
     # and the output file.

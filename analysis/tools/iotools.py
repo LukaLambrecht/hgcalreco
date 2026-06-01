@@ -37,7 +37,7 @@ class Reader(object):
                 # check duplication
                 if collection_name in self.config and self.config[collection_name] != label:
                     msg = f'WARNING: in Reader.__init__: found duplicate collection name "{collection_name}";'
-                    msg += ' will use latest dtype "{dtype}" and label "{label}".'
+                    msg += f' will use latest dtype "{dtype}" and label "{label}".'
                     print(msg)
 
                 # set the handle and label
