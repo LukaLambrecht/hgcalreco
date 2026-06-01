@@ -7,10 +7,14 @@
 
 
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Era_Phase2C22I13M9_cff import Phase2C22I13M9
 
 # initialize process
+# note: currently the era is hard-coded; make sure it matches the one used for sample production!
+#       otherwise the re-reco might not match the central reco even with the same CLUE parameters.
+# todo: find out how to pass the era as an argument, similar to sample production code.
 processName = "HGCALTICL"
-process = cms.Process(processName)
+process = cms.Process(processName, Phase2C22I13M9)
 
 # load basic configs
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
@@ -19,6 +23,19 @@ process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 process.load("Configuration.Geometry.TEMPLATE_GEOMETRY_cff")
 process.load("Configuration.Geometry.TEMPLATE_GEOMETRYReco_cff")
 process.load("RecoTracker.Configuration.RecoTracker_cff")
+process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
+process.load("RecoHGCal.Configuration.recoHGCAL_cff")
+process.load("RecoHGCal.TICL.tracksterSelectionTf_cfi")
+
+# The v4 TrackstersMergeProducer runs a TensorFlow model for the merged
+# Trackster energy regression / particle ID. The ESProducer loaded above
+# provides the graph payload labelled "tracksterSelectionTf", but CMSSW also
+# needs an ESSource to define a valid IOV for TfGraphRecord. This mirrors the
+# official TICL-from-RECO customisation and avoids a NoRecord exception when
+# ticlTrackstersMerge asks the EventSetup for the graph.
+from RecoTracker.IterativeTracking.iterativeTk_cff import trackdnn_source
+process.trackdnn_source = trackdnn_source
+process.TFESSource = cms.Task(process.trackdnn_source)
 
 # set global tag
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -73,6 +90,7 @@ process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
     process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
+process.hgcal_step.associate(process.TFESSource)
 
 ################################################
 # Calculate and parse sim to reco associatiors #
