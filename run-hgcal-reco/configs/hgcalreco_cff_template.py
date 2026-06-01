@@ -1,9 +1,14 @@
 # CMSSW config file for HGCAL reconstruction
 
-# Note: this config file only runs the "minimal-effort" HGCAL-only reconstruction.
-# It fails at the final stage (ticlTracksterMergeTask), where some non-HGCAL inputs are needed.
-# This task is therefore removed from the sequence, and the output file will contain
-# "ticlTrackstersCLUE3DHigh" but not "ticlTrackstersMerge".
+# Note:
+# This config file only runs the "minimal-effort" HGCAL-only reconstruction.
+
+# Note:
+# Depending on the input file format, it might fail at the final stage
+# (ticlTracksterMergeTask), where some non-HGCAL inputs are needed.
+# In that case, this task can be removed from the sequence.
+# The reco will still run correctly, but the output file will contain
+# only up to "ticlTrackstersCLUE3DHigh" and not "ticlTrackstersMerge".
 
 
 import FWCore.ParameterSet.Config as cms
@@ -71,7 +76,10 @@ process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
     process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
-process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
+
+# remove task that requires non-HGCAL reco inputs
+# update: now this task remains enabled after updating the sample production.
+#process.mergeTICLTask.remove(process.ticlTracksterMergeTask)
 
 ################################################
 # Calculate and parse sim to reco associatiors #
@@ -146,7 +154,9 @@ process.out = cms.OutputModule("PoolOutputModule",
         # reco-level output
         "keep *_HGCalRecHit_*_*",
         "keep *_hgcalMergeLayerClusters_*_*",
-        "keep *_ticlTracksters*_*_*",
+        "keep *_ticlTracksters*_*_*", # includes Tracksters and ticlCandidates in v4.
+        "keep *_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
+        "keep *_pfTICL_*_*", # full PF candidate collection from TICL.
         # gen-level output
         "keep *CaloParticle*_mix_MergedCaloTruth_*",
         "keep *SimCluster*_mix_MergedCaloTruth_*",

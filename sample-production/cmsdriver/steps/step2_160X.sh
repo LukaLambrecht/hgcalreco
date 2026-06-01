@@ -2,7 +2,7 @@ cmsDriver.py step2 \
   --python_filename step2_MINIAOD.py \
   --eventcontent MINIAODSIM \
   --customise SLHCUpgradeSimulations/Configuration/aging.customise_aging_1000 \
-  --datatier GEN-SIM-DIGI-RAW-MINIAOD \
+  --datatier GEN-SIM-DIGI-RAW-RECO-MINIAOD \
   --inputCommands "keep *" \
   --conditions auto:phase2_realistic_T33 \
   --step RAW2DIGI,RECO,RECOSIM,PAT \

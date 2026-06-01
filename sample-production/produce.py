@@ -127,7 +127,9 @@ if __name__=='__main__':
                   '*_HGCalUncalibRecHit_*_*',
                   '*_HGCalRecHit_*_*',
                   '*_hgcalMergeLayerClusters_*_*',
-                  '*_ticlTracksters*_*_*',
+                  "*_ticlTracksters*_*_*", # includes Tracksters and ticlCandidates in v4.
+                  "*_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
+                  "*_pfTICL_*_*", # full PF candidate collection from TICL.
                   # add gen-level objects of interest
                   '*GenParticle*_*_*_*',
                   '*TrackingParticle*_*_*_*',
@@ -136,6 +138,12 @@ if __name__=='__main__':
                   '*CaloParticle*_*_*_*',
                   '*SimCluster*_*_*_*',
                   '*CaloHit*_*_*_*',
+                  # add tracking objects and related stuff
+                  # (not needed for HGCAL-only reco up to Tracksters, but needed for full TICL Candidates)
+                  '*_generalTracks_*_*',
+                  '*_muons1stStep_*_*',
+                  '*_tofPID_*_*',
+                  '*_mtd*_*_*',
                   # add links and associations
                   # (if produced in the reconstruction chain;
                   # not enabled by default, but can be added by a small cmsDriver customization command,
