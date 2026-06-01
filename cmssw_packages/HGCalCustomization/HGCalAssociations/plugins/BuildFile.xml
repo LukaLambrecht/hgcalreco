@@ -4,5 +4,7 @@
 <use name="DataFormats/Common"/>
 <use name="SimDataFormats/CaloAnalysis"/>
 <use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="SimDataFormats/Associations"/>
 
 <flags EDM_PLUGIN="1"/>

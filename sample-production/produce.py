@@ -122,34 +122,36 @@ if __name__=='__main__':
                 '*_*_*_*'
                 ]
                 keep = [
-                  # add reco-level objects of interest
+                  # minimal inputs for rerunning HGCAL local reco from digis
                   '*_hgcalDigis_*_*',
-                  '*_HGCalUncalibRecHit_*_*',
+                  # central reco objects, so the production file can still be used
+                  # directly by the analysis scripts as a reference reco sample
                   '*_HGCalRecHit_*_*',
                   '*_hgcalMergeLayerClusters_*_*',
-                  "*_ticlTracksters*_*_*", # includes Tracksters and ticlCandidates in v4.
-                  "*_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
-                  "*_pfTICL_*_*", # full PF candidate collection from TICL.
-                  # add gen-level objects of interest
+                  '*_ticlTracksters*_*_*', # includes Tracksters and ticlCandidates in v4
+                  '*_ticlCandidate_*_*', # v5 ticlCandidates
+                  '*_pfTICL_*_*',
+                  # truth needed for LC and Trackster performance checks
+                  '*_mix_MergedCaloTruth_*',
+                  '*_mix_MergedTrackTruth_*',
+                  '*_mix_MergedMtdTruthST_*',
+                  '*_g4SimHits_HGCHitsEE_*',
+                  '*_g4SimHits_HGCHitsHEfront_*',
+                  '*_g4SimHits_HGCHitsHEback_*',
                   '*GenParticle*_*_*_*',
-                  '*TrackingParticle*_*_*_*',
-                  '*TrackingVertex*_*_*_*',
-                  '*SimTrack*_*_*_*',
-                  '*CaloParticle*_*_*_*',
-                  '*SimCluster*_*_*_*',
-                  '*CaloHit*_*_*_*',
-                  # add tracking objects and related stuff
-                  # (not needed for HGCAL-only reco up to Tracksters, but needed for full TICL Candidates)
+                  # tracking and timing inputs needed by TICL merge/PF-TICL
+                  # and by SimTrackster construction
                   '*_generalTracks_*_*',
                   '*_muons1stStep_*_*',
                   '*_tofPID_*_*',
-                  '*_mtd*_*_*',
-                  # add links and associations
-                  # (if produced in the reconstruction chain;
-                  # not enabled by default, but can be added by a small cmsDriver customization command,
-                  # see examples in the cmsdriver/steps folder)
+                  '*_mtdTrackQualityMVA_*_*',
+                  '*_trackingParticleRecoTrackAsssociation_*_*',
+                  '*_simHitTPAssocProducer_simTrackToTP_*',
+                  # associations, if produced in the reconstruction chain
                   '*_layerClusterCaloParticleAssociation_*_*',
-                  '*_layerClusterSimClusterAssociation_*_*'
+                  '*_layerClusterSimClusterAssociation_*_*',
+                  '*_allTrackstersToSimTrackstersAssociations*_*_*',
+                  '*_allLayerClusterToTracksterAssociations*_*_*'
                 ]
                 for collection in drop:
                     customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')
