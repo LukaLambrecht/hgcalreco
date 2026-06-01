@@ -9,6 +9,8 @@
 
 import os
 import sys
+import json
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from DataFormats.FWLite import Events
@@ -19,18 +21,37 @@ sys.path.append(topdir)
 from tools.iotools import Reader
 
 
+def make_outputdir(outputdir):
+    if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
+
+
 if __name__=='__main__':
 
-    # read input file from command line
-    inputfile = sys.argv[1]
+    # read command line args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
+    parser.add_argument('-o', '--outputdir', default='output_plots_tracksters')
+    parser.add_argument('-n', '--nentries', default=-1, type=int)
+    parser.add_argument('--input_config', default=None, nargs='+')
+    parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
+    args = parser.parse_args()
 
-    # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config_centralreco.json')
-    outputdir = 'output_plots_tracksters'
+    # set input configs
+    input_configs = []
+    if args.input_config is not None:
+        # if input configs are specified on the command line, they take precedence
+        input_configs = args.input_config[:]
+    else:
+        # else determine input configs automatically
+        input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_baseline.json'))
+    print('Found following input configs:')
+    print(json.dumps(input_configs, indent=2))
 
     # read events
-    events = Events(inputfile)
-    reader = Reader(input_config)
+    events = Events(args.inputfiles)
+    reader = Reader(input_configs)
+    make_outputdir(args.outputdir)
 
     # initialize counter
     event_counter = 0
@@ -87,9 +108,6 @@ if __name__=='__main__':
         maxe = np.amax(es)
         reles = es/maxe
 
-        # make output directory
-        if not os.path.exists(outputdir): os.makedirs(outputdir)
-
         # make plot coloured by energy
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -105,7 +123,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
         ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_energy.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -122,7 +140,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
         ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_energy_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -137,7 +155,7 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_energy_zy.png'))
         plt.close()
 
         # make similar plot but coloured by trackster index
@@ -153,7 +171,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
         ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_trs.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -168,7 +186,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy-marginxy, maxxy+marginxy))
         ax.set_ylim((-maxxy-marginxy, maxxy+marginxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_trs_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -181,5 +199,8 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_trs_zy.png'))
         plt.close()
+
+        # break loop after a fixed number of events
+        if args.nentries > 0 and event_counter >= args.nentries: break

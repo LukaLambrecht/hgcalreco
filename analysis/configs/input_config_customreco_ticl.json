@@ -1,0 +1,5 @@
+{
+    "tracksters_merge": ["std::vector<ticl::Trackster>", "ticlTrackstersMerge", "", "HGCALTICL"],
+    "ticlcandidates_merge": ["std::vector<TICLCandidate>", "ticlTrackstersMerge", "", "HGCALTICL"],
+    "pfticl": ["std::vector<reco::PFCandidate>", "pfTICL", "", "HGCALTICL"]
+}

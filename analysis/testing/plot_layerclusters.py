@@ -1,14 +1,9 @@
-# Plot the point cloud of RecHits belonging to all Tracksters in an event
-
-# DOES NOT WORK (YET?), because RecHits are not stored with a position,
-# need to somehow load the geometry externally to convert detId into position,
-# but not sure if this is possible in FWLite.
-
-# Instead, can plot the LayerCluster barycenters (which are stored) as a proxy.
-
+# Plot LayerCluster barycenters for all clusters in an event
 
 import os
 import sys
+import json
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from DataFormats.FWLite import Events
@@ -22,18 +17,37 @@ from tools.geometrytools import get_layercluster_zside
 from tools.geometrytools import get_layercluster_subdetid
 
 
+def make_outputdir(outputdir):
+    if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
+
+
 if __name__=='__main__':
 
-    # read input file from command line
-    inputfile = sys.argv[1]
+    # read command line args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
+    parser.add_argument('-o', '--outputdir', default='output_plots_layerclusters')
+    parser.add_argument('-n', '--nentries', default=-1, type=int)
+    parser.add_argument('--input_config', default=None, nargs='+')
+    parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
+    args = parser.parse_args()
 
-    # other settings (hard-coded for now)
-    input_config = os.path.join(topdir, 'configs/input_config_centralreco.json')
-    outputdir = 'output_plots_layerclusters'
+    # set input configs
+    input_configs = []
+    if args.input_config is not None:
+        # if input configs are specified on the command line, they take precedence
+        input_configs = args.input_config[:]
+    else:
+        # else determine input configs automatically
+        input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_baseline.json'))
+    print('Found following input configs:')
+    print(json.dumps(input_configs, indent=2))
 
     # read events
-    events = Events(inputfile)
-    reader = Reader(input_config)
+    events = Events(args.inputfiles)
+    reader = Reader(input_configs)
+    make_outputdir(args.outputdir)
 
     # initialize counter
     event_counter = 0
@@ -59,7 +73,7 @@ if __name__=='__main__':
         # loop over tracksters
         for tr_idx, tr in enumerate(tracksters):
 
-            # collect hits
+            # collect layerclusters
             lc_ids = tr.vertices()
             for lc_idx in lc_ids:
                 lc = layerclusters[lc_idx]
@@ -94,9 +108,6 @@ if __name__=='__main__':
         maxe = np.amax(es)
         reles = es/maxe
 
-        # make output dir
-        if not os.path.exists(outputdir): os.makedirs(outputdir)
-
         # make plot coloured by energy
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -110,7 +121,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_energy.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -125,7 +136,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_energy_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -138,7 +149,7 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_energy_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_energy_zy.png'))
         plt.close()
 
         # make similar plot but coloured by trackster index
@@ -154,7 +165,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_trs.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -169,7 +180,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_trs_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -182,7 +193,7 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_trs_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_trs_zy.png'))
         plt.close()
 
         # make similar plot but coloured by layer
@@ -198,7 +209,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_lrs.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_lrs.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -213,7 +224,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_lrs_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_lrs_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -226,7 +237,7 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Layer")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_lrs_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_lrs_zy.png'))
         plt.close()
 
         # make similar plot but coloured by zside
@@ -242,7 +253,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_zsides.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_zsides.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -257,7 +268,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_zsides_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_zsides_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -270,7 +281,7 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Z-side")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_zsides_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_zsides_zy.png'))
         plt.close()
 
         # make similar plot but coloured by subdetector
@@ -286,7 +297,7 @@ if __name__=='__main__':
         ax.set_zlabel("z [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_subdets.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_subdets.png'))
         plt.close()
 
         # same plot in x-y projection
@@ -301,7 +312,7 @@ if __name__=='__main__':
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-maxxy, maxxy))
         ax.set_ylim((-maxxy, maxxy))
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_subdets_xy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_subdets_xy.png'))
         plt.close()
 
         # same plot in z-y projection
@@ -314,5 +325,8 @@ if __name__=='__main__':
         plt.colorbar(sc, label="Subdetector")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
-        fig.savefig(os.path.join(outputdir, f'test_{event_counter}_subdets_zy.png'))
+        fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_subdets_zy.png'))
         plt.close()
+
+        # break loop after a fixed number of events
+        if args.nentries > 0 and event_counter >= args.nentries: break
