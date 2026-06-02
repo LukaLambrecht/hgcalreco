@@ -7,8 +7,8 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 from tools.iotools import Reader
-from tools.associationtools import get_associations
-from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
+from tools.lcassociationtools import get_associations
+from tools.lcassociationtools import get_cptolc_matrix, get_lctocp_matrix
 
 
 if __name__=='__main__':

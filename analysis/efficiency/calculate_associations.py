@@ -6,6 +6,7 @@ import sys
 import json
 import time
 import argparse
+import subprocess
 import numpy as np
 import pandas as pd
 from DataFormats.FWLite import Events, Handle
@@ -20,11 +21,13 @@ from tools.geometrytools import get_caloparticle_hits_per_layer
 from tools.geometrytools import get_caloparticle_energy_per_layer
 from tools.geometrytools import get_layercluster_hits
 from tools.geometrytools import mindr
-from tools.associationtools import get_associations
-from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
-from tools.associationtools import get_mapping
-from tools.associationtools import get_cptolc_matrix_from_builtin
-from tools.associationtools import get_lctocp_matrix_from_builtin
+from tools.lcassociationtools import get_associations
+from tools.lcassociationtools import get_cptolc_matrix, get_lctocp_matrix
+from tools.lcassociationtools import get_mapping
+from tools.lcassociationtools import get_cptolc_matrix_from_builtin
+from tools.lcassociationtools import get_lctocp_matrix_from_builtin
+from tools.tcassociationtools import get_ticl_candidate_matrices_from_trackster_associations
+from tools.tcassociationtools import get_mapping as get_tc_mapping
 from tools.metrics import response
 from tools.metrics import efficiency
 
@@ -41,6 +44,7 @@ if __name__=='__main__':
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
     parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
+    parser.add_argument('--make_plots', default=False, action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -52,6 +56,7 @@ if __name__=='__main__':
     else:
         # else determine input configs automatically
         input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_baseline.json'))
+        input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_ticl.json'))
         if args.recalculate:
             input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_hits.json'))
         else:
@@ -65,6 +70,9 @@ if __name__=='__main__':
     # loop over input files
     dfs_lc = []
     dfs_cp = []
+    dfs_tc = []
+    dfs_cp_tc = []
+    n_empty_tstocpsimts_events = 0
     for file_idx, inputfile in enumerate(args.inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(args.inputfiles)}...')
         events = Events(inputfile)
@@ -84,6 +92,7 @@ if __name__=='__main__':
             collections = reader.read_event(event)
             caloparticles = collections['caloparticles']
             layerclusters = collections['layerclusters']
+            ticlcandidates = collections.get('ticlcandidates_merge')
 
             # do some event selection
             if len(caloparticles) < 2: continue
@@ -93,6 +102,10 @@ if __name__=='__main__':
             # this filtering is done based on the event() property, which is supposed to be 0
             # for the primary interaction and > 0 for pileup.
             caloparticles = [cp for cp in caloparticles if cp.eventId().event()==0]
+            tstocpsimts_tsidx = None
+            tstocpsimts_simtsidx = None
+            tstocpsimts_sharedenergy = None
+            tstocpsimts_score = None
 
             # case of recalculating associations
             if args.recalculate:
@@ -158,6 +171,10 @@ if __name__=='__main__':
                 cptolc_lcidx = collections['cptolcassociation_lcids']
                 cptolc_score = collections['cptolcassociation_scores']
                 cptolc_efrac = collections['cptolcassociation_efracs']
+                tstocpsimts_tsidx = collections.get('tstocpsimtsassociation_tsids')
+                tstocpsimts_simtsidx = collections.get('tstocpsimtsassociation_simtsids')
+                tstocpsimts_sharedenergy = collections.get('tstocpsimtsassociation_sharedenergy')
+                tstocpsimts_score = collections.get('tstocpsimtsassociation_scores')
 
                 # get builtin associations
                 pur_matrix = get_lctocp_matrix_from_builtin(lctocp_lcidx, lctocp_cpidx, lctocp_score, len(layerclusters), len(caloparticles))
@@ -235,6 +252,87 @@ if __name__=='__main__':
             })
             dfs_cp.append(df_cp)
 
+            # calculate and store TICLCandidate - CaloParticle metrics.
+            # The scores are derived from the merged Trackster to
+            # SimTrackster-from-CP shared-energy associations. This avoids
+            # summing layer-normalized CP -> LC efficiencies over multi-layer
+            # objects.
+            if ticlcandidates is not None and tstocpsimts_tsidx is not None and len(tstocpsimts_tsidx) > 0:
+                tc_ts_indices, tc_pur_matrix, tc_eff_matrix = get_ticl_candidate_matrices_from_trackster_associations(
+                    ticlcandidates,
+                    tstocpsimts_tsidx,
+                    tstocpsimts_simtsidx,
+                    tstocpsimts_sharedenergy,
+                    tstocpsimts_score,
+                    len(caloparticles))
+
+                tc_mapping = get_tc_mapping(tc_pur_matrix, threshold=1e-12)
+                (cptotc_ids, tctocp_ids) = tc_mapping
+                linked_tc_ids = np.nonzero(tctocp_ids!=-1)[0]
+                linked_tc_cp_ids = tctocp_ids[linked_tc_ids]
+
+                tc_pur = tc_pur_matrix[linked_tc_cp_ids, linked_tc_ids]
+                tc_eff = tc_eff_matrix[linked_tc_cp_ids, linked_tc_ids]
+
+                tc_pt = np.array([caloparticles[int(idx)].pt() for idx in linked_tc_cp_ids])
+                tc_eta = np.array([caloparticles[int(idx)].eta() for idx in linked_tc_cp_ids])
+                tc_candidate_pt = np.array([ticlcandidates[int(idx)].pt() for idx in linked_tc_ids])
+                tc_candidate_eta = np.array([ticlcandidates[int(idx)].eta() for idx in linked_tc_ids])
+                tc_candidate_energy = np.array([ticlcandidates[int(idx)].energy() for idx in linked_tc_ids])
+                tc_candidate_raw_energy = np.array([ticlcandidates[int(idx)].rawEnergy() for idx in linked_tc_ids])
+                tc_ntracksters = np.array([len(ticlcandidates[int(idx)].tracksters()) for idx in linked_tc_ids])
+                tc_nlayerclusters = np.array([
+                    len(set(
+                        lc_idx
+                        for ts_ptr in ticlcandidates[int(idx)].tracksters()
+                        for lc_idx in ts_ptr.get().vertices()
+                    ))
+                    for idx in linked_tc_ids
+                ])
+
+                df_tc = pd.DataFrame.from_dict({
+                    'pur': tc_pur,
+                    'eff': tc_eff,
+                    'pt': tc_pt,
+                    'eta': tc_eta,
+                    'candidate_pt': tc_candidate_pt,
+                    'candidate_eta': tc_candidate_eta,
+                    'candidate_energy': tc_candidate_energy,
+                    'candidate_raw_energy': tc_candidate_raw_energy,
+                    'ntracksters': tc_ntracksters,
+                    'nlayerclusters': tc_nlayerclusters,
+                    'event': eventid
+                })
+                dfs_tc.append(df_tc)
+
+                cp_tc_eff_best = np.zeros(len(caloparticles))
+                cp_tc_pur_best = np.zeros(len(caloparticles))
+                cp_tc_eff_sum = np.zeros(len(caloparticles))
+                cp_tc_ntc = np.zeros(len(caloparticles), dtype=int)
+
+                for cp_idx, tc_ids in enumerate(cptotc_ids):
+                    cp_tc_ntc[cp_idx] = len(tc_ids)
+                    if len(tc_ids) > 0:
+                        this_cp_eff = tc_eff_matrix[cp_idx, tc_ids]
+                        best_idx = np.argmax(this_cp_eff)
+                        best_tc_id = tc_ids[best_idx]
+                        cp_tc_eff_best[cp_idx] = this_cp_eff[best_idx]
+                        cp_tc_pur_best[cp_idx] = tc_pur_matrix[cp_idx, best_tc_id]
+                        cp_tc_eff_sum[cp_idx] = np.sum(this_cp_eff)
+
+                df_cp_tc = pd.DataFrame.from_dict({
+                    'eff_best': cp_tc_eff_best,
+                    'pur_best': cp_tc_pur_best,
+                    'eff_sum': cp_tc_eff_sum,
+                    'ntc': cp_tc_ntc,
+                    'pt': np.array([cp.pt() for cp in caloparticles]),
+                    'eta': np.array([cp.eta() for cp in caloparticles]),
+                    'event': eventid
+                })
+                dfs_cp_tc.append(df_cp_tc)
+            elif ticlcandidates is not None and tstocpsimts_tsidx is not None:
+                n_empty_tstocpsimts_events += 1
+
             # stop processing if sufficient events have been processed
             if args.nentries > 0 and event_idx >= args.nentries-1: break
 
@@ -262,8 +360,55 @@ if __name__=='__main__':
             'layer': [],
             'event': []
         })
+    if len(dfs_tc) > 0: df_tc = pd.concat(dfs_tc)
+    else:
+        df_tc = pd.DataFrame.from_dict({
+            'pur': [],
+            'eff': [],
+            'pt': [],
+            'eta': [],
+            'candidate_pt': [],
+            'candidate_eta': [],
+            'candidate_energy': [],
+            'candidate_raw_energy': [],
+            'ntracksters': [],
+            'nlayerclusters': [],
+            'event': []
+        })
+    if len(dfs_cp_tc) > 0: df_cp_tc = pd.concat(dfs_cp_tc)
+    else:
+        df_cp_tc = pd.DataFrame.from_dict({
+            'eff_best': [],
+            'pur_best': [],
+            'eff_sum': [],
+            'ntc': [],
+            'pt': [],
+            'eta': [],
+            'event': []
+        })
+    if n_empty_tstocpsimts_events > 0:
+        msg = 'WARNING: Found empty Trackster-to-CP-SimTrackster association products'
+        msg += f' in {n_empty_tstocpsimts_events} processed events. TICLCandidate metrics'
+        msg += ' were not filled for those events.'
+        print(msg)
     
     # write output file
     if not os.path.exists(args.outputdir): os.makedirs(args.outputdir)
-    df_lc.to_parquet(os.path.join(args.outputdir, 'metrics_lc.parquet'))
-    df_cp.to_parquet(os.path.join(args.outputdir, 'metrics_cp.parquet'))
+    lc_output = os.path.join(args.outputdir, 'metrics_lc.parquet')
+    cp_lc_output = os.path.join(args.outputdir, 'metrics_cp_lc.parquet')
+    tc_output = os.path.join(args.outputdir, 'metrics_tc.parquet')
+    cp_tc_output = os.path.join(args.outputdir, 'metrics_cp_tc.parquet')
+    df_lc.to_parquet(lc_output)
+    df_cp.to_parquet(cp_lc_output)
+    df_tc.to_parquet(tc_output)
+    df_cp_tc.to_parquet(cp_tc_output)
+
+    if args.make_plots:
+        plotting_commands = [
+            [sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_lc.py'), lc_output],
+            [sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_cp.py'), cp_lc_output],
+            [sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_output],
+        ]
+        for command in plotting_commands:
+            print(f'Running plotting script: {" ".join(command)}')
+            subprocess.run(command, check=True)

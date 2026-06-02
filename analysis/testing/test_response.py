@@ -13,12 +13,12 @@ sys.path.append(topdir)
 
 from tools.iotools import Reader
 from tools.geometrytools import get_layercluster_layer
-from tools.associationtools import get_associations
-from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
+from tools.lcassociationtools import get_associations
+from tools.lcassociationtools import get_cptolc_matrix, get_lctocp_matrix
 from tools.geometrytools import get_caloparticle_hits_per_layer
 from tools.geometrytools import get_caloparticle_energy_per_layer
 from tools.geometrytools import get_layercluster_hits
-from tools.associationtools import get_mapping
+from tools.lcassociationtools import get_mapping
 from tools.metrics import response
 
 

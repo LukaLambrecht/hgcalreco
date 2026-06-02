@@ -11,7 +11,7 @@ sys.path.append(topdir)
 from tools.geometrytools import get_layercluster_layer
 from tools.geometrytools import get_layercluster_zside
 from tools.geometrytools import get_layercluster_energy_sum_per_layer
-from tools.associationtools import get_associations
+from tools.lcassociationtools import get_associations
 
 # Energy threshold constants (in GeV)
 # Energies below this threshold are treated as zero to avoid numerical noise

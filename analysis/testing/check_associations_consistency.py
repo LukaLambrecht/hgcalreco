@@ -10,11 +10,11 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 from tools.iotools import Reader
-from tools.associationtools import get_associations
-from tools.associationtools import get_cptolc_matrix, get_lctocp_matrix
-from tools.associationtools import get_cptolc_matrix_from_builtin
-from tools.associationtools import get_lctocp_matrix_from_builtin
-from tools.associationtools import get_mapping
+from tools.lcassociationtools import get_associations
+from tools.lcassociationtools import get_cptolc_matrix, get_lctocp_matrix
+from tools.lcassociationtools import get_cptolc_matrix_from_builtin
+from tools.lcassociationtools import get_lctocp_matrix_from_builtin
+from tools.lcassociationtools import get_mapping
 from tools.geometrytools import get_layercluster_layer
 
 

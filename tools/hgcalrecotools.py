@@ -154,7 +154,7 @@ def run_local_evaluation(params, context,
 
     # metric extraction
     metrics_lc_file = os.path.join(outputdir, "metrics_lc.parquet")
-    metrics_cp_file = os.path.join(outputdir, "metrics_cp.parquet")
+    metrics_cp_file = os.path.join(outputdir, "metrics_cp_lc.parquet")
     metric = extract_metric(metrics_lc_file, metrics_cp_file)
 
     return {
