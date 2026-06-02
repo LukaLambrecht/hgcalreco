@@ -94,15 +94,15 @@ def plot_cp_tc_metrics(df, outputdir):
 
     eff_sum_max = max(1.2, np.quantile(df['eff_sum'].values, 0.98) * 1.1)
     plots = [
-        ('eff_best', np.linspace(0, 1.2, 61), 'Best purity-matched TICLCandidate efficiency', 'CaloParticles'),
-        ('eff_sum', np.linspace(0, eff_sum_max, 61), 'Summed purity-matched TICLCandidate efficiency', 'CaloParticles'),
-        ('pur_best', np.linspace(0, 1.2, 61), 'Purity of best matched-efficiency TICLCandidate', 'CaloParticles'),
-        ('ntc', np.arange(-0.5, max(5, int(np.max(df['ntc'].values)) + 1.5), 1), 'Matched TICLCandidates per CaloParticle', 'CaloParticles'),
+        ('eff_primary', np.linspace(0, 1.2, 61), 'Efficiency of primary TICLCandidate', 'CaloParticles'),
+        ('eff_sum', np.linspace(0, eff_sum_max, 61), 'Efficiency (total)', 'CaloParticles'),
+        ('pur_primary', np.linspace(0, 1.2, 61), 'Purity of primary TICLCandidate', 'CaloParticles'),
+        ('ntc', np.arange(-0.5, max(5, int(np.max(df['ntc'].values)) + 1.5), 1), 'TICLCandidates per CaloParticle', 'CaloParticles'),
     ]
 
     for column, bins, xlabel, ylabel in plots:
         fig, ax = plot_hist(df, column, bins, xlabel, ylabel,
-                            color='darkorchid', unit_interval=(column in ['eff_best', 'pur_best']))
+                            color='darkorchid', unit_interval=(column in ['eff_primary', 'pur_primary']))
         if column != 'ntc':
             ax.axvline(x=1, color='grey', linestyle='--')
         fig.tight_layout()
@@ -114,9 +114,9 @@ def plot_cp_tc_metrics(df, outputdir):
     pt_max = max(1., np.quantile(df['pt'].values, 0.98))
     pt_bins = np.linspace(0, pt_max, 15)
     for column, ylabel in [
-            ('eff_best', 'Best purity-matched TICLCandidate efficiency'),
-            ('eff_sum', 'Summed purity-matched TICLCandidate efficiency'),
-            ('ntc', 'Matched TICLCandidates per CaloParticle')]:
+            ('eff_primary', 'Efficiency of primary TICLCandidate'),
+            ('eff_sum', 'Efficiency (sum)'),
+            ('ntc', 'TICLCandidates per CaloParticle')]:
         for xcolumn, bins, xlabel, suffix in [
                 ('eta', eta_bins, 'CaloParticle eta', f'{column}_vs_eta'),
                 ('pt', pt_bins, 'CaloParticle pT', f'{column}_vs_pt')]:
@@ -178,8 +178,8 @@ if __name__ == '__main__':
     eta_bins = np.linspace(-3.2, 3.2, 17)
     pt_max = max(1., np.quantile(df['pt'].values, 0.98))
     pt_bins = np.linspace(0, pt_max, 15)
-    plot_effandpur_vs(df, 'eta', eta_bins, 'Matched CaloParticle eta', outputdir, 'eta')
-    plot_effandpur_vs(df, 'pt', pt_bins, 'Matched CaloParticle pT', outputdir, 'pt')
+    plot_effandpur_vs(df, 'caloparticle_eta', eta_bins, 'Matched CaloParticle eta', outputdir, 'eta')
+    plot_effandpur_vs(df, 'caloparticle_pt', pt_bins, 'Matched CaloParticle pT', outputdir, 'pt')
 
     # CaloParticle-level TICLCandidate metrics, if present.
     cp_inputfile = args.cp_inputfile

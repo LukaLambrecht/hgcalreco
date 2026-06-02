@@ -254,9 +254,10 @@ if __name__=='__main__':
 
             # calculate and store TICLCandidate - CaloParticle metrics.
             # The scores are derived from the merged Trackster to
-            # SimTrackster-from-CP shared-energy associations. This avoids
-            # summing layer-normalized CP -> LC efficiencies over multi-layer
-            # objects.
+            # SimTrackster-from-CP shared-energy associations,
+            # rather than the CP to LC associations as used above.
+            # This avoids summing layer-normalized CP -> LC efficiencies
+            # over multi-layer objects.
             if ticlcandidates is not None and tstocpsimts_tsidx is not None and len(tstocpsimts_tsidx) > 0:
                 tc_ts_indices, tc_pur_matrix, tc_eff_matrix = get_ticl_candidate_matrices_from_trackster_associations(
                     ticlcandidates,
@@ -266,20 +267,31 @@ if __name__=='__main__':
                     tstocpsimts_score,
                     len(caloparticles))
 
-                tc_mapping = get_tc_mapping(tc_pur_matrix, threshold=1e-12)
+                # get the mapping
+                # note: purity-based, same as above for layerclusters and caloparticles.
+                # note: output is the following:
+                #       - cptotc_ids: 2D list with indices of matched ticlcandidates for each caloparticle.
+                #       - tctocp_ids: simple 1D array with index of matched caloparticle for each ticlcandidate.
+                #       - linked_tc_ids: simple 1D array with indices of ticlcandidates with a match
+                #         (should be all ticlcandidates, unless a threshold was applied).
+                #       - linked_tc_cp_ids: simple 1D array with indices of matched caloparticle for each ticlcandidate with a match.
+                threshold = None
+                tc_mapping = get_tc_mapping(tc_pur_matrix, threshold=threshold)
                 (cptotc_ids, tctocp_ids) = tc_mapping
                 linked_tc_ids = np.nonzero(tctocp_ids!=-1)[0]
                 linked_tc_cp_ids = tctocp_ids[linked_tc_ids]
 
+                # get purity and efficiency per ticlcandidate with respect to its matched caloparticle
                 tc_pur = tc_pur_matrix[linked_tc_cp_ids, linked_tc_ids]
                 tc_eff = tc_eff_matrix[linked_tc_cp_ids, linked_tc_ids]
 
-                tc_pt = np.array([caloparticles[int(idx)].pt() for idx in linked_tc_cp_ids])
-                tc_eta = np.array([caloparticles[int(idx)].eta() for idx in linked_tc_cp_ids])
-                tc_candidate_pt = np.array([ticlcandidates[int(idx)].pt() for idx in linked_tc_ids])
-                tc_candidate_eta = np.array([ticlcandidates[int(idx)].eta() for idx in linked_tc_ids])
-                tc_candidate_energy = np.array([ticlcandidates[int(idx)].energy() for idx in linked_tc_ids])
-                tc_candidate_raw_energy = np.array([ticlcandidates[int(idx)].rawEnergy() for idx in linked_tc_ids])
+                # get auxiliary variables for ticlcandidates
+                tc_caloparticle_pt = np.array([caloparticles[int(idx)].pt() for idx in linked_tc_cp_ids])
+                tc_caloparticle_eta = np.array([caloparticles[int(idx)].eta() for idx in linked_tc_cp_ids])
+                tc_pt = np.array([ticlcandidates[int(idx)].pt() for idx in linked_tc_ids])
+                tc_eta = np.array([ticlcandidates[int(idx)].eta() for idx in linked_tc_ids])
+                tc_energy = np.array([ticlcandidates[int(idx)].energy() for idx in linked_tc_ids])
+                tc_raw_energy = np.array([ticlcandidates[int(idx)].rawEnergy() for idx in linked_tc_ids])
                 tc_ntracksters = np.array([len(ticlcandidates[int(idx)].tracksters()) for idx in linked_tc_ids])
                 tc_nlayerclusters = np.array([
                     len(set(
@@ -290,39 +302,47 @@ if __name__=='__main__':
                     for idx in linked_tc_ids
                 ])
 
+                # fill data structure for ticlcandidates
                 df_tc = pd.DataFrame.from_dict({
                     'pur': tc_pur,
                     'eff': tc_eff,
+                    'caloparticle_pt': tc_caloparticle_pt,
+                    'caloparticle_eta': tc_caloparticle_eta,
                     'pt': tc_pt,
                     'eta': tc_eta,
-                    'candidate_pt': tc_candidate_pt,
-                    'candidate_eta': tc_candidate_eta,
-                    'candidate_energy': tc_candidate_energy,
-                    'candidate_raw_energy': tc_candidate_raw_energy,
+                    'energy': tc_energy,
+                    'raw_energy': tc_raw_energy,
                     'ntracksters': tc_ntracksters,
                     'nlayerclusters': tc_nlayerclusters,
                     'event': eventid
                 })
                 dfs_tc.append(df_tc)
 
-                cp_tc_eff_best = np.zeros(len(caloparticles))
-                cp_tc_pur_best = np.zeros(len(caloparticles))
+                # initialize variables per caloparticle
+                # note: in all these metrics, "primary" means the ticlcandidate with the highest efficiency
+                #       out of all (purity-)matched ticlcandidates to this caloparticle
+                cp_tc_eff_primary = np.zeros(len(caloparticles))
+                cp_tc_pur_primary = np.zeros(len(caloparticles))
                 cp_tc_eff_sum = np.zeros(len(caloparticles))
                 cp_tc_ntc = np.zeros(len(caloparticles), dtype=int)
 
+                # loop over caloparticles and matched ticlcandidates
                 for cp_idx, tc_ids in enumerate(cptotc_ids):
-                    cp_tc_ntc[cp_idx] = len(tc_ids)
+                    cp_tc_ntc[cp_idx] = len(tc_ids) # number of matched ticlcandidates
                     if len(tc_ids) > 0:
                         this_cp_eff = tc_eff_matrix[cp_idx, tc_ids]
-                        best_idx = np.argmax(this_cp_eff)
-                        best_tc_id = tc_ids[best_idx]
-                        cp_tc_eff_best[cp_idx] = this_cp_eff[best_idx]
-                        cp_tc_pur_best[cp_idx] = tc_pur_matrix[cp_idx, best_tc_id]
-                        cp_tc_eff_sum[cp_idx] = np.sum(this_cp_eff)
+                        primary_idx = np.argmax(this_cp_eff)
+                        primary_tc_id = tc_ids[primary_idx]
+                        # (note: this is the ticlcandidate with highest efficiency
+                        #        out of all ticlcandidates that are (purity-)matched to this caloparticle).
+                        cp_tc_eff_primary[cp_idx] = this_cp_eff[primary_idx] # efficiency of highest-efficiency purity-matched ticlcandidate
+                        cp_tc_pur_primary[cp_idx] = tc_pur_matrix[cp_idx, primary_tc_id] # purity of highest-efficiency purity-matched ticlcandidate
+                        cp_tc_eff_sum[cp_idx] = np.sum(this_cp_eff) # efficiency sum of purity-matched ticlcandidates
 
+                # add to data structure
                 df_cp_tc = pd.DataFrame.from_dict({
-                    'eff_best': cp_tc_eff_best,
-                    'pur_best': cp_tc_pur_best,
+                    'eff_primary': cp_tc_eff_primary,
+                    'pur_primary': cp_tc_pur_primary,
                     'eff_sum': cp_tc_eff_sum,
                     'ntc': cp_tc_ntc,
                     'pt': np.array([cp.pt() for cp in caloparticles]),
@@ -330,6 +350,8 @@ if __name__=='__main__':
                     'event': eventid
                 })
                 dfs_cp_tc.append(df_cp_tc)
+
+            # check for existing but empty simtracksters
             elif ticlcandidates is not None and tstocpsimts_tsidx is not None:
                 n_empty_tstocpsimts_events += 1
 
@@ -378,8 +400,8 @@ if __name__=='__main__':
     if len(dfs_cp_tc) > 0: df_cp_tc = pd.concat(dfs_cp_tc)
     else:
         df_cp_tc = pd.DataFrame.from_dict({
-            'eff_best': [],
-            'pur_best': [],
+            'eff_primary': [],
+            'pur_primary': [],
             'eff_sum': [],
             'ntc': [],
             'pt': [],
