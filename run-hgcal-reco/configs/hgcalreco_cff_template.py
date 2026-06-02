@@ -122,8 +122,11 @@ process.ticlSimTracksters.MtdSimTracksters = cms.InputTag("mix", "MergedMtdTruth
 process.ticlSimTracksters.trackingParticles = cms.InputTag("mix", "MergedTrackTruth", "HLT")
 process.ticlSimTracksters.layerClusterSimClusterAssociator = cms.InputTag("layerClusterSimClusterAssociation")
 process.ticlSimTracksters.layerClusterCaloParticleAssociator = cms.InputTag("layerClusterCaloParticleAssociation")
-process.ticlSimTracksters.tpToTrack = cms.InputTag("trackingParticleRecoTrackAsssociation", "", "HLT")
-process.ticlSimTracksters.simTrackToTPMap = cms.InputTag("simHitTPAssocProducer", "simTrackToTP", "HLT")
+process.ticlSimTracksters.recoTracks = cms.InputTag("generalTracks", "", "RECO")
+process.ticlSimTracksters.tpToTrack = cms.InputTag("trackingParticleRecoTrackAsssociation", "", "RECO")
+process.ticlSimTracksters.simTrackToTPMap = cms.InputTag("simHitTPAssocProducer", "simTrackToTP", "RECO")
+
+# initialize association map flatteners
 process.flattenLCToCP = cms.EDProducer(
     "FlattenLCToCPAssociator",
     src = cms.InputTag("layerClusterCaloParticleAssociation"),
@@ -245,8 +248,11 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
         "keep *_pfTICL_*_*", # full PF candidate collection from TICL.
         "keep *_ticlSimTracksters*_*_*",
+        "keep *_trackingParticleRecoTrackAsssociation_*_*",
+        "keep *_simHitTPAssocProducer_simTrackToTP_*",
         # gen-level output
         "keep *_mix_MergedCaloTruth_*",
+        "keep *_mix_MergedTrackTruth_*",
         "keep *_g4SimHits_HGCHitsEE_*",
         "keep *_g4SimHits_HGCHitsHEfront_*",
         "keep *_g4SimHits_HGCHitsHEback_*",

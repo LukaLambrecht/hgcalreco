@@ -11,8 +11,19 @@ cmsDriver.py step2 \
   --mc \
   --filein file:FILEIN \
   --fileout FILEOUT \
-  -n NUM_EVENTS
-  --customise_commands "process.load('SimCalorimetry.HGCalAssociatorProducers.LCToCPAssociation_cfi');
+  -n NUM_EVENTS \
+  --customise_commands "process.load('SimGeneral.TrackingAnalysis.simHitTPAssociation_cfi');
+        process.load('SimTracker.TrackerHitAssociation.tpClusterProducer_cfi');
+        process.load('SimTracker.TrackAssociatorProducers.quickTrackAssociatorByHits_cfi');
+        process.load('SimTracker.TrackAssociation.trackingParticleRecoTrackAsssociation_cfi');
+        process.trackingTruthAssociationTask = cms.Task(
+            process.simHitTPAssocProducer,
+            process.tpClusterProducer,
+            process.quickTrackAssociatorByHits,
+            process.trackingParticleRecoTrackAsssociation
+        );
+        process.reconstruction_step.associate(process.trackingTruthAssociationTask);
+        process.load('SimCalorimetry.HGCalAssociatorProducers.LCToCPAssociation_cfi');
         process.load('SimCalorimetry.HGCalAssociatorProducers.LCToSCAssociation_cfi');
         process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi');
         process.hgcalAssociatorTask = cms.Task(

@@ -96,7 +96,31 @@ if __name__=='__main__':
         #       maybe later try to generalize.
         if stepidx == len(cmds)-1:
 
-            # option 1: keep everything
+            # Produce association between TrackingParticles and RecoTracks.
+            # These products do not depend on HGCAL CLUE settings,
+            # but SimTrackstersProducer needs them later in the re-reco step in
+            # order to build SimTracksters(:fromCPs);
+            # hence these association maps are implicitly needed
+            # for CaloParticle-to-Trackster or CaloParticle-to-TiclCandidate association scores.
+            has_tracking_associations = any(
+                'trackingParticleRecoTrackAsssociation' in item
+                for item in customization
+            )
+            if not has_tracking_associations:
+                customization.append("process.load('SimGeneral.TrackingAnalysis.simHitTPAssociation_cfi')")
+                customization.append("process.load('SimTracker.TrackerHitAssociation.tpClusterProducer_cfi')")
+                customization.append("process.load('SimTracker.TrackAssociatorProducers.quickTrackAssociatorByHits_cfi')")
+                customization.append("process.load('SimTracker.TrackAssociation.trackingParticleRecoTrackAsssociation_cfi')")
+                customization.append(
+                    "process.trackingTruthAssociationTask = cms.Task("
+                    "process.simHitTPAssocProducer, "
+                    "process.tpClusterProducer, "
+                    "process.quickTrackAssociatorByHits, "
+                    "process.trackingParticleRecoTrackAsssociation)"
+                )
+                customization.append("process.reconstruction_step.associate(process.trackingTruthAssociationTask)")
+
+            # output option 1: keep everything
             # note: gives very large files, but contains all info to re-run the reco step.
             # note: copied from examples, see README for more info.
             # note: does not actually seem to keep everything, some RECO products are dropped
@@ -112,7 +136,7 @@ if __name__=='__main__':
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalUncalibRecHit_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hgcalDigis_*_*\')')
 
-            # option 2: hgcal-specific minimal content
+            # output option 2: hgcal-specific minimal content
             # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
             #       update: in fact they do, but only with the minimal/selective setup in run-hgcal-reco,
             #       does not contain all needed info for re-running the full reco!
