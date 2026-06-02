@@ -308,7 +308,7 @@ def get_ticl_candidate_matrices_from_builtin(
         clip_efficiency=clip_efficiency)
 
 
-def get_mapping(association_matrix, threshold=None):
+def get_mapping(association_matrix, threshold=None, exclude_empty=False, candidate_constituents=None):
     '''
     Calculate a unique mapping between CaloParticles and TICLCandidates.
 
@@ -317,6 +317,12 @@ def get_mapping(association_matrix, threshold=None):
       mapped to that CaloParticle.
     - cp_ids: array of length ntc containing the mapped CaloParticle index for
       each TICLCandidate, or -1 if no score passes threshold.
+
+    Optional arguments:
+    - exclude_empty: if True, mark candidates with no constituents as unmatched
+      independently of the association score threshold.
+    - candidate_constituents: list of constituent-index lists, one per
+      TICLCandidate. Required when exclude_empty is True.
     '''
     ncp, ntc = association_matrix.shape
     cp_ids = np.argmax(association_matrix, axis=0).astype(int)
@@ -325,6 +331,16 @@ def get_mapping(association_matrix, threshold=None):
         scores = association_matrix[cp_ids, range(ntc)]
         mask = (scores < threshold).astype(bool)
         cp_ids[mask] = -1
+
+    if exclude_empty:
+        if candidate_constituents is None:
+            msg = 'candidate_constituents must be provided when exclude_empty=True.'
+            raise ValueError(msg)
+        if len(candidate_constituents) != ntc:
+            msg = f'Expected {ntc} candidate constituent lists, got {len(candidate_constituents)}.'
+            raise ValueError(msg)
+        empty_mask = np.array([len(indices) == 0 for indices in candidate_constituents], dtype=bool)
+        cp_ids[empty_mask] = -1
 
     tc_ids = []
     for cp_idx in range(ncp):

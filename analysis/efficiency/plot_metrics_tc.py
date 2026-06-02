@@ -95,7 +95,7 @@ def plot_cp_tc_metrics(df, outputdir):
     eff_sum_max = max(1.2, np.quantile(df['eff_sum'].values, 0.98) * 1.1)
     plots = [
         ('eff_primary', np.linspace(0, 1.2, 61), 'Efficiency of primary TICLCandidate', 'CaloParticles'),
-        ('eff_sum', np.linspace(0, eff_sum_max, 61), 'Efficiency (total)', 'CaloParticles'),
+        ('eff_sum', np.linspace(0, eff_sum_max, 61), 'CaloParticle efficiency (total)', 'CaloParticles'),
         ('pur_primary', np.linspace(0, 1.2, 61), 'Purity of primary TICLCandidate', 'CaloParticles'),
         ('ntc', np.arange(-0.5, max(5, int(np.max(df['ntc'].values)) + 1.5), 1), 'TICLCandidates per CaloParticle', 'CaloParticles'),
     ]
@@ -115,7 +115,7 @@ def plot_cp_tc_metrics(df, outputdir):
     pt_bins = np.linspace(0, pt_max, 15)
     for column, ylabel in [
             ('eff_primary', 'Efficiency of primary TICLCandidate'),
-            ('eff_sum', 'Efficiency (sum)'),
+            ('eff_sum', 'CaloParticle efficiency (total)'),
             ('ntc', 'TICLCandidates per CaloParticle')]:
         for xcolumn, bins, xlabel, suffix in [
                 ('eta', eta_bins, 'CaloParticle eta', f'{column}_vs_eta'),

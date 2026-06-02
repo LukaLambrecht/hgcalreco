@@ -182,7 +182,6 @@ if __name__=='__main__':
 
             # make mapping based on purity
             threshold = None
-            #threshold = 0.1
             mapping = get_mapping(pur_matrix, threshold=threshold)
             (cptolc_ids, lctocp_ids) = mapping
             linked_lc_ids = np.nonzero(lctocp_ids!=-1)[0] # indices of layerclusters that are linked to a caloparticle
@@ -253,7 +252,7 @@ if __name__=='__main__':
             dfs_cp.append(df_cp)
 
             # calculate and store TICLCandidate - CaloParticle metrics.
-            # The scores are derived from the merged Trackster to
+            # The scores are derived from Trackster to
             # SimTrackster-from-CP shared-energy associations,
             # rather than the CP to LC associations as used above.
             # This avoids summing layer-normalized CP -> LC efficiencies
@@ -272,11 +271,14 @@ if __name__=='__main__':
                 # note: output is the following:
                 #       - cptotc_ids: 2D list with indices of matched ticlcandidates for each caloparticle.
                 #       - tctocp_ids: simple 1D array with index of matched caloparticle for each ticlcandidate.
-                #       - linked_tc_ids: simple 1D array with indices of ticlcandidates with a match
-                #         (should be all ticlcandidates, unless a threshold was applied).
+                #       - linked_tc_ids: simple 1D array with indices of ticlcandidates with a match.
                 #       - linked_tc_cp_ids: simple 1D array with indices of matched caloparticle for each ticlcandidate with a match.
                 threshold = None
-                tc_mapping = get_tc_mapping(tc_pur_matrix, threshold=threshold)
+                tc_mapping = get_tc_mapping(
+                    tc_pur_matrix,
+                    threshold=threshold,
+                    exclude_empty=True,
+                    candidate_constituents=tc_ts_indices)
                 (cptotc_ids, tctocp_ids) = tc_mapping
                 linked_tc_ids = np.nonzero(tctocp_ids!=-1)[0]
                 linked_tc_cp_ids = tctocp_ids[linked_tc_ids]
