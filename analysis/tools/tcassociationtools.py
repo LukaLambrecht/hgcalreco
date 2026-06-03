@@ -1,20 +1,21 @@
 # Tools for deriving TICLCandidate - CaloParticle association scores.
+#
+# The active implementation derives TICLCandidate associations from reco
+# Trackster -> CP-SimTrackster shared-energy associations. This is preferable
+# to rebuilding TICLCandidate scores from LC-CP associations because LC-CP
+# efficiency scores are normalized layer-by-layer and are therefore awkward to
+# combine over multi-layer objects.
 
 import numpy as np
-
-
-def get_from_ptr(obj):
-    '''
-    Return the pointed-to object for EDM Ptr-like objects, or the object itself.
-    '''
-    if hasattr(obj, 'get'):
-        return obj.get()
-    return obj
 
 
 def get_ptr_index(obj):
     '''
     Return the collection index for EDM Ptr-like objects.
+
+    TICLCandidate.tracksters() stores edm::Ptr<ticl::Trackster> objects. The
+    key of such a pointer is the index of that Trackster inside the event-level
+    Trackster collection used to build the TICLCandidate.
     '''
     if hasattr(obj, 'key'):
         return int(obj.key())
@@ -24,32 +25,12 @@ def get_ptr_index(obj):
     raise TypeError(msg)
 
 
-def get_ticl_candidate_layercluster_indices(ticlcandidate):
-    '''
-    Return unique LayerCluster indices used by a TICLCandidate.
-
-    The indices are obtained from the vertices of the Tracksters contained in the
-    candidate. They are indices into the event-level LayerCluster collection used
-    to build those Tracksters.
-    '''
-    lc_indices = set()
-
-    for trackster_ptr in ticlcandidate.tracksters():
-        trackster = get_from_ptr(trackster_ptr)
-        if trackster is None:
-            continue
-        for lc_idx in trackster.vertices():
-            lc_indices.add(int(lc_idx))
-
-    return sorted(lc_indices)
-
-
 def get_ticl_candidate_trackster_indices(ticlcandidate):
     '''
     Return unique Trackster indices used by a TICLCandidate.
 
-    The TICLCandidate stores edm::Ptr<ticl::Trackster> objects. Their key() is
-    the index into the Trackster collection used to build the candidate.
+    The same Trackster is not expected to appear twice in one TICLCandidate, but
+    the set makes the downstream summing robust against accidental duplicates.
     '''
     ts_indices = set()
 
@@ -59,19 +40,14 @@ def get_ticl_candidate_trackster_indices(ticlcandidate):
     return sorted(ts_indices)
 
 
-def get_all_ticl_candidate_layercluster_indices(ticlcandidates):
-    '''
-    Return unique LayerCluster indices for each TICLCandidate in a collection.
-    '''
-    return [
-        get_ticl_candidate_layercluster_indices(ticlcandidate)
-        for ticlcandidate in ticlcandidates
-    ]
-
-
 def get_all_ticl_candidate_trackster_indices(ticlcandidates):
     '''
     Return unique Trackster indices for each TICLCandidate in a collection.
+
+    The returned list has length ntc. Element i contains the Trackster indices
+    belonging to TICLCandidate i, and can be reused by get_mapping(...,
+    exclude_empty=True) to distinguish empty candidates from non-empty
+    candidates with genuinely zero truth overlap.
     '''
     return [
         get_ticl_candidate_trackster_indices(ticlcandidate)
@@ -84,7 +60,6 @@ def get_ticl_candidate_matrices_from_trackster_associations(
         tsids,
         simtsids,
         shared_energies,
-        scores,
         ncp,
         tc_ts_indices=None):
     '''
@@ -93,8 +68,9 @@ def get_ticl_candidate_matrices_from_trackster_associations(
 
     Input arguments:
     - ticlcandidates: TICLCandidate collection.
-    - tsids, simtsids, shared_energies, scores: flat arrays from
-      flattenMergeTracksterToCPSimTrackster.
+    - tsids, simtsids, shared_energies: flat arrays from
+      flattenCLUE3DTracksterToCPSimTrackster. Each row says how much shared
+      energy a reco Trackster has with one CP SimTrackster.
     - ncp: number of CaloParticles. The SimTrackster-from-CP collection is
       produced with indices corresponding to CaloParticle indices.
     - tc_ts_indices: optional precomputed output of
@@ -108,16 +84,29 @@ def get_ticl_candidate_matrices_from_trackster_associations(
     - eff_matrix: CaloParticle -> TICLCandidate efficiency-like matrix. Entry
       [cp, tc] is the fraction of the CP's total shared energy with reco
       Tracksters that is contained in the candidate's Tracksters.
+
+    Matrix convention:
+    Both output matrices have shape (ncp, ntc). This matches the LC association
+    tools and makes the purity-based matching step simply an argmax over CPs for
+    each TICLCandidate column.
     '''
+    # Step 1: find which reco Tracksters belong to each TICLCandidate.
     if tc_ts_indices is None:
         tc_ts_indices = get_all_ticl_candidate_trackster_indices(ticlcandidates)
 
+    # Step 2: size the event-level reco Trackster axis. It must cover both the
+    # indices present in the flat association products and the indices pointed to
+    # by TICLCandidates. The latter matters for non-associated Tracksters, which
+    # are absent from the flat products but still need to produce zero scores.
     ntc = len(ticlcandidates)
     nts = 0 if len(tsids) == 0 else int(np.max(tsids)) + 1
     if len(tc_ts_indices) > 0:
         max_candidate_ts = max([max(indices) for indices in tc_ts_indices if len(indices) > 0], default=-1)
         nts = max(nts, max_candidate_ts + 1)
 
+    # Step 3: build a CP x Trackster shared-energy matrix from the flattened
+    # association products. If a reco Trackster has no entry here, its whole
+    # column stays zero, meaning it has no truth overlap with any CP SimTrackster.
     ts_cp_shared = np.zeros((ncp, nts))
     for ts_idx, cp_idx, shared_energy in zip(tsids, simtsids, shared_energies):
         cp_idx = int(cp_idx)
@@ -126,12 +115,18 @@ def get_ticl_candidate_matrices_from_trackster_associations(
             continue
         ts_cp_shared[cp_idx, ts_idx] += shared_energy
 
+    # Step 4: sum Trackster shared energies into TICLCandidate shared energies.
+    # Each TICLCandidate column is the sum of the columns of its constituent
+    # Tracksters.
     tc_cp_shared = np.zeros((ncp, ntc))
     for tc_idx, indices in enumerate(tc_ts_indices):
         if len(indices) == 0:
             continue
         tc_cp_shared[:, tc_idx] = np.sum(ts_cp_shared[:, indices], axis=1)
 
+    # Step 5: purity-like score. For a TICLCandidate, ask which CP explains the
+    # candidate's associated shared energy. Candidates with no shared energy with
+    # any CP remain exactly zero for all CPs.
     tc_total_shared = np.sum(tc_cp_shared, axis=0)
     pur_matrix = np.divide(
         tc_cp_shared,
@@ -139,6 +134,11 @@ def get_ticl_candidate_matrices_from_trackster_associations(
         out=np.zeros_like(tc_cp_shared),
         where=tc_total_shared[np.newaxis, :] > 0)
 
+    # Step 6: efficiency-like score. For a CP, ask what fraction of its total
+    # shared energy with reco Tracksters is contained in this TICLCandidate.
+    # The denominator is built over all associated reco Tracksters in the event,
+    # not layer-by-layer, so this score can be interpreted for multi-layer
+    # Tracksters/TICLCandidates.
     cp_total_shared = np.sum(ts_cp_shared, axis=1)
     eff_matrix = np.divide(
         tc_cp_shared,
@@ -147,165 +147,6 @@ def get_ticl_candidate_matrices_from_trackster_associations(
         where=cp_total_shared[:, np.newaxis] > 0)
 
     return tc_ts_indices, pur_matrix, eff_matrix
-
-
-def get_tctocp_matrix(ticlcandidates, layerclusters, lctocp_matrix, tc_lc_indices=None):
-    '''
-    Build a TICLCandidate -> CaloParticle purity matrix.
-
-    Input arguments:
-    - ticlcandidates: TICLCandidate collection.
-    - layerclusters: LayerCluster collection.
-    - lctocp_matrix: matrix with shape (ncp, nlc), where larger values mean a
-      better LC -> CP association. This is the convention returned by
-      lcassociationtools.get_lctocp_matrix_from_builtin(..., invert=True).
-    - tc_lc_indices: optional precomputed output of
-      get_all_ticl_candidate_layercluster_indices.
-
-    Returns:
-    - A 2D numpy array with shape (ncp, ntc). Entry [cp, tc] is the
-      energy-weighted average LC -> CP score for the unique LayerClusters in the
-      TICLCandidate. This is a TICLCandidate purity-like score.
-    '''
-    if tc_lc_indices is None:
-        tc_lc_indices = get_all_ticl_candidate_layercluster_indices(ticlcandidates)
-
-    ncp = lctocp_matrix.shape[0]
-    ntc = len(ticlcandidates)
-    res = np.zeros((ncp, ntc))
-
-    for tc_idx, lc_indices in enumerate(tc_lc_indices):
-        if len(lc_indices) == 0:
-            continue
-
-        weights = np.array([layerclusters[lc_idx].energy() for lc_idx in lc_indices])
-        denom = np.sum(weights)
-        if denom <= 0:
-            continue
-
-        res[:, tc_idx] = np.sum(lctocp_matrix[:, lc_indices] * weights, axis=1) / denom
-
-    return res
-
-
-def get_cptotc_matrix(ticlcandidates, cptolc_matrix, tc_lc_indices=None, clip=True):
-    '''
-    Build a CaloParticle -> TICLCandidate efficiency matrix.
-
-    Input arguments:
-    - ticlcandidates: TICLCandidate collection.
-    - cptolc_matrix: matrix with shape (ncp, nlc), where larger values mean a
-      better CP -> LC association. For the built-in flattened maps this should
-      preferably be made from the SharedEnergyFraction branch.
-    - tc_lc_indices: optional precomputed output of
-      get_all_ticl_candidate_layercluster_indices.
-    - clip: if True, clip the summed efficiency to [0, 1].
-
-    Returns:
-    - A 2D numpy array with shape (ncp, ntc). Entry [cp, tc] is the sum of the
-      CP -> LC fractions captured by the unique LayerClusters in the
-      TICLCandidate. This is a CaloParticle efficiency-like score.
-    '''
-    if tc_lc_indices is None:
-        tc_lc_indices = get_all_ticl_candidate_layercluster_indices(ticlcandidates)
-
-    ncp = cptolc_matrix.shape[0]
-    ntc = len(ticlcandidates)
-    res = np.zeros((ncp, ntc))
-
-    for tc_idx, lc_indices in enumerate(tc_lc_indices):
-        if len(lc_indices) == 0:
-            continue
-        res[:, tc_idx] = np.sum(cptolc_matrix[:, lc_indices], axis=1)
-
-    if clip:
-        res = np.clip(res, 0, 1)
-
-    return res
-
-
-def get_ticl_candidate_matrices(
-        ticlcandidates,
-        layerclusters,
-        lctocp_matrix,
-        cptolc_matrix,
-        clip_efficiency=True):
-    '''
-    Convenience wrapper returning both TICLCandidate - CaloParticle matrices.
-
-    Returns:
-    - tc_lc_indices: unique LayerCluster indices per TICLCandidate.
-    - pur_matrix: TICLCandidate -> CaloParticle purity-like matrix.
-    - eff_matrix: CaloParticle -> TICLCandidate efficiency-like matrix.
-    '''
-    tc_lc_indices = get_all_ticl_candidate_layercluster_indices(ticlcandidates)
-    pur_matrix = get_tctocp_matrix(
-        ticlcandidates,
-        layerclusters,
-        lctocp_matrix,
-        tc_lc_indices=tc_lc_indices)
-    eff_matrix = get_cptotc_matrix(
-        ticlcandidates,
-        cptolc_matrix,
-        tc_lc_indices=tc_lc_indices,
-        clip=clip_efficiency)
-
-    return tc_lc_indices, pur_matrix, eff_matrix
-
-
-def get_ticl_candidate_matrices_from_builtin(
-        ticlcandidates,
-        layerclusters,
-        lctocp_lcids,
-        lctocp_cpids,
-        lctocp_scores,
-        cptolc_cpids,
-        cptolc_lcids,
-        cptolc_scores,
-        ncp,
-        lctocp_invert=True,
-        cptolc_invert=False,
-        clip_efficiency=True):
-    '''
-    Build TICLCandidate - CaloParticle matrices directly from flattened LC-CP
-    association products.
-
-    For cptolc_scores, prefer the CP -> LC SharedEnergyFraction branch if it is
-    available. That makes the CP -> TICLCandidate matrix an additive efficiency
-    proxy over the candidate's unique LayerClusters. The default
-    cptolc_invert=False assumes that branch is used.
-    '''
-    try:
-        from tools.lcassociationtools import get_cptolc_matrix_from_builtin
-        from tools.lcassociationtools import get_lctocp_matrix_from_builtin
-    except ImportError:
-        from .lcassociationtools import get_cptolc_matrix_from_builtin
-        from .lcassociationtools import get_lctocp_matrix_from_builtin
-
-    nlc = len(layerclusters)
-
-    lctocp_matrix = get_lctocp_matrix_from_builtin(
-        lctocp_lcids,
-        lctocp_cpids,
-        lctocp_scores,
-        nlc,
-        ncp,
-        invert=lctocp_invert)
-
-    cptolc_matrix = get_cptolc_matrix_from_builtin(
-        cptolc_cpids,
-        cptolc_lcids,
-        cptolc_scores,
-        ncp,
-        nlc,
-        invert=cptolc_invert)
-
-    return get_ticl_candidate_matrices(
-        ticlcandidates,
-        layerclusters,
-        lctocp_matrix,
-        cptolc_matrix,
-        clip_efficiency=clip_efficiency)
 
 
 def get_mapping(association_matrix, threshold=None, exclude_empty=False, candidate_constituents=None):
@@ -324,14 +165,25 @@ def get_mapping(association_matrix, threshold=None, exclude_empty=False, candida
     - candidate_constituents: list of constituent-index lists, one per
       TICLCandidate. Required when exclude_empty is True.
     '''
+    # Pick the CP with the highest purity-like score for each TICLCandidate.
+    # With threshold=None, all-zero columns still map to CP index 0 by argmax;
+    # those candidates keep a purity of zero and should be interpreted as having
+    # no truth overlap, not as physically matched to CP 0.
     ncp, ntc = association_matrix.shape
     cp_ids = np.argmax(association_matrix, axis=0).astype(int)
 
+    # Optional score threshold. This is intentionally separate from
+    # exclude_empty: a non-empty candidate with zero truth overlap can be kept in
+    # the output by using threshold=None, while truly empty candidates can still
+    # be removed below.
     if threshold is not None:
         scores = association_matrix[cp_ids, range(ntc)]
         mask = (scores < threshold).astype(bool)
         cp_ids[mask] = -1
 
+    # Optional structural filter. Empty TICLCandidates have no Tracksters, so
+    # they do not carry association information. Mark them as unmatched without
+    # changing how non-empty zero-overlap candidates are treated.
     if exclude_empty:
         if candidate_constituents is None:
             msg = 'candidate_constituents must be provided when exclude_empty=True.'
@@ -342,6 +194,8 @@ def get_mapping(association_matrix, threshold=None, exclude_empty=False, candida
         empty_mask = np.array([len(indices) == 0 for indices in candidate_constituents], dtype=bool)
         cp_ids[empty_mask] = -1
 
+    # Build the reverse view: for each CP, list all TICLCandidates whose best
+    # purity match points to that CP.
     tc_ids = []
     for cp_idx in range(ncp):
         tc_ids.append(np.nonzero(cp_ids == cp_idx)[0])

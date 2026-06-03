@@ -10,7 +10,7 @@ from DataFormats.FWLite import Events, Handle
 class Reader(object):
 
 
-    def __init__(self, input_configs):
+    def __init__(self, input_configs, exclude=None):
         '''
         Set labels and handles
         '''
@@ -33,6 +33,9 @@ class Reader(object):
             for collection_name, input_data in input_config.items():
                 dtype = input_data[0]
                 label = tuple(input_data[1:])
+
+                # exclude certain collections if requested
+                if exclude is not None and collection_name in exclude: continue
                 
                 # check duplication
                 if collection_name in self.config and self.config[collection_name] != label:
