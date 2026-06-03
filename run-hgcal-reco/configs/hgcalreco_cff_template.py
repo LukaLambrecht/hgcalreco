@@ -242,20 +242,17 @@ process.out = cms.OutputModule("PoolOutputModule",
     outputCommands = cms.untracked.vstring(
         "drop *",
         # reco-level output
-        "keep *_HGCalRecHit_*_*",
+        #"keep *_HGCalRecHit_*_*", # drop individual hits (no need to recalculate scores)
         "keep *_hgcalMergeLayerClusters_*_*",
         "keep *_ticlTracksters*_*_*", # includes Tracksters and ticlCandidates in v4.
         "keep *_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
         "keep *_pfTICL_*_*", # full PF candidate collection from TICL.
         "keep *_ticlSimTracksters*_*_*",
-        "keep *_trackingParticleRecoTrackAsssociation_*_*",
-        "keep *_simHitTPAssocProducer_simTrackToTP_*",
         # gen-level output
         "keep *_mix_MergedCaloTruth_*",
-        "keep *_mix_MergedTrackTruth_*",
-        "keep *_g4SimHits_HGCHitsEE_*",
-        "keep *_g4SimHits_HGCHitsHEfront_*",
-        "keep *_g4SimHits_HGCHitsHEback_*",
+        #"keep *_g4SimHits_HGCHitsEE_*", # drop individual hits (no need to recalculate scores)
+        #"keep *_g4SimHits_HGCHitsHEfront_*", # drop individual hits (no need to recalculate scores)
+        #"keep *_g4SimHits_HGCHitsHEback_*", # drop individual hits (no need to recalculate scores)
         # links and associations
         "keep *_flatten*_*_*",
     )
