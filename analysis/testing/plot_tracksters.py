@@ -70,8 +70,8 @@ if __name__=='__main__':
         tracksters = collections['tracksters']
 
         # do some event selection
-        if len(caloparticles) != 2: continue
-        if len(tracksters) < 2: continue
+        #if len(caloparticles) != 2: continue
+        #if len(tracksters) < 2: continue
 
         # temp printouts for debugging
         #print(event_counter)
@@ -114,8 +114,8 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c = es,
                     cmap='jet',
-                    #s=30*reles,
-                    s=1,
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
         )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("x [cm]")
@@ -132,8 +132,8 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c = es,
                     cmap='jet',
-                    #s=30*reles,
-                    s=1,
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
         )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("x [cm]")
@@ -149,8 +149,8 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c = es,
                     cmap='jet',
-                    #s=30*reles,
-                    s=1,
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
         )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("z [cm]")
@@ -164,7 +164,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c=trs,
                     cmap='tab20',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -180,7 +182,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c=trs,
                     cmap='tab20',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -195,7 +199,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c=trs,
                     cmap='tab20',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")

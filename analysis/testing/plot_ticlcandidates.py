@@ -171,6 +171,8 @@ if __name__=='__main__':
     parser.add_argument('-n', '--nentries', default=-1, type=int)
     parser.add_argument('--input_config', default=None, nargs='+')
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
+    parser.add_argument('--do_tracksters', default=False, action='store_true')
+    parser.add_argument('--do_layerclusters', default=False, action='store_true')
     args = parser.parse_args()
 
     # set input configs
@@ -186,8 +188,11 @@ if __name__=='__main__':
     print(json.dumps(input_configs, indent=2))
 
     # read events
+    exclude = []
+    if not args.do_tracksters: exclude.append('tracksters')
+    if not args.do_layerclusters: exclude.append('layerclusters')
     events = Events(args.inputfiles)
-    reader = Reader(input_configs)
+    reader = Reader(input_configs, exclude=exclude)
     make_outputdir(args.outputdir)
 
     # initialize counter
@@ -204,8 +209,10 @@ if __name__=='__main__':
         # get collections
         collections = reader.read_event(event)
         caloparticles = collections['caloparticles']
-        layerclusters = collections['layerclusters']
-        tracksters_clue = collections['tracksters']
+        layerclusters = []
+        if args.do_layerclusters: layerclusters = collections['layerclusters']
+        tracksters_clue = []
+        if args.do_tracksters: tracksters_clue = collections['tracksters']
         tracksters_merged = collections['tracksters_merge']
         ticlcandidates = collections['ticlcandidates_merge']
         pfcands = collections['pfticl']
@@ -220,8 +227,8 @@ if __name__=='__main__':
         # print number of tracksters per ticl candidate
         tr_per_tc = [len(tc.tracksters()) for tc in ticlcandidates]
         tot = sum(tr_per_tc)
-        print('Number of tracksters per ticl candidate: ', tr_per_tc, ' ', tot)    
-        print('---')
+        #print('Number of tracksters per ticl candidate: ', tr_per_tc, ' ', tot)    
+        #print('---')
 
         # initializations
         tc_etas, tc_phis, tc_es, tc_raw_es, tc_ids, tc_best_cp_drs = [], [], [], [], [], []
@@ -260,6 +267,7 @@ if __name__=='__main__':
                 tc_best_cp_drs.append(np.nan)
 
             # loop over tracksters associated with this candidate
+            if not args.do_tracksters: continue
             for tr_ptr in tc.tracksters():
                 tr = get_from_ptr(tr_ptr)
                 if tr is None: continue
@@ -271,6 +279,7 @@ if __name__=='__main__':
                 tr_tcs.append(tc_idx)
 
                 # loop over layerclusters associated with this trackster
+                if not args.do_layerclusters: continue
                 if layerclusters is None: continue
                 for lc_idx in tr.vertices():
                     lc = layerclusters[lc_idx]

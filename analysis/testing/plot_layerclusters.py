@@ -67,8 +67,8 @@ if __name__=='__main__':
         layerclusters = collections['layerclusters']
 
         # do some event selection
-        if len(caloparticles) != 2: continue
-        if len(tracksters) < 2: continue
+        #if len(caloparticles) != 2: continue
+        #if len(tracksters) < 2: continue
 
         # loop over tracksters
         for tr_idx, tr in enumerate(tracksters):
@@ -114,7 +114,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c = es,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -130,7 +132,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c = es,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -145,7 +149,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c = es,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Energy")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
@@ -158,7 +164,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c=trs,
                     cmap='tab20',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -174,7 +182,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c=trs,
                     cmap='tab20',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -189,7 +199,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c=trs,
                     cmap='tab20',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Trackster index")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
@@ -202,7 +214,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c=lrs,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Layer")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -218,7 +232,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c=lrs,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Layer")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -233,7 +249,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c=lrs,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Layer")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
@@ -246,7 +264,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c=zsides,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Z-side")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -262,7 +282,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c=zsides,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Z-side")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -277,7 +299,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c=zsides,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Z-side")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
@@ -290,7 +314,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys, zs,
                     c=subdets,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Subdetector")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -306,7 +332,9 @@ if __name__=='__main__':
         sc = ax.scatter(xs, ys,
                     c=subdets,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Subdetector")
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
@@ -321,7 +349,9 @@ if __name__=='__main__':
         sc = ax.scatter(zs, ys,
                     c=subdets,
                     cmap='jet',
-                    s=30*reles)
+                    s = np.clip(30*reles, a_min=3, a_max=None),
+                    alpha = np.clip(reles, a_min=0.15, a_max=None)
+        )
         plt.colorbar(sc, label="Subdetector")
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
