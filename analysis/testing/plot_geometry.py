@@ -9,6 +9,7 @@
 
 import os
 import sys
+import json
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,19 +24,37 @@ from tools.geometrytools import get_layercluster_zside
 from tools.geometrytools import get_layercluster_subdetid
 
 
+def make_outputdir(outputdir):
+    if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
+
+
 if __name__=='__main__':
 
-    # command line args
+    # read command line args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--inputfile', required=True)
+    parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-o', '--outputdir', default='output_plots_geometry')
-    parser.add_argument('-c', '--config', default=os.path.join(topdir, 'configs/input_config_centralreco.json'))
-    parser.add_argument('-n', '--nevents', type=int, default=-1)
+    parser.add_argument('-n', '--nentries', default=-1, type=int)
+    parser.add_argument('--input_config', default=None, nargs='+')
+    parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
     args = parser.parse_args()
 
+    # set input configs
+    input_configs = []
+    if args.input_config is not None:
+        # if input configs are specified on the command line, they take precedence
+        input_configs = args.input_config[:]
+    else:
+        # else determine input configs automatically
+        input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_baseline.json'))
+    print('Found following input configs:')
+    print(json.dumps(input_configs, indent=2))
+
     # read events
-    events = Events(args.inputfile)
-    reader = Reader(args.config)
+    events = Events(args.inputfiles)
+    reader = Reader(input_configs)
+    make_outputdir(args.outputdir)
 
     # initialize counter
     event_counter = 0
@@ -81,7 +100,7 @@ if __name__=='__main__':
                 zsides.append(zside)
                 subdets.append(subdet)
 
-        if args.nevents > 0 and event_counter >= args.nevents: break
+        if args.nentries > 0 and event_counter >= args.nentries: break
 
     xs = np.array(xs)
     ys = np.array(ys)

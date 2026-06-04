@@ -60,7 +60,7 @@ def main(inputdir):
         results_lc[jobdir] = get_lc_result_from_df(df_lc)
 
         # load dataframe for caloparticles and get results
-        inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_cp.parquet')
+        inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_cp_lc.parquet')
         if not os.path.exists(inputfile):
             msg = f'WARNING: file {inputfile} does not exist, skipping...'
             print(msg)
