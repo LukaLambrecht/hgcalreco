@@ -1,9 +1,8 @@
 # CMSSW config file for HGCAL reconstruction
 
 # Note: this config file only runs the "minimal-effort" HGCAL-only reconstruction.
-# It fails at the final stage (ticlTracksterMergeTask), where some non-HGCAL inputs are needed.
-# This task is therefore removed from the sequence, and the output file will contain
-# "ticlTrackstersCLUE3DHigh" but not "ticlTrackstersMerge".
+# It avoids the final TICLv5 linking/candidate/PF tasks, where some non-HGCAL inputs are needed.
+# The output file will contain "ticlTrackstersCLUE3DHigh", but not the linked TICLv5 products.
 
 
 import FWCore.ParameterSet.Config as cms
@@ -71,11 +70,15 @@ process.hgcalDigis = cms.EDAlias(
 )
 
 # add HGCAL reconstruction to the path to execute
-process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
+process.iterTICLSequence = cms.Sequence(
+    cms.Task(
+        process.ticlLayerTileTask,
+        process.ticlCLUE3DHighStepTask
+    )
+)
 process.hgcal_step = cms.Path(
     process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
-process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
 
 ################################################
 # Calculate and parse sim to reco associatiors #

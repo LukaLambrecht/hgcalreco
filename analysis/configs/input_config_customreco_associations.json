@@ -6,8 +6,8 @@
     "cptolcassociation_lcids": ["std::vector<unsigned int>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatLCIdx", "HGCALTICL"],
     "cptolcassociation_scores": ["std::vector<float>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatScore", "HGCALTICL"],
     "cptolcassociation_efracs": ["std::vector<float>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatSharedEnergyFraction", "HGCALTICL"],
-    "tstocpsimtsassociation_tsids": ["std::vector<unsigned int>", "flattenCLUE3DTracksterToCPSimTrackster", "clue3DTracksterCPSimTracksterAssociationFlatTSIdx", "HGCALTICL"],
-    "tstocpsimtsassociation_simtsids": ["std::vector<unsigned int>", "flattenCLUE3DTracksterToCPSimTrackster", "clue3DTracksterCPSimTracksterAssociationFlatSimTSIdx", "HGCALTICL"],
-    "tstocpsimtsassociation_sharedenergy": ["std::vector<float>", "flattenCLUE3DTracksterToCPSimTrackster", "clue3DTracksterCPSimTracksterAssociationFlatSharedEnergy", "HGCALTICL"],
-    "tstocpsimtsassociation_scores": ["std::vector<float>", "flattenCLUE3DTracksterToCPSimTrackster", "clue3DTracksterCPSimTracksterAssociationFlatScore", "HGCALTICL"]
+    "tstocpsimtsassociation_tsids": ["std::vector<unsigned int>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatTSIdx", "HGCALTICL"],
+    "tstocpsimtsassociation_simtsids": ["std::vector<unsigned int>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatSimTSIdx", "HGCALTICL"],
+    "tstocpsimtsassociation_sharedenergy": ["std::vector<float>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatSharedEnergy", "HGCALTICL"],
+    "tstocpsimtsassociation_scores": ["std::vector<float>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatScore", "HGCALTICL"]
 }

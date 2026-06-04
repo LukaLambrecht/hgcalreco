@@ -68,9 +68,10 @@ def get_ticl_candidate_matrices_from_trackster_associations(
 
     Input arguments:
     - ticlcandidates: TICLCandidate collection.
-    - tsids, simtsids, shared_energies: flat arrays from
-      flattenCLUE3DTracksterToCPSimTrackster. Each row says how much shared
-      energy a reco Trackster has with one CP SimTrackster.
+    - tsids, simtsids, shared_energies: flat arrays from the Trackster to
+      CP-SimTrackster association product matching the TICLCandidate Trackster
+      collection. Each row says how much shared energy a reco Trackster has
+      with one CP SimTrackster.
     - ncp: number of CaloParticles. The SimTrackster-from-CP collection is
       produced with indices corresponding to CaloParticle indices.
     - tc_ts_indices: optional precomputed output of

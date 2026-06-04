@@ -6,7 +6,7 @@ It relies on a custom cmsRun config fragment rather than a cmsDriver command run
 
 Note: this approach is somewhat brittle as a function of CMSSW version;
 still to figure out in a somewhat systematic way which combinations of CMSSW versions, arguments, and input files are working...
-But at the current time of writing, this works well for custom samples produced in `CMSSW_16_0_5`,
+But at the current time of writing, this works well for custom samples produced in `CMSSW_17_0_0_pre2`,
 with the default geometries and conditions given in the script.
 
 
@@ -51,3 +51,15 @@ to work in their respective targeted release, so good enough for now.
 Currently there is no complete list of objects / collections that are strictly required in the input file.
 See the `sample-production` folder for `cmsDriver` commands that produce files that have been tested to work.
 This "minimal" HGCAL-specific re-reco works on input files produced with both minimal and full output mode.
+
+
+### Third version (4 June 2026)
+
+Settings:
+- Input files: custom produced samples from `sample-production`, now using the `170X` cmsDriver chains.
+- CMSSW version: run everything in CMSSW `17_0_0_pre2` for consistency.
+- Geometry: `GeometryExtendedRun4D121`, unchanged from the previous verified setup.
+- Global tag: `auto:phase2_realistic_T35`, because `CMSSW_17_0_0_pre2` no longer provides `auto:phase2_realistic_T33`.
+
+The active templates in [configs](configs) are replicated from the previously verified `deprecated_160X` setup,
+with the CMSSW-version-specific global tag supplied by the script defaults.

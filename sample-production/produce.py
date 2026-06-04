@@ -135,6 +135,10 @@ if __name__=='__main__':
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalRecHit_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalUncalibRecHit_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hgcalDigis_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hfnoseDigis_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_trackExtenderWithMTD_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_tofPID_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_mtdTrackQualityMVA_*_*\')')
 
             # output option 2: hgcal-specific minimal content
             # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
@@ -148,11 +152,13 @@ if __name__=='__main__':
                 keep = [
                   # minimal inputs for rerunning HGCAL local reco from digis
                   '*_hgcalDigis_*_*',
+                  '*_hfnoseDigis_*_*',
                   # central reco objects, so the production file can still be used
                   # directly by the analysis scripts as a reference reco sample
                   '*_HGCalRecHit_*_*',
                   '*_hgcalMergeLayerClusters_*_*',
                   '*_ticlTracksters*_*_*', # includes Tracksters and ticlCandidates in v4
+                  '*_ticlTracksterLinks*_*_*', # linked Tracksters in v5
                   '*_ticlCandidate_*_*', # v5 ticlCandidates
                   '*_pfTICL_*_*',
                   # truth needed for LC and Trackster performance checks
@@ -167,6 +173,7 @@ if __name__=='__main__':
                   # and by SimTrackster construction
                   '*_generalTracks_*_*',
                   '*_muons1stStep_*_*',
+                  '*_trackExtenderWithMTD_*_*',
                   '*_tofPID_*_*',
                   '*_mtdTrackQualityMVA_*_*',
                   '*_trackingParticleRecoTrackAsssociation_*_*',

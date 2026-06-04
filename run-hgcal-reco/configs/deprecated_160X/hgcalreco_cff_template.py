@@ -25,6 +25,17 @@ process.load("Configuration.Geometry.TEMPLATE_GEOMETRYReco_cff")
 process.load("RecoTracker.Configuration.RecoTracker_cff")
 process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
+process.load("RecoHGCal.TICL.tracksterSelectionTf_cfi")
+
+# The v4 TrackstersMergeProducer runs a TensorFlow model for the merged
+# Trackster energy regression / particle ID. The ESProducer loaded above
+# provides the graph payload labelled "tracksterSelectionTf", but CMSSW also
+# needs an ESSource to define a valid IOV for TfGraphRecord. This mirrors the
+# official TICL-from-RECO customisation and avoids a NoRecord exception when
+# ticlTrackstersMerge asks the EventSetup for the graph.
+from RecoTracker.IterativeTracking.iterativeTk_cff import trackdnn_source
+process.trackdnn_source = trackdnn_source
+process.TFESSource = cms.Task(process.trackdnn_source)
 
 # set global tag
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -79,6 +90,7 @@ process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
     process.hgcalLocalRecoSequence
     * process.iterTICLSequence)
+process.hgcal_step.associate(process.TFESSource)
 
 ################################################
 # Calculate and parse sim to reco associatiors #
@@ -143,7 +155,7 @@ process.flattenLCToCLUE3DTrackster = cms.EDProducer(
 )
 process.flattenLCToMergeTrackster = cms.EDProducer(
     "FlattenLCToTSAssociator",
-    src = cms.InputTag("allLayerClusterToTracksterAssociations", "ticlCandidate"),
+    src = cms.InputTag("allLayerClusterToTracksterAssociations", "ticlTrackstersMerge"),
     dest = cms.string("layerClusterMergeTracksterAssociationFlat"),
     second = cms.string("TS")
 )
@@ -163,14 +175,14 @@ process.flattenSimTracksterToCLUE3DTrackster = cms.EDProducer(
 )
 process.flattenMergeTracksterToSimTrackster = cms.EDProducer(
     "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlCandidateToticlSimTracksters"),
+    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersMergeToticlSimTracksters"),
     dest = cms.string("mergeTracksterSimTracksterAssociationFlat"),
     first = cms.string("TS"),
     second = cms.string("SimTS")
 )
 process.flattenSimTracksterToMergeTrackster = cms.EDProducer(
     "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlCandidate"),
+    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlTrackstersMerge"),
     dest = cms.string("simTracksterMergeTracksterAssociationFlat"),
     first = cms.string("SimTS"),
     second = cms.string("TS")
@@ -184,7 +196,7 @@ process.flattenCLUE3DTracksterToCPSimTrackster = cms.EDProducer(
 )
 process.flattenMergeTracksterToCPSimTrackster = cms.EDProducer(
     "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlCandidateToticlSimTrackstersfromCPs"),
+    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersMergeToticlSimTrackstersfromCPs"),
     dest = cms.string("mergeTracksterCPSimTracksterAssociationFlat"),
     first = cms.string("TS"),
     second = cms.string("SimTS")
@@ -233,7 +245,6 @@ process.out = cms.OutputModule("PoolOutputModule",
         #"keep *_HGCalRecHit_*_*", # drop individual hits (no need to recalculate scores)
         "keep *_hgcalMergeLayerClusters_*_*",
         "keep *_ticlTracksters*_*_*", # includes Tracksters and ticlCandidates in v4.
-        "keep *_ticlTracksterLinks*_*_*", # linked Tracksters in TICLv5.
         "keep *_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
         "keep *_pfTICL_*_*", # full PF candidate collection from TICL.
         "keep *_ticlSimTracksters*_*_*",
