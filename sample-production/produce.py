@@ -136,9 +136,21 @@ if __name__=='__main__':
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_HGCalUncalibRecHit_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hgcalDigis_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_hfnoseDigis_*_*\')')
+                # tracking and timing inputs needed by TICL merge/PF-TICL
+                # and by SimTrackster construction in the downstream re-reco.
+                # Keep the explicit CMSSW RECO track products as well as the
+                # broad labels: persisted TICL/MTD objects can carry refs back
+                # to the original reco::Track collection.
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_generalTracks_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_muons1stStep_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_globalMuons_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_standAloneMuons_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_tevMuons_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_trackExtenderWithMTD_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_tofPID_*_*\')')
                 customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_mtdTrackQualityMVA_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_trackingParticleRecoTrackAsssociation_*_*\')')
+                customization.append('process.MINIAODSIMoutput.outputCommands.append(\'keep *_simHitTPAssocProducer_simTrackToTP_*\')')
 
             # output option 2: hgcal-specific minimal content
             # note: gives lean files, but not sure if they contain enough info to re-run HGCAL reco on top.
@@ -173,6 +185,9 @@ if __name__=='__main__':
                   # and by SimTrackster construction
                   '*_generalTracks_*_*',
                   '*_muons1stStep_*_*',
+                  '*_globalMuons_*_*',
+                  '*_standAloneMuons_*_*',
+                  '*_tevMuons_*_*',
                   '*_trackExtenderWithMTD_*_*',
                   '*_tofPID_*_*',
                   '*_mtdTrackQualityMVA_*_*',

@@ -31,6 +31,14 @@ if __name__=='__main__':
     parser.add_argument('-n', '--nentries', default=-1, type=int)
     parser.add_argument('--input_config', default=None, nargs='+')
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
+    # By default this script plots layer clusters attached to the CLUE3DHigh
+    # Trackster collection. With --from_ticl, it instead follows the final
+    # merged Tracksters produced by ticlCandidate, matching the layer clusters
+    # reached through TICLCandidate.tracksters() in plot_ticlcandidates.py.
+    # These can differ because final TICL candidates may include selected
+    # recovery Tracksters in addition to the main CLUE3DHigh output.
+    parser.add_argument('--from_ticl', default=False, action='store_true',
+        help='Plot layer clusters from final merged TICL candidate tracksters instead of CLUE3DHigh-only tracksters.')
     args = parser.parse_args()
 
     # set input configs
@@ -41,6 +49,8 @@ if __name__=='__main__':
     else:
         # else determine input configs automatically
         input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_baseline.json'))
+        if args.from_ticl:
+            input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_ticl.json'))
     print('Found following input configs:')
     print(json.dumps(input_configs, indent=2))
 
@@ -63,7 +73,11 @@ if __name__=='__main__':
         # get collections
         collections = reader.read_event(event)
         caloparticles = collections['caloparticles']
-        tracksters = collections['tracksters']
+        # "tracksters" is CLUE3DHigh-only. "tracksters_merge" is the final
+        # Trackster collection written by ticlCandidate and referenced by
+        # TICLCandidate.tracksters(); it includes the subset of recovery
+        # Tracksters that survives into final TICL candidates.
+        tracksters = collections['tracksters_merge'] if args.from_ticl else collections['tracksters']
         layerclusters = collections['layerclusters']
 
         # do some event selection
@@ -76,6 +90,7 @@ if __name__=='__main__':
             # collect layerclusters
             lc_ids = tr.vertices()
             for lc_idx in lc_ids:
+
                 lc = layerclusters[lc_idx]
                 energy = lc.energy()
                 pos = lc.position()

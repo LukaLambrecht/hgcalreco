@@ -171,6 +171,8 @@ if __name__=='__main__':
     parser.add_argument('-n', '--nentries', default=-1, type=int)
     parser.add_argument('--input_config', default=None, nargs='+')
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
+    parser.add_argument('--do_caloparticles', default=False, action='store_true')
+    parser.add_argument('--do_primary_caloparticles', default=False, action='store_true')
     parser.add_argument('--do_tracksters', default=False, action='store_true')
     parser.add_argument('--do_layerclusters', default=False, action='store_true')
     args = parser.parse_args()
@@ -201,6 +203,7 @@ if __name__=='__main__':
     # loop over events
     for event in events:
         event_counter += 1
+        if args.nentries > 0 and event_counter > args.nentries: break
         print(f'Running on event {event_counter}...')
 
         # initialize plotting data
@@ -233,6 +236,7 @@ if __name__=='__main__':
         # initializations
         tc_etas, tc_phis, tc_es, tc_raw_es, tc_ids, tc_best_cp_drs = [], [], [], [], [], []
         cp_etas, cp_phis, cp_es = [], [], []
+        pcp_etas, pcp_phis, pcp_es = [], [], []
         tr_xs, tr_ys, tr_zs, tr_es, tr_tcs = [], [], [], [], []
         lc_xs, lc_ys, lc_zs, lc_es, lc_tcs = [], [], [], [], []
 
@@ -242,6 +246,11 @@ if __name__=='__main__':
             cp_etas.append(cp.eta())
             cp_phis.append(cp.phi())
             cp_es.append(cp.energy())
+            # make separate collection for caloparticles from primary interaction
+            if cp.eventId().event() == 0:
+                pcp_etas.append(cp.eta())
+                pcp_phis.append(cp.phi())
+                pcp_es.append(cp.energy())
 
         # loop over TICL candidates
         for tc_idx, tc in enumerate(ticlcandidates):
@@ -300,6 +309,9 @@ if __name__=='__main__':
         cp_etas = as_array(cp_etas)
         cp_phis = as_array(cp_phis)
         cp_es = as_array(cp_es)
+        pcp_etas = as_array(pcp_etas)
+        pcp_phis = as_array(pcp_phis)
+        pcp_es = as_array(pcp_es)
         tr_xs = as_array(tr_xs)
         tr_ys = as_array(tr_ys)
         tr_zs = as_array(tr_zs)
@@ -394,7 +406,8 @@ if __name__=='__main__':
                     s=tr_sizes,
                     alpha=0.85)
         plt.colorbar(sc, label="TICL candidate index")
-        overlay_caloparticle_directions_3d(ax, cp_etas, cp_phis, tr_z_reference)
+        if args.do_caloparticles: overlay_caloparticle_directions_3d(ax, cp_etas, cp_phis, tr_z_reference)
+        elif args.do_primary_caloparticles: overlay_caloparticle_directions_3d(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_zlabel("z [cm]")
@@ -414,7 +427,8 @@ if __name__=='__main__':
                     s=tr_sizes,
                     alpha=0.85)
         plt.colorbar(sc, label="TICL candidate index")
-        overlay_caloparticle_directions_xy(ax, cp_etas, cp_phis, tr_z_reference)
+        if args.do_caloparticles: overlay_caloparticle_directions_xy(ax, cp_etas, cp_phis, tr_z_reference)
+        elif args.do_primary_caloparticles: overlay_caloparticle_directions_xy(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-1.08 * tr_maxxy, 1.08 * tr_maxxy))
@@ -433,7 +447,8 @@ if __name__=='__main__':
                     s=tr_sizes,
                     alpha=0.85)
         plt.colorbar(sc, label="TICL candidate index")
-        overlay_caloparticle_directions_zy(ax, cp_etas, cp_phis, tr_z_reference)
+        if args.do_caloparticles: overlay_caloparticle_directions_zy(ax, cp_etas, cp_phis, tr_z_reference)
+        elif args.do_primary_caloparticles: overlay_caloparticle_directions_zy(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_xlim(axis_limits(tr_zs))
@@ -461,7 +476,8 @@ if __name__=='__main__':
                     s=lc_sizes,
                     alpha=0.65)
         plt.colorbar(sc, label="TICL candidate index")
-        overlay_caloparticle_directions_3d(ax, cp_etas, cp_phis, lc_z_reference)
+        if args.do_caloparticles: overlay_caloparticle_directions_3d(ax, cp_etas, cp_phis, lc_z_reference)
+        elif args.do_primary_caloparticles: overlay_caloparticle_directions_3d(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_zlabel("z [cm]")
@@ -481,7 +497,8 @@ if __name__=='__main__':
                     s=lc_sizes,
                     alpha=0.65)
         plt.colorbar(sc, label="TICL candidate index")
-        overlay_caloparticle_directions_xy(ax, cp_etas, cp_phis, lc_z_reference)
+        if args.do_caloparticles: overlay_caloparticle_directions_xy(ax, cp_etas, cp_phis, lc_z_reference)
+        elif args.do_primary_caloparticles: overlay_caloparticle_directions_xy(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("x [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_xlim((-1.08 * lc_maxxy, 1.08 * lc_maxxy))
@@ -500,7 +517,8 @@ if __name__=='__main__':
                     s=lc_sizes,
                     alpha=0.65)
         plt.colorbar(sc, label="TICL candidate index")
-        overlay_caloparticle_directions_zy(ax, cp_etas, cp_phis, lc_z_reference)
+        if args.do_caloparticles: overlay_caloparticle_directions_zy(ax, cp_etas, cp_phis, lc_z_reference)
+        elif args.do_primary_caloparticles: overlay_caloparticle_directions_zy(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("z [cm]")
         ax.set_ylabel("y [cm]")
         ax.set_xlim(axis_limits(lc_zs))
@@ -508,6 +526,3 @@ if __name__=='__main__':
         fig.tight_layout()
         fig.savefig(os.path.join(args.outputdir, f'test_{event_counter}_layerclusters_zy_by_candidate.png'))
         plt.close()
-
-        # break loop after a fixed number of events
-        if args.nentries > 0 and event_counter >= args.nentries: break
