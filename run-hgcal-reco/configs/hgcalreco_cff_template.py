@@ -50,34 +50,29 @@ process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 # SimTracksters, used as truth targets for Trackster-level associations
 process.load("RecoHGCal.TICL.SimTracksters_cff")
 
-# define digis to use as input for clustering
-# note: syntax is a little unclear; apparently the name RECO should not be declared explicitly;
-#       instead CMSSW looks for the collections under all available processes (e.g. RECO, HLT, etc)
-#       and exposes them to the current process.
-process.hgcalDigis = cms.EDAlias(
-    hgcalDigis = cms.VPSet(
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("EE"),
-            toProductInstance = cms.string("EE")
-        ),
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("HEfront"),
-            toProductInstance = cms.string("HEfront")
-        ),
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("HEback"),
-            toProductInstance = cms.string("HEback")
-        )
-    )
-)
+# Reuse the HGCAL RecHits stored in the sample-production output. This keeps
+# the configurable part of this re-reco step at the LayerCluster/TICL level,
+# avoiding the expensive and fixed digi -> uncalibrated rechit -> rechit part.
+inputRecHitProcess = "RECO"
+process.hgcalLayerClustersEE.recHits = cms.InputTag("HGCalRecHit", "HGCEERecHits", inputRecHitProcess)
+process.hgcalLayerClustersHSi.recHits = cms.InputTag("HGCalRecHit", "HGCHEFRecHits", inputRecHitProcess)
+process.hgcalLayerClustersHSci.recHits = cms.InputTag("HGCalRecHit", "HGCHEBRecHits", inputRecHitProcess)
+if hasattr(process, "hgcalLayerClustersHFNose"):
+    process.hgcalLayerClustersHFNose.recHits = cms.InputTag("HGCalRecHit", "HGCHFNoseRecHits", inputRecHitProcess)
 
 # add HGCAL reconstruction to the path to execute
+process.hgcalLayerClusterTask = cms.Task(
+    process.hgcalLayerClustersEE,
+    process.hgcalLayerClustersHSi,
+    process.hgcalLayerClustersHSci,
+    process.hgcalMergeLayerClusters
+)
+if hasattr(process, "hgcalLayerClustersHFNose"):
+    process.hgcalLayerClusterTask.add(process.hgcalLayerClustersHFNose)
+process.hgcalLayerClusterSequence = cms.Sequence(process.hgcalLayerClusterTask)
 process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
-    process.hgcalLocalRecoSequence
+    process.hgcalLayerClusterSequence
     * process.iterTICLSequence)
 
 ################################################
@@ -100,14 +95,11 @@ process.load('SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi')
 process.lcAssocByEnergyScoreProducer.hardScatterOnly = cms.bool(False)
 process.scAssocByEnergyScoreProducer.hardScatterOnly = cms.bool(False)
 
-# set layer clusters and calo particles to use as input for association scores
-# note: needs to be set to those from the current process,
-#       otherwise it seems by default the ones from the RECO process
-#       (already present in the input files) might be used (?)
+# set layer clusters, rechits, and calo particles to use as input for association scores
 process.recHitMapProducer.hits = cms.VInputTag(
-        cms.InputTag("HGCalRecHit", "HGCEERecHits", processName),
-        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", processName),
-        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", processName),
+        cms.InputTag("HGCalRecHit", "HGCEERecHits", inputRecHitProcess),
+        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", inputRecHitProcess),
+        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", inputRecHitProcess),
 )
 process.layerClusterCaloParticleAssociation.label_lc = cms.InputTag("hgcalMergeLayerClusters", "", processName)
 process.layerClusterCaloParticleAssociation.label_cp = cms.InputTag("mix", "MergedCaloTruth", "HLT")
