@@ -185,6 +185,7 @@ def calculate_tc_event_metrics(collections, caloparticles,
 
     # get extra collections needed
     ticlcandidates = collections.get('ticlcandidates_merge')
+    simtracksters_from_cps = collections.get('simtracksters_from_cps')
     tstocpsimts_tsidx = collections.get('tstocpsimtsassociation_tsids')
     tstocpsimts_simtsidx = collections.get('tstocpsimtsassociation_simtsids')
     tstocpsimts_sharedenergy = collections.get('tstocpsimtsassociation_sharedenergy')
@@ -193,13 +194,24 @@ def calculate_tc_event_metrics(collections, caloparticles,
     if ticlcandidates is None or tstocpsimts_tsidx is None: return None, None, False
     if len(tstocpsimts_tsidx) == 0: return None, None, True
 
+    # The flattened Trackster-to-CP-SimTrackster association stores indices into
+    # the ticlSimTracksters:fromCPs collection. In CMSSW 17 that collection is
+    # compressed: CaloParticles without reconstructed content are removed before
+    # writing, so the SimTrackster index is not generally the CaloParticle index
+    # anymore, especially in pileup samples. The original CaloParticle index is
+    # preserved as the SimTrackster seedIndex().
+    simts_to_cp_indices = None
+    if simtracksters_from_cps is not None:
+        simts_to_cp_indices = [int(simts.seedIndex()) for simts in simtracksters_from_cps]
+
     # get purity and efficiency matrix
     tc_ts_indices, pur_matrix, eff_matrix = get_ticl_candidate_matrices_from_trackster_associations(
         ticlcandidates,
         tstocpsimts_tsidx,
         tstocpsimts_simtsidx,
         tstocpsimts_sharedenergy,
-        len(caloparticles))
+        len(caloparticles),
+        simts_to_cp_indices=simts_to_cp_indices)
 
     # printouts for testing
     #print(len(caloparticles))

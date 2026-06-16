@@ -6,6 +6,7 @@
     "cptolcassociation_lcids": ["std::vector<unsigned int>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatLCIdx", "HGCALTICL"],
     "cptolcassociation_scores": ["std::vector<float>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatScore", "HGCALTICL"],
     "cptolcassociation_efracs": ["std::vector<float>", "flattenCPToLC", "caloParticleLayerClusterAssociationFlatSharedEnergyFraction", "HGCALTICL"],
+    "simtracksters_from_cps": ["std::vector<ticl::Trackster>", "ticlSimTracksters", "fromCPs", "HGCALTICL"],
     "tstocpsimtsassociation_tsids": ["std::vector<unsigned int>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatTSIdx", "HGCALTICL"],
     "tstocpsimtsassociation_simtsids": ["std::vector<unsigned int>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatSimTSIdx", "HGCALTICL"],
     "tstocpsimtsassociation_sharedenergy": ["std::vector<float>", "flattenMergeTracksterToCPSimTrackster", "mergeTracksterCPSimTracksterAssociationFlatSharedEnergy", "HGCALTICL"],

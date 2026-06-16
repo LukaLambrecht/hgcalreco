@@ -91,6 +91,15 @@ process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi');
 process.load('SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi');
 process.load('SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi');
 
+# The HGCal LC association score producers default to hardScatterOnly=True.
+# That is fine for no-PU validation, but in PU samples it intentionally drops
+# all CaloParticles/SimClusters with eventId != 0. Downstream TC association then
+# sees many pileup-created TICLCandidates as having zero overlap with any
+# CaloParticle. Keep PU truth in the association products; the analysis can
+# still select primary-interaction CaloParticles after the full mapping is made.
+process.lcAssocByEnergyScoreProducer.hardScatterOnly = cms.bool(False)
+process.scAssocByEnergyScoreProducer.hardScatterOnly = cms.bool(False)
+
 # set layer clusters and calo particles to use as input for association scores
 # note: needs to be set to those from the current process,
 #       otherwise it seems by default the ones from the RECO process

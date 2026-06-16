@@ -61,7 +61,8 @@ def get_ticl_candidate_matrices_from_trackster_associations(
         simtsids,
         shared_energies,
         ncp,
-        tc_ts_indices=None):
+        tc_ts_indices=None,
+        simts_to_cp_indices=None):
     '''
     Build TICLCandidate - CaloParticle matrices from reco Trackster to
     SimTrackster-from-CaloParticle associations.
@@ -72,10 +73,13 @@ def get_ticl_candidate_matrices_from_trackster_associations(
       CP-SimTrackster association product matching the TICLCandidate Trackster
       collection. Each row says how much shared energy a reco Trackster has
       with one CP SimTrackster.
-    - ncp: number of CaloParticles. The SimTrackster-from-CP collection is
-      produced with indices corresponding to CaloParticle indices.
+    - ncp: number of CaloParticles.
     - tc_ts_indices: optional precomputed output of
       get_all_ticl_candidate_trackster_indices.
+    - simts_to_cp_indices: optional map from SimTrackster-from-CP collection
+      index to the original CaloParticle index. This is needed when the stored
+      SimTrackster-from-CP collection is compressed by dropping CaloParticles
+      without reconstructed content, as happens in CMSSW 17 pileup samples.
 
     Returns:
     - tc_ts_indices: unique Trackster indices per TICLCandidate.
@@ -108,10 +112,17 @@ def get_ticl_candidate_matrices_from_trackster_associations(
     # Step 3: build a CP x Trackster shared-energy matrix from the flattened
     # association products. If a reco Trackster has no entry here, its whole
     # column stays zero, meaning it has no truth overlap with any CP SimTrackster.
+    if simts_to_cp_indices is not None:
+        simts_to_cp_indices = np.array(simts_to_cp_indices, dtype=int)
+
     ts_cp_shared = np.zeros((ncp, nts))
     for ts_idx, cp_idx, shared_energy in zip(tsids, simtsids, shared_energies):
-        cp_idx = int(cp_idx)
         ts_idx = int(ts_idx)
+        cp_idx = int(cp_idx)
+        if simts_to_cp_indices is not None:
+            if cp_idx < 0 or cp_idx >= len(simts_to_cp_indices):
+                continue
+            cp_idx = int(simts_to_cp_indices[cp_idx])
         if cp_idx < 0 or cp_idx >= ncp:
             continue
         ts_cp_shared[cp_idx, ts_idx] += shared_energy
