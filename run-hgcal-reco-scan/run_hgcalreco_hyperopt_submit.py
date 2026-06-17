@@ -4,6 +4,7 @@ import json
 import argparse
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+thisdir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(topdir)
 
 from tools.jobtools import get_cmssw
@@ -19,16 +20,20 @@ if __name__=='__main__':
     parser.add_argument('-n', '--max_events', default=-1, type=int)
     parser.add_argument('-w', '--workdir', default='auto')
     parser.add_argument('--tag', default='auto')
-    parser.add_argument('--config', default=os.path.abspath('configs/hgcalreco_cff_template.py'))
-    parser.add_argument('--globaltag', default='150X_mcRun4_realistic_v1')
+    parser.add_argument('--config', default=os.path.join(thisdir, 'configs/hgcalreco_cff_template.py'))
+    parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
+    parser.add_argument('--efficiency_level', default='both',
+        choices=['lc', 'tc', 'both'],
+        help='Efficiency metrics to calculate after re-reco.')
     parser.add_argument('--cmssw', default=None)
     parser.add_argument('--proxy', default=None)
+    parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--submit', default=False, action='store_true')
     args = parser.parse_args()
 
     # parse tag
-    if args.tag == 'auto': args.tag = os.path.basename(args.grid).replace('.json', '')
+    if args.tag == 'auto': args.tag = os.path.basename(args.grid[0]).replace('.json', '')
 
     # parse working directory
     if args.workdir == 'auto': args.workdir = os.path.abspath(f'output_{args.tag}')
@@ -56,12 +61,14 @@ if __name__=='__main__':
             grid += json.load(f)
 
     # make working directory
-    if os.path.exists(args.workdir):
+    if os.path.exists(args.workdir) and not args.overwrite:
         raise Exception(f'Working directory {args.workdir} already exists.')
-    os.makedirs(args.workdir)
+    if not os.path.exists(args.workdir):
+        os.makedirs(args.workdir)
 
     # make full context
     context = {
+        "topdir": topdir,
         "template": args.config,
         "inputfile": args.inputfile,
         "max_events": args.max_events,
@@ -69,11 +76,12 @@ if __name__=='__main__':
         "geometry": args.geometry,
         "efficiency_script": os.path.join(topdir, 'analysis/efficiency/calculate_associations.py'),
         "efficiency_config_type": "customreco",
+        "efficiency_level": args.efficiency_level,
         "efficiency_recalculate": False
     }
 
     # write all required files to working directory
-    cmd = f'cp templates/run_hgcalreco_hyperopt.py {args.workdir}'
+    cmd = f'cp {os.path.join(thisdir, "templates", "run_hgcalreco_hyperopt.py")} {args.workdir}'
     os.system(cmd)
     grid_file = os.path.join(args.workdir, "grid.json")
     with open(grid_file, 'w') as f:

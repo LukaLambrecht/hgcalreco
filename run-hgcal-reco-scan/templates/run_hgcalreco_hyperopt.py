@@ -6,12 +6,6 @@ import pickle
 from hyperopt import fmin, tpe, hp
 from hyperopt import Trials
 
-thisdir = os.path.abspath(os.path.dirname(__file__))
-topdir = thisdir.split('/hgcalreco/')[0] + '/hgcalreco'
-sys.path.append(topdir)
-
-from tools.hgcalrecotools import run_local_evaluation
-
 
 if __name__=='__main__':
 
@@ -25,6 +19,14 @@ if __name__=='__main__':
     # load context
     with open(context_file) as f:
         context = json.load(f)
+
+    topdir = context.get("topdir")
+    if topdir is None:
+        thisdir = os.path.abspath(os.path.dirname(__file__))
+        topdir = thisdir.split('/hgcalreco/')[0] + '/hgcalreco'
+    sys.path.append(topdir)
+
+    from tools.hgcalrecotools import run_local_evaluation
 
     # parse grid to hyperopt grid
     param_mods = {el["name"]: el["mod"] for el in grid}

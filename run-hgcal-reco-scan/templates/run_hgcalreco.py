@@ -6,12 +6,6 @@ import os
 import sys
 import json
 
-thisdir = os.path.abspath(os.path.dirname(__file__))
-topdir = thisdir.split('/hgcalreco/')[0] + '/hgcalreco'
-sys.path.append(topdir)
-
-from tools.hgcalrecotools import run_local_evaluation
-
 
 if __name__=='__main__':
 
@@ -26,10 +20,18 @@ if __name__=='__main__':
     with open(context_file) as f:
         context = json.load(f)
 
+    topdir = context.get("topdir")
+    if topdir is None:
+        thisdir = os.path.abspath(os.path.dirname(__file__))
+        topdir = thisdir.split('/hgcalreco/')[0] + '/hgcalreco'
+    sys.path.append(topdir)
+
+    from tools.hgcalrecotools import run_local_evaluation
+
     # run full evaluation
     result = run_local_evaluation(params, context,
-        use_tmpdir=False, # temp for testing
-        keep_root_output=True # temp for testing
+        use_tmpdir=False,
+        keep_root_output=False
     )
 
     # write final result

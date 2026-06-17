@@ -1,16 +1,20 @@
 # CMSSW config file for HGCAL reconstruction
 
-# Note: this config file only runs the "minimal-effort" HGCAL-only reconstruction.
-# It fails at the final stage (ticlTracksterMergeTask), where some non-HGCAL inputs are needed.
-# This task is therefore removed from the sequence, and the output file will contain
-# "ticlTrackstersCLUE3DHigh" but not "ticlTrackstersMerge".
+# Note:
+# This config file runs a compact HGCAL/TICL re-reconstruction, including
+# LayerClusters, Tracksters, TICL candidates, and the association products
+# needed by the analysis scripts in this repository.
 
 
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Era_Phase2C22I13M9_cff import Phase2C22I13M9
 
 # initialize process
+# note: currently the era is hard-coded; make sure it matches the one used for sample production!
+#       otherwise the re-reco might not match the central reco even with the same CLUE parameters.
+# todo: find out how to pass the era as an argument, similar to sample production code.
 processName = "HGCALTICL"
-process = cms.Process(processName)
+process = cms.Process(processName, Phase2C22I13M9)
 
 # load basic configs
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
@@ -19,6 +23,8 @@ process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 process.load("Configuration.Geometry.TEMPLATE_GEOMETRY_cff")
 process.load("Configuration.Geometry.TEMPLATE_GEOMETRYReco_cff")
 process.load("RecoTracker.Configuration.RecoTracker_cff")
+process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
+process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 
 # set global tag
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -41,37 +47,33 @@ process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE
 process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 # TICL (Tracksters)
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
+# SimTracksters, used as truth targets for Trackster-level associations
+process.load("RecoHGCal.TICL.SimTracksters_cff")
 
-# define digis to use as input for clustering
-# note: syntax is a little unclear; apparently the name RECO should not be declared explicitly;
-#       instead CMSSW looks for the collections under all available processes (e.g. RECO, HLT, etc)
-#       and exposes them to the current process.
-process.hgcalDigis = cms.EDAlias(
-    hgcalDigis = cms.VPSet(
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("EE"),
-            toProductInstance = cms.string("EE")
-        ),
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("HEfront"),
-            toProductInstance = cms.string("HEfront")
-        ),
-        cms.PSet(
-            type = cms.string("HGCalDigiCollection"),
-            fromProductInstance = cms.string("HEback"),
-            toProductInstance = cms.string("HEback")
-        )
-    )
-)
+# Reuse the HGCAL RecHits stored in the sample-production output. This keeps
+# the configurable part of this re-reco step at the LayerCluster/TICL level,
+# avoiding the expensive and fixed digi -> uncalibrated rechit -> rechit part.
+inputRecHitProcess = "RECO"
+process.hgcalLayerClustersEE.recHits = cms.InputTag("HGCalRecHit", "HGCEERecHits", inputRecHitProcess)
+process.hgcalLayerClustersHSi.recHits = cms.InputTag("HGCalRecHit", "HGCHEFRecHits", inputRecHitProcess)
+process.hgcalLayerClustersHSci.recHits = cms.InputTag("HGCalRecHit", "HGCHEBRecHits", inputRecHitProcess)
+if hasattr(process, "hgcalLayerClustersHFNose"):
+    process.hgcalLayerClustersHFNose.recHits = cms.InputTag("HGCalRecHit", "HGCHFNoseRecHits", inputRecHitProcess)
 
 # add HGCAL reconstruction to the path to execute
+process.hgcalLayerClusterTask = cms.Task(
+    process.hgcalLayerClustersEE,
+    process.hgcalLayerClustersHSi,
+    process.hgcalLayerClustersHSci,
+    process.hgcalMergeLayerClusters
+)
+if hasattr(process, "hgcalLayerClustersHFNose"):
+    process.hgcalLayerClusterTask.add(process.hgcalLayerClustersHFNose)
+process.hgcalLayerClusterSequence = cms.Sequence(process.hgcalLayerClusterTask)
 process.iterTICLSequence = cms.Sequence(process.iterTICLTask)
 process.hgcal_step = cms.Path(
-    process.hgcalLocalRecoSequence
+    process.hgcalLayerClusterSequence
     * process.iterTICLSequence)
-process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCAL reco inputs
 
 ################################################
 # Calculate and parse sim to reco associatiors #
@@ -81,20 +83,48 @@ process.mergeTICLTask.remove(process.ticlTracksterMergeTask) # requires non-HGCA
 process.load('SimCalorimetry.HGCalAssociatorProducers.LCToCPAssociation_cfi');
 process.load('SimCalorimetry.HGCalAssociatorProducers.LCToSCAssociation_cfi');
 process.load('SimCalorimetry.HGCalSimProducers.hgcHitAssociation_cfi');
+process.load('SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi');
+process.load('SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi');
 
-# set layer clusters and calo particles to use as input for association scores
-# note: needs to be set to those from the current process,
-#       otherwise it seems by default the ones from the RECO process
-#       (already present in the input files) might be used (?)
+# The HGCal LC association score producers default to hardScatterOnly=True.
+# That is fine for no-PU validation, but in PU samples it intentionally drops
+# all CaloParticles/SimClusters with eventId != 0. Downstream TC association then
+# sees many pileup-created TICLCandidates as having zero overlap with any
+# CaloParticle. Keep PU truth in the association products; the analysis can
+# still select primary-interaction CaloParticles after the full mapping is made.
+process.lcAssocByEnergyScoreProducer.hardScatterOnly = cms.bool(False)
+process.scAssocByEnergyScoreProducer.hardScatterOnly = cms.bool(False)
+
+# set layer clusters, rechits, and calo particles to use as input for association scores
 process.recHitMapProducer.hits = cms.VInputTag(
-        cms.InputTag("HGCalRecHit", "HGCEERecHits", processName),
-        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", processName),
-        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", processName),
+        cms.InputTag("HGCalRecHit", "HGCEERecHits", inputRecHitProcess),
+        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", inputRecHitProcess),
+        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", inputRecHitProcess),
 )
 process.layerClusterCaloParticleAssociation.label_lc = cms.InputTag("hgcalMergeLayerClusters", "", processName)
 process.layerClusterCaloParticleAssociation.label_cp = cms.InputTag("mix", "MergedCaloTruth", "HLT")
 process.layerClusterSimClusterAssociation.label_lcl = cms.InputTag("hgcalMergeLayerClusters", "", processName)
 process.layerClusterSimClusterAssociation.label_scl = cms.InputTag("mix", "MergedCaloTruth", "HLT")
+process.ticlSimTracksters.simclusters = cms.InputTag("mix", "MergedCaloTruth", "HLT")
+process.ticlSimTracksters.caloparticles = cms.InputTag("mix", "MergedCaloTruth", "HLT")
+process.ticlSimTracksters.MtdSimTracksters = cms.InputTag("mix", "MergedMtdTruthST", "HLT")
+process.ticlSimTracksters.trackingParticles = cms.InputTag("mix", "MergedTrackTruth", "HLT")
+process.ticlSimTracksters.layerClusterSimClusterAssociator = cms.InputTag("layerClusterSimClusterAssociation")
+process.ticlSimTracksters.layerClusterCaloParticleAssociator = cms.InputTag("layerClusterCaloParticleAssociation")
+process.ticlSimTracksters.recoTracks = cms.InputTag("generalTracks", "", "RECO")
+process.ticlSimTracksters.tpToTrack = cms.InputTag("trackingParticleRecoTrackAsssociation", "", "RECO")
+process.ticlSimTracksters.simTrackToTPMap = cms.InputTag("simHitTPAssocProducer", "simTrackToTP", "RECO")
+
+# Only build Trackster-to-SimTrackster association maps for the CP-derived
+# SimTrackster collection. The inclusive ticlSimTracksters collection is not
+# used by the efficiency code in this repository, and in CMSSW_17_0_0_pre2 it
+# can contain zero-denominator SimTracksters for PU samples with very large EE
+# CLUE2D delta_c values, which trips an assertion in the central associator.
+process.allTrackstersToSimTrackstersAssociationsByLCs.simTracksterCollections = cms.VInputTag(
+    cms.InputTag("ticlSimTracksters", "fromCPs")
+)
+
+# initialize association map flatteners
 process.flattenLCToCP = cms.EDProducer(
     "FlattenLCToCPAssociator",
     src = cms.InputTag("layerClusterCaloParticleAssociation"),
@@ -115,18 +145,51 @@ process.flattenSCToLC = cms.EDProducer(
     src = cms.InputTag("layerClusterSimClusterAssociation"),
     dest = cms.string("simClusterLayerClusterAssociationFlat")
 )
+process.flattenLCToCLUE3DTrackster = cms.EDProducer(
+    "FlattenLCToTSAssociator",
+    src = cms.InputTag("allLayerClusterToTracksterAssociations", "ticlTrackstersCLUE3DHigh"),
+    dest = cms.string("layerClusterCLUE3DTracksterAssociationFlat"),
+    second = cms.string("TS")
+)
+process.flattenLCToMergeTrackster = cms.EDProducer(
+    "FlattenLCToTSAssociator",
+    src = cms.InputTag("allLayerClusterToTracksterAssociations", "ticlCandidate"),
+    dest = cms.string("layerClusterMergeTracksterAssociationFlat"),
+    second = cms.string("TS")
+)
+process.flattenCLUE3DTracksterToCPSimTrackster = cms.EDProducer(
+    "FlattenTSToTSAssociator",
+    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersCLUE3DHighToticlSimTrackstersfromCPs"),
+    dest = cms.string("clue3DTracksterCPSimTracksterAssociationFlat"),
+    first = cms.string("TS"),
+    second = cms.string("SimTS")
+)
+process.flattenMergeTracksterToCPSimTrackster = cms.EDProducer(
+    "FlattenTSToTSAssociator",
+    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlCandidateToticlSimTrackstersfromCPs"),
+    dest = cms.string("mergeTracksterCPSimTracksterAssociationFlat"),
+    first = cms.string("TS"),
+    second = cms.string("SimTS")
+)
 
 # add association scores to the path to execute
 process.hgcalAssociatorTask = cms.Task(
+    process.ticlSimTrackstersTask,
     process.recHitMapProducer,
     process.lcAssocByEnergyScoreProducer,
     process.scAssocByEnergyScoreProducer,
     process.layerClusterCaloParticleAssociation,
     process.layerClusterSimClusterAssociation,
+    process.allLayerClusterToTracksterAssociations,
+    process.allTrackstersToSimTrackstersAssociationsByLCs,
     process.flattenLCToCP,
     process.flattenLCToSC,
     process.flattenCPToLC,
-    process.flattenSCToLC
+    process.flattenSCToLC,
+    process.flattenLCToCLUE3DTrackster,
+    process.flattenLCToMergeTrackster,
+    process.flattenCLUE3DTracksterToCPSimTrackster,
+    process.flattenMergeTracksterToCPSimTrackster
 )
 process.hgcal_step.associate(process.hgcalAssociatorTask)
 
@@ -148,19 +211,18 @@ TEMPLATE_MOD
 process.out = cms.OutputModule("PoolOutputModule",
     fileName = cms.untracked.string("hgcalreco_out.root"),
     outputCommands = cms.untracked.vstring(
+        "drop *",
         # reco-level output
-        f"keep *_HGCalRecHit_*_{processName}",
         f"keep *_hgcalMergeLayerClusters_*_{processName}",
-        f"keep *_ticlTracksters*_*_{processName}",
+        f"keep *_ticlTracksters*_*_{processName}", # includes Tracksters and ticlCandidates in v4.
+        f"keep *_ticlTracksterLinks*_*_{processName}", # linked Tracksters in TICLv5.
+        f"keep *_ticlCandidate_*_{processName}", # in v5, ticlCandidates have been moved to a separate module.
+        f"keep *_pfTICL_*_{processName}", # full PF candidate collection from TICL.
+        f"keep *_ticlSimTracksters*_*_{processName}",
         # gen-level output
-        "keep *CaloParticle*_mix_MergedCaloTruth_*",
-        "keep *SimCluster*_mix_MergedCaloTruth_*",
-        "keep *CaloHit*_*_*_*",
+        "keep *_mix_MergedCaloTruth_*",
         # links and associations
-        f"keep *_*_layerClusterCaloParticleAssociationFlat*_{processName}",
-        f"keep *_*_layerClusterSimClusterAssociationFlat*_{processName}",
-        f"keep *_*_caloParticleLayerClusterAssociationFlat*_{processName}",
-        f"keep *_*_simClusterLayerClusterAssociationFlat*_{processName}",
+        f"keep *_flatten*_*_{processName}",
     )
 )
 

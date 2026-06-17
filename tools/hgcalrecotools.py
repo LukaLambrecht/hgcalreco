@@ -127,6 +127,13 @@ def run_local_evaluation(params, context,
         "-o", outputdir,
         "--input_config_type", context["efficiency_config_type"]
     ])
+    efficiency_level = context.get("efficiency_level", "both")
+    if efficiency_level not in ["lc", "tc", "both"]:
+        raise ValueError(f'Unknown efficiency_level "{efficiency_level}".')
+    if efficiency_level in ["lc", "both"]:
+        cmd.append("--do_lc_level")
+    if efficiency_level in ["tc", "both"]:
+        cmd.append("--do_tc_level")
     if context["efficiency_recalculate"]: cmd.append("--recalculate")
     try:
         result = subprocess.run(
@@ -155,7 +162,20 @@ def run_local_evaluation(params, context,
     # metric extraction
     metrics_lc_file = os.path.join(outputdir, "metrics_lc.parquet")
     metrics_cp_file = os.path.join(outputdir, "metrics_cp_lc.parquet")
-    metric = extract_metric(metrics_lc_file, metrics_cp_file)
+    metrics_tc_file = os.path.join(outputdir, "metrics_tc.parquet")
+    metrics_cp_tc_file = os.path.join(outputdir, "metrics_cp_tc.parquet")
+    if efficiency_level == "tc":
+        metric = extract_tc_metric(metrics_tc_file, metrics_cp_tc_file)
+        output_metrics_files = [metrics_tc_file, metrics_cp_tc_file]
+    elif efficiency_level == "both":
+        metric = extract_metric(metrics_lc_file, metrics_cp_file)
+        output_metrics_files = [
+            metrics_lc_file, metrics_cp_file,
+            metrics_tc_file, metrics_cp_tc_file
+        ]
+    else:
+        metric = extract_metric(metrics_lc_file, metrics_cp_file)
+        output_metrics_files = [metrics_lc_file, metrics_cp_file]
 
     return {
         "loss": -metric,
@@ -163,7 +183,7 @@ def run_local_evaluation(params, context,
         "metric": metric,
         "params": params,
         "output_reco_file": os.path.join(workdir, "hgcalreco_out.root"),
-        "output_metrics_files": [metrics_lc_file, metrics_cp_file]
+        "output_metrics_files": output_metrics_files
     }
 
 
@@ -180,6 +200,9 @@ def extract_metric(results_lc, results_cp):
     if isinstance(results_cp, str):
         results_cp = pd.read_parquet(results_cp)
 
+    if len(results_lc) == 0 or len(results_cp) == 0:
+        return 0.
+
     # calculate metrics
     lc_pur_avg = np.mean(results_lc['pur'].values)
     lc_eff_avg = np.mean(results_lc['eff'].values)
@@ -191,6 +214,8 @@ def extract_metric(results_lc, results_cp):
 
     # combine them into a single metric
     metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg)/3.
+    if not np.isfinite(metric):
+        return 0.
     #metric = lc_pur_avg * lc_eff_avg * cp_eff_avg
     #metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg + (1-counts_per_layer_avg)) / 4.
 
@@ -203,4 +228,26 @@ def extract_metric(results_lc, results_cp):
     print(metric)
     print()'''
 
+    return metric
+
+
+def extract_tc_metric(results_tc, results_cp_tc):
+    """
+    Calculate a scalar metric from TICLCandidate-level association results.
+    """
+
+    if isinstance(results_tc, str):
+        results_tc = pd.read_parquet(results_tc)
+    if isinstance(results_cp_tc, str):
+        results_cp_tc = pd.read_parquet(results_cp_tc)
+
+    if len(results_tc) == 0 or len(results_cp_tc) == 0:
+        return 0.
+
+    tc_pur_avg = np.mean(results_tc['pur'].values)
+    tc_eff_avg = np.mean(results_tc['eff'].values)
+    cp_eff_avg = np.mean(results_cp_tc['eff_primary'].values)
+    metric = (tc_pur_avg + tc_eff_avg + cp_eff_avg)/3.
+    if not np.isfinite(metric):
+        return 0.
     return metric

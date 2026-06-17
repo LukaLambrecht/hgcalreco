@@ -10,11 +10,38 @@ from fnmatch import fnmatch
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
-from tools.hgcalrecotools import extract_metric
 from plot_result_lc import get_lc_result_from_df
 from plot_result_lc import plot_lc_result
 from plot_result_cp import get_cp_result_from_df
 from plot_result_cp import plot_cp_result
+from plot_result_tc import plot_tc_result
+from plot_result_tc import plot_cp_tc_result
+
+
+def read_nonempty_parquet(path):
+    if not os.path.exists(path):
+        print(f'WARNING: file {path} does not exist, skipping...')
+        return None
+    df = pd.read_parquet(path)
+    if len(df) == 0:
+        print(f'WARNING: file {path} is empty, skipping...')
+        return None
+    return df
+
+
+def load_metric(jobdir):
+    resultfile = os.path.join(jobdir, 'result.json')
+    if not os.path.exists(resultfile):
+        return np.nan
+    with open(resultfile, 'r') as f:
+        result = json.load(f)
+    if result.get('status') != 'ok':
+        return np.nan
+    if 'loss' in result:
+        return result['loss']
+    if 'metric' in result:
+        return -result['metric']
+    return np.nan
 
 
 def main(inputdir):
@@ -43,46 +70,73 @@ def main(inputdir):
 
     # loop over job directories
     results_lc = {}
-    results_cp = {}
+    results_cp_lc = {}
+    results_tc = {}
+    results_cp_tc = {}
     params = {}
-    metrics = {}
+    losses = {}
     jobdirs = [d for d in os.listdir(inputdir) if fnmatch(d, 'job*')]
+    jobdirs = sorted(jobdirs, key=lambda d: int(d.replace('job', '')) if d.replace('job', '').isdigit() else d)
     for idx, jobdir in enumerate(jobdirs):
         print(f'Retrieving results for {jobdir} ({idx+1} / {len(jobdirs)})', end='\r')
+        jobpath = os.path.join(inputdir, jobdir)
 
-        # load dataframe for layerclusters and get results
-        inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_lc.parquet')
-        if not os.path.exists(inputfile):
-            msg = f'WARNING: file {inputfile} does not exist, skipping...'
-            print(msg)
+        paramfile = os.path.join(jobpath, 'params_summary.json')
+        if not os.path.exists(paramfile):
+            print(f'WARNING: file {paramfile} does not exist, skipping job...')
             continue
-        df_lc = pd.read_parquet(inputfile)
-        results_lc[jobdir] = get_lc_result_from_df(df_lc)
-
-        # load dataframe for caloparticles and get results
-        inputfile = os.path.join(inputdir, jobdir, 'efficiency', 'metrics_cp_lc.parquet')
-        if not os.path.exists(inputfile):
-            msg = f'WARNING: file {inputfile} does not exist, skipping...'
-            print(msg)
-            continue
-        df_cp = pd.read_parquet(inputfile)
-        # temp for missing response column
-        if 'res' not in df_cp.columns: df_cp['res'] = 0
-        results_cp[jobdir] = get_cp_result_from_df(df_cp)
-
-        # calculate metric
-        metrics[jobdir] = extract_metric(df_lc, df_cp)
-
-        # load parameters
-        with open(os.path.join(inputdir, jobdir, 'params_summary.json'), 'r') as f:
+        with open(paramfile, 'r') as f:
             paramdict = json.load(f)
         params[jobdir] = paramdict
+        losses[jobdir] = load_metric(jobpath)
+
+        # load dataframe for layerclusters and get results, if available
+        df_lc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_lc.parquet'))
+        if df_lc is not None:
+            results_lc[jobdir] = get_lc_result_from_df(df_lc)
+
+        # load dataframe for caloparticle-vs-layercluster metrics, if available
+        df_cp_lc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_cp_lc.parquet'))
+        if df_cp_lc is not None:
+            if 'res' not in df_cp_lc.columns:
+                df_cp_lc['res'] = 0
+            results_cp_lc[jobdir] = get_cp_result_from_df(df_cp_lc)
+
+        # TICLCandidate metrics are stored directly as dataframes, because the
+        # scan-level plotter overlays their distributions across grid points.
+        df_tc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_tc.parquet'))
+        if df_tc is not None:
+            results_tc[jobdir] = df_tc
+
+        df_cp_tc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_cp_tc.parquet'))
+        if df_cp_tc is not None:
+            results_cp_tc[jobdir] = df_cp_tc
 
     # plot results
-    plot_lc_result(results_lc, outputdir, params=params, legend_dict=legend_dict)
-    plot_cp_result(results_cp, outputdir, params=params, legend_dict=legend_dict)
+    if len(results_lc) > 0:
+        plot_lc_result(results_lc, outputdir, params=params, legend_dict=legend_dict)
+    else:
+        print('No non-empty LayerCluster metric files found; skipping LayerCluster plots.')
+
+    if len(results_cp_lc) > 0:
+        plot_cp_result(results_cp_lc, outputdir, params=params, legend_dict=legend_dict)
+    else:
+        print('No non-empty CaloParticle-LayerCluster metric files found; skipping CaloParticle-LC plots.')
+
+    if len(results_tc) > 0:
+        plot_tc_result(results_tc, outputdir, params=params, legend_dict=legend_dict)
+    else:
+        print('No non-empty TICLCandidate metric files found; skipping TICLCandidate plots.')
+
+    if len(results_cp_tc) > 0:
+        plot_cp_tc_result(results_cp_tc, outputdir, params=params, legend_dict=legend_dict)
+    else:
+        print('No non-empty CaloParticle-TICLCandidate metric files found; skipping CP-TC plots.')
 
     jobdirs = list(params.keys()) # in case some directories got skipped
+    if len(jobdirs) == 0:
+        print('No jobs with parameter summaries found; skipping metric scan plot.')
+        return
 
     # in case only 1 parameter was scanned, can plot metric vs this variable
     nparams = len(params[jobdirs[0]]) # assume it's the same for all job directories
@@ -91,16 +145,22 @@ def main(inputdir):
         # retrieve param values
         param_name = list(params[jobdirs[0]].keys())[0]
         param_values = np.array([params[jobdir][param_name] for jobdir in jobdirs])
-        metric_values = np.array([metrics[jobdir] for jobdir in jobdirs])
+        loss_values = np.array([losses[jobdir] for jobdir in jobdirs])
+        finite_mask = np.isfinite(param_values) & np.isfinite(loss_values)
+        param_values = param_values[finite_mask]
+        loss_values = loss_values[finite_mask]
+        if len(param_values) == 0:
+            print('No finite metric values found; skipping metric scan plot.')
+            return
 
         # sort
         sorted_ids = np.argsort(param_values)
         param_values = param_values[sorted_ids]
-        metric_values_sorted = metric_values[sorted_ids]
+        loss_values = loss_values[sorted_ids]
 
         # plot
         fig, ax = plt.subplots()
-        ax.scatter(param_values, -metric_values_sorted, c='dodgerblue')
+        ax.scatter(param_values, loss_values, c='dodgerblue')
         ax.set_xlabel(legend_dict.get(param_name, param_name), fontsize=15)
         ax.set_ylabel('Loss value', fontsize=15)
         ax.grid()
