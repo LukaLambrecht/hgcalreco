@@ -115,6 +115,15 @@ process.ticlSimTracksters.recoTracks = cms.InputTag("generalTracks", "", "RECO")
 process.ticlSimTracksters.tpToTrack = cms.InputTag("trackingParticleRecoTrackAsssociation", "", "RECO")
 process.ticlSimTracksters.simTrackToTPMap = cms.InputTag("simHitTPAssocProducer", "simTrackToTP", "RECO")
 
+# Only build Trackster-to-SimTrackster association maps for the CP-derived
+# SimTrackster collection. The inclusive ticlSimTracksters collection is not
+# used by the efficiency code in this repository, and in CMSSW_17_0_0_pre2 it
+# can contain zero-denominator SimTracksters for PU samples with very large EE
+# CLUE2D delta_c values, which trips an assertion in the central associator.
+process.allTrackstersToSimTrackstersAssociationsByLCs.simTracksterCollections = cms.VInputTag(
+    cms.InputTag("ticlSimTracksters", "fromCPs")
+)
+
 # initialize association map flatteners
 process.flattenLCToCP = cms.EDProducer(
     "FlattenLCToCPAssociator",
@@ -148,34 +157,6 @@ process.flattenLCToMergeTrackster = cms.EDProducer(
     dest = cms.string("layerClusterMergeTracksterAssociationFlat"),
     second = cms.string("TS")
 )
-process.flattenCLUE3DTracksterToSimTrackster = cms.EDProducer(
-    "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersCLUE3DHighToticlSimTracksters"),
-    dest = cms.string("clue3DTracksterSimTracksterAssociationFlat"),
-    first = cms.string("TS"),
-    second = cms.string("SimTS")
-)
-process.flattenSimTracksterToCLUE3DTrackster = cms.EDProducer(
-    "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlTrackstersCLUE3DHigh"),
-    dest = cms.string("simTracksterCLUE3DTracksterAssociationFlat"),
-    first = cms.string("SimTS"),
-    second = cms.string("TS")
-)
-process.flattenMergeTracksterToSimTrackster = cms.EDProducer(
-    "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlCandidateToticlSimTracksters"),
-    dest = cms.string("mergeTracksterSimTracksterAssociationFlat"),
-    first = cms.string("TS"),
-    second = cms.string("SimTS")
-)
-process.flattenSimTracksterToMergeTrackster = cms.EDProducer(
-    "FlattenTSToTSAssociator",
-    src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlCandidate"),
-    dest = cms.string("simTracksterMergeTracksterAssociationFlat"),
-    first = cms.string("SimTS"),
-    second = cms.string("TS")
-)
 process.flattenCLUE3DTracksterToCPSimTrackster = cms.EDProducer(
     "FlattenTSToTSAssociator",
     src = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersCLUE3DHighToticlSimTrackstersfromCPs"),
@@ -207,10 +188,6 @@ process.hgcalAssociatorTask = cms.Task(
     process.flattenSCToLC,
     process.flattenLCToCLUE3DTrackster,
     process.flattenLCToMergeTrackster,
-    process.flattenCLUE3DTracksterToSimTrackster,
-    process.flattenSimTracksterToCLUE3DTrackster,
-    process.flattenMergeTracksterToSimTrackster,
-    process.flattenSimTracksterToMergeTrackster,
     process.flattenCLUE3DTracksterToCPSimTrackster,
     process.flattenMergeTracksterToCPSimTrackster
 )
