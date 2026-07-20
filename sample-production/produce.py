@@ -26,6 +26,10 @@ if __name__=='__main__':
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--remove-intermediate-output', default=False, action='store_true')
     parser.add_argument('--output-mode', default='hgcal', choices=['hgcal', 'full'])
+    parser.add_argument('--request-memory', default=2000, type=int,
+        help='Requested memory in MB. Increase this for pileup chains,'
+             ' which need substantially more memory than no-pileup ones'
+             ' (e.g. 8000 for PU200).')
     args = parser.parse_args()
 
     # parse tag
@@ -262,6 +266,17 @@ if __name__=='__main__':
         with open(jobscript, 'a') as f:
             # go to working directory
             f.write(f'cd {workdir}\n')
+            # stop on the first failing command, so a crashed step does not
+            # silently fall through to the next one (e.g. a step reading a
+            # truncated file left over by a previous, crashed or held attempt)
+            # while still letting the job exit 0 in condor.
+            f.write('set -e\n')
+            # remove any step*.root left over from a previous (e.g. held or
+            # crashed) attempt at this same job directory; without this,
+            # cmsDriver's output step can fatally fail trying to overwrite
+            # a pre-existing file of the same name (observed as a
+            # "TStorageFactorySystem::Unlink ... Unsupported" error on EOS).
+            f.write('rm -f step*.root\n')
             # write actual commands to run
             for cmd in job_cmds[jobidx]: f.write(cmd+'\n')
         exes.append(jobscript)
@@ -275,7 +290,7 @@ if __name__=='__main__':
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
     ct.makeJobDescription(jobdescriptor, '$(script)', doqueue=False,
-        proxy=args.proxy, jobflavour='workday')
+        proxy=args.proxy, jobflavour='workday', mem=args.request_memory)
     with open(jobdescriptor, 'a') as f:
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')
