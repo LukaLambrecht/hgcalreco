@@ -5,6 +5,8 @@
 First, if you run for the first time in a new CMSSW environment, run `./prepare_cmssw.sh`.
 This just creates a directory in CMSSW to hold the generator fragments and recompiles.
 This only needs to be done once, until you switch to a not-yet-prepared CMSSW release.
+Note: this step is now done automatically by `cmssw_setup.sh` in the top directory when setting up a new CMSSW version,
+so normally you do not need to run `./prepare_cmssw.sh` yourself.
 
 Then, prepare a fragment (see [fragments](fragments) for examples),
 a chain of cmsDriver commands (see [cmsdriver](cmsdriver) for examples),
