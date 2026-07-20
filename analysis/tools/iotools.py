@@ -2,9 +2,27 @@
 
 
 import os
+import re
 import sys
 import json
 from DataFormats.FWLite import Events, Handle
+
+
+def _io_versioned_variant(dtype, namespace='io_v1'):
+    '''
+    Build a variant of a C++ Handle dtype string with a ROOT schema-evolution
+    namespace (e.g. "io_v1") inserted in front of the wrapped class name.
+    Example: "std::vector<ticl::Trackster>" -> "std::vector<ticl::io_v1::Trackster>"
+    '''
+    def insert_namespace(match):
+        typename = match.group(1)
+        parts = typename.rsplit('::', 1)
+        if len(parts) == 1:
+            new_typename = f'{namespace}::{parts[0]}'
+        else:
+            new_typename = f'{parts[0]}::{namespace}::{parts[1]}'
+        return f'<{new_typename}>'
+    return re.sub(r'<([^<>]+)>', insert_namespace, dtype, count=1)
 
 
 class Reader(object):
@@ -44,7 +62,15 @@ class Reader(object):
                     print(msg)
 
                 # set the handle and label
-                handle = Handle(dtype)
+                # note: some ROOT versions (starting from the one bundled with CMSSW_20)
+                #       wrap EDM classes with schema-evolution rules (e.g. CaloParticle,
+                #       SimCluster, HGCRecHit, reco::CaloCluster, ticl::Trackster) in an
+                #       inline "io_v1" namespace; the plain (unversioned) dtype string
+                #       then fails to resolve, so fall back to the versioned variant.
+                try:
+                    handle = Handle(dtype)
+                except TypeError:
+                    handle = Handle(_io_versioned_variant(dtype))
                 self.config[collection_name] = {'handle': handle, 'label': label}
 
 
