@@ -16,7 +16,7 @@ if __name__=='__main__':
 
     # read command line args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--inputfile', required=True)
+    parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-g', '--grid', required=True)
     parser.add_argument('-n', '--max_events', default=-1, type=int)
     parser.add_argument('-w', '--workdir', default='auto')
@@ -45,11 +45,13 @@ if __name__=='__main__':
     print(f'Found following CMSSW: {cmssw}')
 
     # check input file existence
-    if args.inputfile.startswith('root:'): pass # exception for remote files
-    else:
-        args.inputfile = os.path.abspath(args.inputfile) # important for CMSSW, cannot read relative paths
-        if not os.path.exists(args.inputfile):
-            raise Exception(f'Input file {args.inputfile} does not exist.')
+    for idx, inputfile in enumerate(args.inputfiles):
+        if inputfile.startswith('root:'): pass # exception for remote files
+        else:
+            inputfile = os.path.abspath(inputfile) # important for CMSSW, cannot read relative paths
+            if not os.path.exists(inputfile):
+                raise Exception(f'Input file {inputfile} does not exist.')
+            args.inputfiles[idx] = inputfile
     
     # check config template file existence
     if not os.path.exists(args.config):
@@ -70,7 +72,7 @@ if __name__=='__main__':
     context = {
         "topdir": topdir,
         "template": args.config,
-        "inputfile": args.inputfile,
+        "inputfiles": args.inputfiles,
         "max_events": args.max_events,
         "globaltag": args.globaltag,
         "geometry": args.geometry,

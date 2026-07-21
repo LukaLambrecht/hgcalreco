@@ -24,12 +24,16 @@ if __name__=='__main__':
     parser.add_argument('--template', default='configs/hgcalreco_cff_template.py')
     parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
+    parser.add_argument('--modifiers', default=None)
     parser.add_argument('--no_exec', default=False, action='store_true')
     args = parser.parse_args()
 
     # check file existence
     if not os.path.exists(args.template):
         raise Exception(f'Template config {args.template} does not exist.')
+    if args.modifiers is not None:
+        if not os.path.exists(args.modifiers):
+            raise Exception(f'Modifier {args.modifiers} does not exist.')
 
     # get cmssw
     cmssw = get_cmssw(args.cmssw, error_if_none=True)
@@ -57,6 +61,7 @@ if __name__=='__main__':
         cmd += f' --template {args.template}'
         cmd += f' --globaltag {args.globaltag}'
         cmd += f' --geometry {args.geometry}'
+        if args.modifiers is not None: cmd += f' --modifiers {args.modifiers}'
         if args.no_exec: cmd += f' --no_exec'
         cmds.append(cmd)
 

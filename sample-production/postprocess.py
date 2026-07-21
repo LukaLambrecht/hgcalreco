@@ -22,8 +22,13 @@ if __name__=='__main__':
     # each of which has the job script, the cmsRun configs,
     # and the output file.
 
+    # find job directories
+    jobdirs = [jd for jd in os.listdir(proddir) if jd.startswith('job')]
+    if len(jobdirs)==0:
+        raise Exception('No job directories found under {proddir}')
+
     # copy all metadata from the first job to the top-level directory
-    tocopy = sorted([f for f in os.listdir(os.path.join(proddir, 'job0')) if not f.endswith('.root')])
+    tocopy = sorted([f for f in os.listdir(os.path.join(proddir, jobdirs[0])) if not f.endswith('.root')])
     metadir = os.path.join(proddir, 'metadata')
     if not os.path.exists(metadir): os.makedirs(metadir)
     print('Copying metadata...')

@@ -60,6 +60,7 @@ def main(inputdir):
         'deltac_ee': r'$\delta_c (EE)$',
         'deltac_hsi': r'$\delta_c (HSi)$',
         'deltac_hsci': r'$\delta_c (HSci)$',
+        'deltac_all': r'$\delta_c (all)$',
         'ecut_hsi': r'$E_{cut} (HSi)$',
         'kappa_hsi': r'$\rho_{seed} (HSi)$'
     }

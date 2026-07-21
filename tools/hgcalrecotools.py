@@ -12,6 +12,20 @@ sys.path.append(topdir)
 from analysis.tools.layertools import get_layer_counts
 
 
+def format_vstring_files(files):
+    """
+    Format one or more input file paths as separate, individually quoted
+    and protocol-prefixed cms.vstring entries for a PoolSource.
+    ("root:"-prefixed remote files are left as-is; everything else gets "file:" prepended.)
+    Note: not to be confused with tools.filetools.format_input_files,
+    which expands a dataset/directory/pattern into a list of file names;
+    this function instead formats an already-resolved list of file names
+    for use in a cmsRun config template.
+    """
+    entries = [f if f.startswith('root:') else f'file:{f}' for f in files]
+    return ',\n        '.join(f"'{entry}'" for entry in entries)
+
+
 def build_config(template, params, context):
     """
     Builds a cmsRun config starting from a template.
@@ -25,7 +39,7 @@ def build_config(template, params, context):
     config = template
 
     # generic settings (independent of specific parameters)
-    config = config.replace('TEMPLATE_INPUT_FILE', context["inputfile"])
+    config = config.replace('TEMPLATE_INPUT_FILES', format_vstring_files(context["inputfiles"]))
     config = config.replace('TEMPLATE_MAX_EVENTS', str(context["max_events"]))
     config = config.replace('TEMPLATE_GLOBAL_TAG', context["globaltag"])
     config = config.replace('TEMPLATE_GEOMETRY', context["geometry"])

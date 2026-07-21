@@ -290,7 +290,7 @@ if __name__=='__main__':
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
     ct.makeJobDescription(jobdescriptor, '$(script)', doqueue=False,
-        proxy=args.proxy, jobflavour='workday', mem=args.request_memory)
+        proxy=args.proxy, jobflavour='tomorrow', mem=args.request_memory)
     with open(jobdescriptor, 'a') as f:
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')

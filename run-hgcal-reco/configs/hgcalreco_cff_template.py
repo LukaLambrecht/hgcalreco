@@ -30,11 +30,16 @@ process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, "TEMPLATE_GLOBAL_TAG", "")
 
-# set input file
+# set input file(s)
+# note: duplicate checking is disabled because independently-produced sample-production
+# files are not guaranteed to have globally unique (run, lumiblock, event) numbers
+# (e.g. several files can all start at run 1, event 1); without this, PoolSource would
+# silently drop all "duplicate"-numbered events beyond the first file.
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring(
-        'file:TEMPLATE_INPUT_FILE'
-    )
+        TEMPLATE_INPUT_FILES
+    ),
+    duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
 )
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE_MAX_EVENTS')))
 

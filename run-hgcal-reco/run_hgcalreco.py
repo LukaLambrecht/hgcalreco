@@ -2,12 +2,16 @@ import os
 import sys
 import argparse
 
+topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(topdir)
+from tools.hgcalrecotools import format_vstring_files
+
 
 if __name__=='__main__':
 
     # read command line args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--inputfile', required=True)
+    parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-n', '--max_events', default=-1, type=int)
     parser.add_argument('-w', '--workdir', default='.')
     parser.add_argument('--template', default='configs/hgcalreco_cff_template.py')
@@ -18,9 +22,10 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     # check file existence
-    if not os.path.exists(args.inputfile):
-        if args.inputfile.startswith('root:'): pass # exception for remote files
-        else: raise Exception(f'Input file {args.inputfile} does not exist.')
+    for inputfile in args.inputfiles:
+        if not os.path.exists(inputfile):
+            if inputfile.startswith('root:'): pass # exception for remote files
+            else: raise Exception(f'Input file {inputfile} does not exist.')
     if not os.path.exists(args.template):
         raise Exception(f'Template config {args.template} does not exist.')
 
@@ -36,7 +41,7 @@ if __name__=='__main__':
 
     # replace tags
     for idx, line in enumerate(lines):
-        line = line.replace('TEMPLATE_INPUT_FILE', args.inputfile)
+        line = line.replace('TEMPLATE_INPUT_FILES', format_vstring_files(args.inputfiles))
         line = line.replace('TEMPLATE_MAX_EVENTS', str(args.max_events))
         line = line.replace('TEMPLATE_GLOBAL_TAG', args.globaltag)
         line = line.replace('TEMPLATE_GEOMETRY', args.geometry)
