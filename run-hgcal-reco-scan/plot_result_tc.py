@@ -10,6 +10,7 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 from analysis.efficiency import plot_metrics_tc
+from plotutils import save_with_logy
 
 
 def _format_labels(result, params=None, legend_dict=None):
@@ -123,8 +124,7 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None):
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1, 1))
         fig.tight_layout()
         figname = os.path.join(outputdir, f'tc_{column}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}')
+        save_with_logy(fig, ax, figname)
         plt.close(fig)
 
     for xcolumn, bins, xlabel, suffix in [
@@ -148,8 +148,7 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None):
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1, 1))
         fig.tight_layout()
         figname = os.path.join(outputdir, f'tc_purity_vs_{suffix}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}')
+        save_with_logy(fig, ax, figname)
         plt.close(fig)
 
 
@@ -198,8 +197,7 @@ def plot_cp_tc_result(result, outputdir, params=None, legend_dict=None):
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1, 1))
         fig.tight_layout()
         figname = os.path.join(outputdir, f'cp_tc_{column}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}')
+        save_with_logy(fig, ax, figname)
         plt.close(fig)
 
 

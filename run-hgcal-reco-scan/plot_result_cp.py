@@ -12,6 +12,7 @@ sys.path.append(topdir)
 
 import analysis.efficiency.plot_metrics_lc as plot_metrics_lc
 import analysis.efficiency.plot_metrics_cp as plot_metrics_cp
+from plotutils import save_with_logy
 
 
 def get_cp_result_from_df(df):
@@ -86,8 +87,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
     if len(result) > 1: ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     figname = os.path.join(outputdir, f'cp_counts_vs_layer.png')
-    fig.savefig(figname)
-    print(f'Created figure {figname}')
+    save_with_logy(fig, ax, figname)
 
     # make global plot of response vs layer number
     fig, ax = plt.subplots(figsize=(12,6))
@@ -103,8 +103,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
     if len(result) > 1: ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     figname = os.path.join(outputdir, f'cp_response_vs_layer.png')
-    fig.savefig(figname)
-    print(f'Created figure {figname}')
+    save_with_logy(fig, ax, figname)
 
     # make global plot of efficiency vs layer number
     fig, ax = plt.subplots(figsize=(12,6))
@@ -120,8 +119,7 @@ def plot_cp_result(result, outputdir, params=None, legend_dict=None):
     if len(result) > 1: ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
     fig.tight_layout()
     figname = os.path.join(outputdir, f'cp_efficiency_vs_layer.png')
-    fig.savefig(figname)
-    print(f'Created figure {figname}')
+    save_with_logy(fig, ax, figname)
 
 
 if __name__=='__main__':

@@ -16,6 +16,7 @@ from plot_result_cp import get_cp_result_from_df
 from plot_result_cp import plot_cp_result
 from plot_result_tc import plot_tc_result
 from plot_result_tc import plot_cp_tc_result
+from plotutils import save_with_logy
 
 
 def read_nonempty_parquet(path):
@@ -167,15 +168,15 @@ def main(inputdir):
         ax.grid()
         fig.tight_layout()
         figname = os.path.join(outputdir, f'metric_vs_{param_name}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}.')
+        save_with_logy(fig, ax, figname)
 
         # same with x-axis in log scale
+        # (reset y-axis to linear first, since save_with_logy above switched it to log)
+        ax.set_yscale('linear')
         ax.set_xscale('log')
         fig.tight_layout()
         figname = os.path.join(outputdir, f'metric_vs_{param_name}_log.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}.')
+        save_with_logy(fig, ax, figname)
         plt.close()
 
 

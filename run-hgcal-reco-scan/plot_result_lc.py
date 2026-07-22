@@ -11,6 +11,7 @@ topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 
 import analysis.efficiency.plot_metrics_lc as plot_metrics_lc
+from plotutils import save_with_logy
 
 
 def get_lc_result_from_df(df):
@@ -106,8 +107,7 @@ def plot_lc_result(result, outputdir, params=None, legend_dict=None):
         if len(result) > 1: ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
         fig.tight_layout()
         figname = os.path.join(outputdir, f'lc_counts_vs_layer_{subdet_name}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}')
+        save_with_logy(fig, ax, figname)
 
         # make global plot of purity vs layer number
         fig, ax = plt.subplots(figsize=(12,6))
@@ -125,8 +125,7 @@ def plot_lc_result(result, outputdir, params=None, legend_dict=None):
         if len(result) > 1: ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
         fig.tight_layout()
         figname = os.path.join(outputdir, f'lc_purity_vs_layer_{subdet_name}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}')
+        save_with_logy(fig, ax, figname)
 
         # make global plot of efficiency vs layer number
         fig, ax = plt.subplots(figsize=(12,6))
@@ -144,8 +143,7 @@ def plot_lc_result(result, outputdir, params=None, legend_dict=None):
         if len(result) > 1: ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
         fig.tight_layout()
         figname = os.path.join(outputdir, f'lc_efficiency_vs_layer_{subdet_name}.png')
-        fig.savefig(figname)
-        print(f'Created figure {figname}')
+        save_with_logy(fig, ax, figname)
 
         # make global plot of purity and efficiency vs layer number
         # (only when only 1 result is being plotted, not many together)
@@ -171,8 +169,7 @@ def plot_lc_result(result, outputdir, params=None, legend_dict=None):
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1,1))
             fig.tight_layout()
             figname = os.path.join(outputdir, f'lc_effandpur_vs_layer_{subdet_name}.png')
-            fig.savefig(figname)
-            print(f'Created figure {figname}')
+            save_with_logy(fig, ax, figname)
 
         plt.close()
 
