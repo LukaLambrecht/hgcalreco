@@ -56,6 +56,7 @@ if __name__=='__main__':
     # check config template file existence
     if not os.path.exists(args.config):
         raise Exception(f'Template config {args.config} does not exist.')
+    args.config = os.path.abspath(args.config) # important since jobs run from their own workdir
 
     # read grid
     with open(args.grid, 'r') as f:
