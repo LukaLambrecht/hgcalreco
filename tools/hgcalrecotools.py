@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import shutil
 import tempfile
 import subprocess
 import numpy as np
@@ -69,11 +70,14 @@ def run_local_evaluation(params, context,
     else: workdir = '.'
     if use_subdir: workdir = tempfile.mkdtemp(dir=workdir)
 
-    # optional: do the actual running in a temporary directory in /tmp
-    # (for large ouptput files), while final results will still be stored in workdir.
+    # optional: do the actual running in a temporary directory
+    # (for large output files), while final results will still be stored in workdir.
+    # note: prefer the condor job's own local scratch directory if available
+    # (set by HTCondor, cleaned up automatically when the job ends) over a hardcoded
+    # /tmp, which on a shared worker node is common to all jobs running on it.
     rundir = workdir
     if use_tmpdir:
-        basetmpdir = '/tmp'
+        basetmpdir = os.environ.get('_CONDOR_SCRATCH_DIR', '/tmp')
         rundir = tempfile.mkdtemp(dir=basetmpdir)
 
     # make working directory (and potentially different running directory)
@@ -166,12 +170,25 @@ def run_local_evaluation(params, context,
         print(error_msg, file=sys.stderr)
         return {"loss": 1e6, "status": "fail", "error": error_msg}
 
-    # remove root file (to save disk space when running many trials)
-    if keep_root_output: pass
+    # remove root file (to save disk space when running many trials),
+    # or copy it back to workdir if requested and rundir is a separate (temporary)
+    # directory, since it would otherwise be lost once that directory is cleaned up.
+    if keep_root_output:
+        if rundir != workdir:
+            cmd = ["cp", os.path.join(rundir, "hgcalreco_out.root"), workdir]
+            try: subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError:
+                print('WARNING: could not copy hgcalreco_out.root back to workdir.')
     else:
         try: subprocess.run(["rm", "hgcalreco_out.root"], cwd=rundir, check=True)
         except subprocess.CalledProcessError:
             print('WARNING: could not remove hgcalreco_out.root.')
+
+    # clean up the temporary running directory itself (e.g. its copy of config.py).
+    # on a condor job this is harmless either way (the whole scratch area is wiped
+    # when the job ends), but matters for repeated local/interactive runs.
+    if rundir != workdir:
+        shutil.rmtree(rundir, ignore_errors=True)
 
     # metric extraction
     metrics_lc_file = os.path.join(outputdir, "metrics_lc.parquet")

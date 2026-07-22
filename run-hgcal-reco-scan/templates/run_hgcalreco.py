@@ -29,8 +29,14 @@ if __name__=='__main__':
     from tools.hgcalrecotools import run_local_evaluation
 
     # run full evaluation
+    # note: use_tmpdir=True runs cmsRun (and the large hgcalreco_out.root it produces)
+    # in a separate scratch directory rather than directly in the (typically AFS/EOS,
+    # quota-constrained) workdir; only the small, final outputs (config, params,
+    # efficiency parquet files, result.json) ever get written there. This matters most
+    # when running many jobs in parallel, since the large transient file never touches
+    # shared/quota-constrained storage at all.
     result = run_local_evaluation(params, context,
-        use_tmpdir=False,
+        use_tmpdir=True,
         keep_root_output=False
     )
 
