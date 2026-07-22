@@ -14,16 +14,12 @@
 #   layout, so it will not give sensible results for jobs from other parts of
 #   this repo (e.g. sample-production, or the hyperopt submission script,
 #   which runs many trials inside a single job rather than one job per point).
-#   This only works for jobs still known to condor (i.e. queued, running,
-#   or held); once a job leaves the queue, use the regular log files instead
-#   (see ../tools/jobcheck.py).
-#   Note: unlike sample-production, both cmsRun and the efficiency calculation
-#   are run here as subprocesses with capture_output=True (see
-#   tools/hgcalrecotools.py::run_local_evaluation), so their stdout/stderr are
-#   captured internally rather than streamed to the job's own stdout/stderr.
-#   This means the "stage" column below is reliable, but the "event" column
-#   will usually show "-" (no live per-event progress available) even while
-#   a job is actively running.
+#   Progress is read directly from the small "cmsRun.log"/"efficiency.log" files
+#   that tools/hgcalrecotools.py::run_local_evaluation now writes into each job's
+#   own (persistent) working directory, so - unlike an earlier version of this
+#   script - this works regardless of whether the job is still known to condor:
+#   the stage/event columns are available even for jobs that have already left
+#   the queue, as long as their working directory still exists.
 # Usage:
 #   python3 jobprogress.py <cluster_id>
 # To find the cluster_id, run 'condor_q' and read off the "ID: ..." batch name.
@@ -94,37 +90,36 @@ def get_max_events(workdir):
 
 def get_current_stage(workdir):
     '''
-    Determine which stage is currently active for a job, based on which
-    output files already exist in its working directory.
+    Determine which stage is currently active (or last active) for a job, based on
+    which output files already exist in its working directory.
     '''
     if workdir is None or not os.path.isdir(workdir): return 'unknown'
     if os.path.exists(os.path.join(workdir, 'result.json')): return 'done'
-    if os.path.exists(os.path.join(workdir, 'hgcalreco_out.root')): return 'efficiency calculation'
-    if os.path.exists(os.path.join(workdir, 'config.py')): return 'cmsRun (re-reco)'
+    if os.path.exists(os.path.join(workdir, 'efficiency.log')): return 'efficiency calculation'
+    if os.path.exists(os.path.join(workdir, 'cmsRun.log')): return 'cmsRun (re-reco)'
     return 'not started'
 
 
-def get_latest_event(cluster_id, proc, stage, maxbytes=2000):
+def get_latest_event(workdir, stage):
     '''
-    Fetch the latest processed-event number for a running job via condor_tail.
-    - During "cmsRun (re-reco)": read from stderr ("Begin processing the Nth record...").
-    - During "efficiency calculation": read from stdout ("Reading event N...").
-    Returns None if condor_tail fails or no matching line is found yet.
+    Fetch the latest processed-event number for a job by reading the log files
+    tools/hgcalrecotools.py::run_local_evaluation writes into its working directory.
+    - During "cmsRun (re-reco)": read from cmsRun.log ("Begin processing the Nth record...").
+    - During "efficiency calculation": read from efficiency.log ("Reading event N...").
+    Returns None if the relevant log file does not exist yet or has no matching line.
     '''
-    job_id = f'{cluster_id}.{proc}'
     if stage=='cmsRun (re-reco)':
-        cmd = ['condor_tail', '-stderr', '-maxbytes', str(maxbytes), job_id]
+        logfile = os.path.join(workdir, 'cmsRun.log')
         pattern = r'Event (\d+), LumiSection'
     elif stage=='efficiency calculation':
-        cmd = ['condor_tail', '-maxbytes', str(maxbytes), job_id]
+        logfile = os.path.join(workdir, 'efficiency.log')
         pattern = r'Reading event (\d+)'
     else:
         return None
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired:
-        return None
-    matches = re.findall(pattern, result.stdout)
+    if not os.path.exists(logfile): return None
+    with open(logfile, 'r', errors='ignore') as f:
+        text = f.read()
+    matches = re.findall(pattern, text)
     if matches: return int(matches[-1])
     return None
 
@@ -139,8 +134,9 @@ if __name__=='__main__':
     jobs = get_jobs(args.cluster_id)
     if len(jobs)==0:
         print(f'No jobs found in the queue for cluster {args.cluster_id}.')
-        print('(Note: this only works for jobs still known to condor; already-completed')
-        print(' or removed jobs no longer show up here, use the log files instead.)')
+        print('(Note: job status/listing requires the cluster to still be known to condor;')
+        print(' the stage/event columns themselves would still work off the working')
+        print(' directories alone, see get_current_stage/get_latest_event.)')
         sys.exit()
 
     header = f'{"job":>4} {"status":>8} {"stage":<22} {"event":>10}'
@@ -151,12 +147,13 @@ if __name__=='__main__':
         status = STATUS_MAP.get(job['status'], str(job['status']))
         stage = '-'
         eventstr = '-'
-        if status=='running' and job['cmd'] is not None and os.path.exists(job['cmd']):
+        if job['cmd'] is not None and os.path.exists(job['cmd']):
             workdir = get_workdir(job['cmd'])
-            stage = get_current_stage(workdir)
-            maxevents = get_max_events(workdir) if workdir is not None else None
-            event = get_latest_event(args.cluster_id, proc, stage)
-            if event is not None:
-                totalstr = '?' if (maxevents is None or maxevents<0) else str(maxevents)
-                eventstr = f'{event}/{totalstr}'
+            if workdir is not None and os.path.isdir(workdir):
+                stage = get_current_stage(workdir)
+                maxevents = get_max_events(workdir)
+                event = get_latest_event(workdir, stage)
+                if event is not None:
+                    totalstr = '?' if (maxevents is None or maxevents<0) else str(maxevents)
+                    eventstr = f'{event}/{totalstr}'
         print(f'{proc:>4} {status:>8} {stage:<22} {eventstr:>10}')

@@ -124,17 +124,23 @@ def run_local_evaluation(params, context,
             print('WARNING: could not copy config to rundir.')
 
     # run cmsRun
-    try:
-        result = subprocess.run(["cmsRun", "config.py"], cwd=rundir, check=True, 
-                              capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        error_msg = f"cmsRun failed with return code {e.returncode}"
-        if e.stdout:
-            error_msg += f"\nStdout:\n{e.stdout[-1000:]}"  # Last 1000 chars to avoid huge logs
-        if e.stderr:
-            error_msg += f"\nStderr:\n{e.stderr[-1000:]}"
-        print(error_msg, file=sys.stderr)
-        return {"loss": 1e6, "status": "fail", "error": error_msg}
+    # note: stdout/stderr are written directly to a small log file in workdir (not
+    # rundir, which may be local/scratch storage), rather than captured via a pipe.
+    # This makes cmsRun's own progress printouts (e.g. "Begin processing the Nth
+    # record...") visible in near-real-time from the persistent output directory
+    # while the job is still running (see jobprogress.py), instead of being buffered
+    # in memory and only surfaced if the call fails.
+    cmsrun_log_path = os.path.join(workdir, "cmsRun.log")
+    with open(cmsrun_log_path, "w") as logfile:
+        try:
+            subprocess.run(["cmsRun", "config.py"], cwd=rundir, check=True,
+                            stdout=logfile, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            with open(cmsrun_log_path, "r") as f: logtext = f.read()
+            error_msg = f"cmsRun failed with return code {e.returncode}"
+            error_msg += f"\nLog (last 1000 chars):\n{logtext[-1000:]}"  # avoid huge logs
+            print(error_msg, file=sys.stderr)
+            return {"loss": 1e6, "status": "fail", "error": error_msg}
 
     # run efficiency calculation
     outputdir = os.path.join(workdir, "efficiency")
@@ -153,22 +159,20 @@ def run_local_evaluation(params, context,
     if efficiency_level in ["tc", "both"]:
         cmd.append("--do_tc_level")
     if context["efficiency_recalculate"]: cmd.append("--recalculate")
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd = rundir,
-            check = True,
-            capture_output=True,
-            text=True
-        )
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Efficiency calculation failed with return code {e.returncode}"
-        if e.stdout:
-            error_msg += f"\nStdout:\n{e.stdout[-1000:]}"
-        if e.stderr:
-            error_msg += f"\nStderr:\n{e.stderr[-1000:]}"
-        print(error_msg, file=sys.stderr)
-        return {"loss": 1e6, "status": "fail", "error": error_msg}
+    # note: see the note above the cmsRun call for why this is written to a log file
+    # in workdir rather than captured via a pipe (this also surfaces the per-event
+    # "Reading event N..." printouts from calculate_associations.py).
+    efficiency_log_path = os.path.join(workdir, "efficiency.log")
+    with open(efficiency_log_path, "w") as logfile:
+        try:
+            subprocess.run(cmd, cwd=rundir, check=True,
+                            stdout=logfile, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            with open(efficiency_log_path, "r") as f: logtext = f.read()
+            error_msg = f"Efficiency calculation failed with return code {e.returncode}"
+            error_msg += f"\nLog (last 1000 chars):\n{logtext[-1000:]}"
+            print(error_msg, file=sys.stderr)
+            return {"loss": 1e6, "status": "fail", "error": error_msg}
 
     # remove root file (to save disk space when running many trials),
     # or copy it back to workdir if requested and rundir is a separate (temporary)
