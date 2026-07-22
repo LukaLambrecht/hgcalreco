@@ -107,10 +107,18 @@ def get_latest_event(workdir, stage):
     - During "cmsRun (re-reco)": read from cmsRun.log ("Begin processing the Nth record...").
     - During "efficiency calculation": read from efficiency.log ("Reading event N...").
     Returns None if the relevant log file does not exist yet or has no matching line.
+
+    Note: for cmsRun, this parses the "Nth record" ordinal (the position in the
+    combined stream across all input files of the job), not the "Event" field on
+    the same line. When a job reads multiple independently-produced input files
+    (see run_hgcalreco_grid_submit.py's -i, and the note on duplicateCheckMode in
+    the cff templates), each file's own event numbering restarts at 1, so the
+    "Event" field resets every time processing crosses into a new file - only the
+    record ordinal increases monotonically across the whole job.
     '''
     if stage=='cmsRun (re-reco)':
         logfile = os.path.join(workdir, 'cmsRun.log')
-        pattern = r'Event (\d+), LumiSection'
+        pattern = r'Begin processing the (\d+)\w{2} record'
     elif stage=='efficiency calculation':
         logfile = os.path.join(workdir, 'efficiency.log')
         pattern = r'Reading event (\d+)'
