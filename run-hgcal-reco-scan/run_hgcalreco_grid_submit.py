@@ -31,6 +31,10 @@ if __name__=='__main__':
     parser.add_argument('--proxy', default=None)
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--submit', default=False, action='store_true')
+    parser.add_argument('--request-memory', default=8000, type=int,
+        help='Requested memory in MB. The re-reco + efficiency calculation pipeline'
+             ' can need substantially more than the site default (a few GB even for'
+             ' --do_tc_level alone), so this defaults higher than a typical condor job.')
     args = parser.parse_args()
 
     # parse tag
@@ -123,7 +127,7 @@ if __name__=='__main__':
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
     ct.makeJobDescription(jobdescriptor, '$(script)', doqueue=False,
-        proxy=args.proxy, jobflavour='workday')
+        proxy=args.proxy, jobflavour='workday', mem=args.request_memory)
     with open(jobdescriptor, 'a') as f:
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')

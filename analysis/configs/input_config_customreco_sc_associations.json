@@ -1,0 +1,8 @@
+{
+    "lctoscassociation_lcids": ["std::vector<unsigned int>", "flattenLCToSC", "layerClusterSimClusterAssociationFlatLCIdx", "HGCALTICL"],
+    "lctoscassociation_scids": ["std::vector<unsigned int>", "flattenLCToSC", "layerClusterSimClusterAssociationFlatSCIdx", "HGCALTICL"],
+    "lctoscassociation_scores": ["std::vector<float>", "flattenLCToSC", "layerClusterSimClusterAssociationFlatScore", "HGCALTICL"],
+    "sctolcassociation_scids": ["std::vector<unsigned int>", "flattenSCToLC", "simClusterLayerClusterAssociationFlatSCIdx", "HGCALTICL"],
+    "sctolcassociation_lcids": ["std::vector<unsigned int>", "flattenSCToLC", "simClusterLayerClusterAssociationFlatLCIdx", "HGCALTICL"],
+    "sctolcassociation_efracs": ["std::vector<float>", "flattenSCToLC", "simClusterLayerClusterAssociationFlatSharedEnergyFraction", "HGCALTICL"]
+}

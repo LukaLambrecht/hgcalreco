@@ -32,13 +32,26 @@ from tools.metrics import response
 from tools.metrics import efficiency
 
 
-def calculate_lc_event_metrics(collections, caloparticles, eventid, args):
+def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
+        lctotruth_lcids_key='lctocpassociation_lcids',
+        lctotruth_truthids_key='lctocpassociation_cpids',
+        lctotruth_scores_key='lctocpassociation_scores',
+        truthtolc_truthids_key='cptolcassociation_cpids',
+        truthtolc_lcids_key='cptolcassociation_lcids',
+        truthtolc_efracs_key='cptolcassociation_efracs'):
     '''
-    Calculate LayerCluster-to-CaloParticle metrics for a single event.
+    Calculate LayerCluster-to-truth-object metrics for a single event.
+    Despite the "caloparticles" name (kept for backwards compatibility), the truth
+    object list can be CaloParticles or SimClusters: both expose the .pt()/.eta()
+    used below, and which collections to read the flattened associations from is
+    controlled by the lctotruth_*/truthtolc_* keys (default: CaloParticle-based,
+    exactly as before). Pass the SimCluster equivalents (see
+    input_config_customreco_sc_associations.json) to get SimCluster-based metrics
+    instead.
 
     Returns:
     - df_lc: one row per purity-matched LayerCluster.
-    - df_cp_lc: one row per CaloParticle/layer with the summed LC efficiency.
+    - df_cp_lc: one row per truth-object/layer with the summed LC efficiency.
     '''
     layerclusters = collections['layerclusters']
 
@@ -90,12 +103,12 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args):
 
     # Case 2: use the flattened association products already stored in the file.
     else:
-        lctocp_lcidx = collections['lctocpassociation_lcids']
-        lctocp_cpidx = collections['lctocpassociation_cpids']
-        lctocp_score = collections['lctocpassociation_scores']
-        cptolc_cpidx = collections['cptolcassociation_cpids']
-        cptolc_lcidx = collections['cptolcassociation_lcids']
-        cptolc_efrac = collections['cptolcassociation_efracs']
+        lctocp_lcidx = collections[lctotruth_lcids_key]
+        lctocp_cpidx = collections[lctotruth_truthids_key]
+        lctocp_score = collections[lctotruth_scores_key]
+        cptolc_cpidx = collections[truthtolc_truthids_key]
+        cptolc_lcidx = collections[truthtolc_lcids_key]
+        cptolc_efrac = collections[truthtolc_efracs_key]
 
         pur_matrix = get_lctocp_matrix_from_builtin(
             lctocp_lcidx,
@@ -327,11 +340,17 @@ if __name__=='__main__':
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
     parser.add_argument('--do_lc_level', default=False, action='store_true')
     parser.add_argument('--do_tc_level', default=False, action='store_true')
+    parser.add_argument('--gen_level', default='cp', choices=['cp', 'sc', 'both'],
+        help='Truth object(s) to use for LayerCluster-level metrics: CaloParticles ("cp",'
+             ' default, unchanged behavior), SimClusters ("sc"), or both. Only affects'
+             ' --do_lc_level; TICLCandidate-level metrics are still CaloParticle-only.')
     parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
     parser.add_argument('--make_plots', default=False, action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     args = parser.parse_args()
+    if args.recalculate and args.gen_level in ('sc', 'both'):
+        raise NotImplementedError('--recalculate is not yet supported together with --gen_level sc/both.')
 
     # set input configs
     input_configs = []
@@ -346,15 +365,36 @@ if __name__=='__main__':
             input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_hits.json'))
         else:
             input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_associations.json'))
+            if args.gen_level in ('sc', 'both'):
+                sc_config = os.path.join(topdir, f'configs/input_config_{args.input_config_type}_sc_associations.json')
+                if os.path.exists(sc_config):
+                    input_configs.append(sc_config)
+                else:
+                    print(f'WARNING: --gen_level {args.gen_level} requested but {sc_config} does not exist; skipping SimCluster-level associations.')
     print('Found following input configs:')
     print(json.dumps(input_configs, indent=2))
 
     # initialize reader
-    reader = Reader(input_configs)
+    # note: skip setting up Handles for collections this invocation will never use.
+    # "tracksters" (baseline.json's raw CLUE3DHigh Trackster collection) is not read
+    # anywhere in this script; "layerclusters" is only used by --do_lc_level; and
+    # "simclusters" only when --do_lc_level together with --gen_level sc/both.
+    # Constructing a Handle for a collection carries a large, mostly fixed memory
+    # cost (C++ dictionary/template instantiation) regardless of whether the
+    # underlying product actually exists in the file, so skipping the ones that are
+    # provably unused for this invocation meaningfully reduces peak memory.
+    exclude = ['tracksters']
+    if not args.do_lc_level:
+        exclude += ['layerclusters', 'simclusters']
+    elif args.gen_level not in ('sc', 'both'):
+        exclude.append('simclusters')
+    reader = Reader(input_configs, exclude=exclude)
 
     # loop over input files
     dfs_lc = []
     dfs_cp_lc = []
+    dfs_lc_sc = []
+    dfs_sc_lc = []
     dfs_tc = []
     dfs_cp_tc = []
     n_empty_tstocpsimts_events = 0
@@ -394,11 +434,23 @@ if __name__=='__main__':
             #print(f'Found {len(cp_from_primary_interaction_ids)} out of {len(caloparticles)} CaloParticles from primary interaction.')
             if args.recalculate: caloparticles = [caloparticles[idx] for idx in cp_from_primary_interaction_ids]
 
-            # calculate layercluster to caloparticle associations
+            # calculate layercluster to caloparticle and/or simcluster associations
             if args.do_lc_level:
-                df_lc, df_cp = calculate_lc_event_metrics(collections, caloparticles, eventid, args)
-                dfs_lc.append(df_lc)
-                dfs_cp_lc.append(df_cp)
+                if args.gen_level in ('cp', 'both'):
+                    df_lc, df_cp = calculate_lc_event_metrics(collections, caloparticles, eventid, args)
+                    dfs_lc.append(df_lc)
+                    dfs_cp_lc.append(df_cp)
+                if args.gen_level in ('sc', 'both'):
+                    simclusters = collections['simclusters']
+                    df_lc_sc, df_sc_lc = calculate_lc_event_metrics(collections, simclusters, eventid, args,
+                        lctotruth_lcids_key='lctoscassociation_lcids',
+                        lctotruth_truthids_key='lctoscassociation_scids',
+                        lctotruth_scores_key='lctoscassociation_scores',
+                        truthtolc_truthids_key='sctolcassociation_scids',
+                        truthtolc_lcids_key='sctolcassociation_lcids',
+                        truthtolc_efracs_key='sctolcassociation_efracs')
+                    dfs_lc_sc.append(df_lc_sc)
+                    dfs_sc_lc.append(df_sc_lc)
 
             # calculate ticl candidate to caloparticle associations for this event
             if args.do_tc_level:
@@ -432,6 +484,25 @@ if __name__=='__main__':
         # this can happen if no events pass the selection,
         # e.g. if there are no reconstructed tracksters
         df_cp = pd.DataFrame.from_dict({
+            'res': [],
+            'eff': [],
+            'layer': [],
+            'event': []
+        })
+    if len(dfs_lc_sc) > 0: df_lc_sc = pd.concat(dfs_lc_sc)
+    else:
+        df_lc_sc = pd.DataFrame.from_dict({
+            'pur': [],
+            'eff': [],
+            'pt': [],
+            'eta': [],
+            'layer': [],
+            'subdet': [],
+            'event': []
+        })
+    if len(dfs_sc_lc) > 0: df_sc_lc = pd.concat(dfs_sc_lc)
+    else:
+        df_sc_lc = pd.DataFrame.from_dict({
             'res': [],
             'eff': [],
             'layer': [],
@@ -479,6 +550,11 @@ if __name__=='__main__':
     df_cp.to_parquet(cp_lc_output)
     df_tc.to_parquet(tc_output)
     df_cp_tc.to_parquet(cp_tc_output)
+    if args.do_lc_level and args.gen_level in ('sc', 'both'):
+        lc_sc_output = os.path.join(args.outputdir, 'metrics_lc_sc.parquet')
+        sc_lc_output = os.path.join(args.outputdir, 'metrics_sc_lc.parquet')
+        df_lc_sc.to_parquet(lc_sc_output)
+        df_sc_lc.to_parquet(sc_lc_output)
 
     if args.make_plots:
         plotting_commands = []
