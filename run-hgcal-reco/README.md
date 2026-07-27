@@ -63,3 +63,17 @@ Settings:
 
 The active templates in [configs](configs) are replicated from the previously verified `deprecated_160X` setup,
 with the CMSSW-version-specific global tag supplied by the script defaults.
+
+
+### Fourth version (27 July 2026)
+
+Settings:
+- Input files: custom produced samples from `sample-production`, now using the `200X` cmsDriver chains.
+- CMSSW version: `CMSSW_20_0_0_pre1`.
+- Geometry: `GeometryExtendedRun4D122` (HGCAL geometry v19), switched from `D121` (v18) at the user's request.
+- Era: `Phase2C26I13M9` (was `Phase2C22I13M9`), a superset of the D121 era chain with the v19 HGCAL modifier.
+- Global tag: `auto:phase2_realistic_T35`, unchanged.
+
+Note: HGCAL v19 requires cms-sw PR [#51544](https://github.com/cms-sw/cmssw/pull/51544), not yet integrated
+into `CMSSW_20_0_0_pre1`. It was cherry-picked manually into the local checkout with `git cms-cherry-pick-pr`
+and recompiled; see `sample-production` for the corresponding cmsDriver step files.

@@ -6,8 +6,8 @@ cmsDriver.py step2 \
   --inputCommands "keep *" \
   --conditions auto:phase2_realistic_T35 \
   --step RAW2DIGI,RECO,RECOSIM,PAT \
-  --geometry ExtendedRun4D121 \
-  --era Phase2C22I13M9 \
+  --geometry ExtendedRun4D122 \
+  --era Phase2C26I13M9 \
   --mc \
   --filein file:FILEIN \
   --fileout FILEOUT \

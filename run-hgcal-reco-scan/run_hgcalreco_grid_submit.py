@@ -23,7 +23,7 @@ if __name__=='__main__':
     parser.add_argument('--tag', default='auto')
     parser.add_argument('--config', default=os.path.join(thisdir, 'configs/hgcalreco_cff_template.py'))
     parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
-    parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
+    parser.add_argument('--geometry', default='GeometryExtendedRun4D122')
     parser.add_argument('--efficiency_level', default='both',
         choices=['lc', 'tc', 'both'],
         help='Efficiency metrics to calculate after re-reco.')

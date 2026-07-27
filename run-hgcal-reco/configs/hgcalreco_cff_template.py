@@ -7,14 +7,14 @@
 
 
 import FWCore.ParameterSet.Config as cms
-from Configuration.Eras.Era_Phase2C22I13M9_cff import Phase2C22I13M9
+from Configuration.Eras.Era_Phase2C26I13M9_cff import Phase2C26I13M9
 
 # initialize process
 # note: currently the era is hard-coded; make sure it matches the one used for sample production!
 #       otherwise the re-reco might not match the central reco even with the same CLUE parameters.
 # todo: find out how to pass the era as an argument, similar to sample production code.
 processName = "HGCALTICL"
-process = cms.Process(processName, Phase2C22I13M9)
+process = cms.Process(processName, Phase2C26I13M9)
 
 # load basic configs
 process.load("FWCore.MessageLogger.MessageLogger_cfi")

@@ -16,7 +16,7 @@ if __name__=='__main__':
     parser.add_argument('-w', '--workdir', default='.')
     parser.add_argument('--template', default='configs/hgcalreco_cff_template.py')
     parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
-    parser.add_argument('--geometry', default='GeometryExtendedRun4D121')
+    parser.add_argument('--geometry', default='GeometryExtendedRun4D122')
     parser.add_argument('--modifiers', default=None)
     parser.add_argument('--no_exec', default=False, action='store_true')
     args = parser.parse_args()
