@@ -250,6 +250,13 @@ process.out = cms.OutputModule("PoolOutputModule",
         f"keep *_ticlSimTracksters*_*_{processName}",
         # gen-level output
         "keep *_mix_MergedCaloTruth_*",
+        # MC-truth graph (PhysicsTools/TruthInfo, cms-sw/cmssw PR #51213), only
+        # present if the input was produced with sample-production's
+        # --output-mode truth; harmless no-op "keep" otherwise. Not produced
+        # by this re-reco process, so process is wildcarded like MergedCaloTruth.
+        "keep *_truthGraphProducer_*_*",
+        "keep *_truthLogicalGraphProducer_*_*",
+        "keep *_truthLogicalGraphHitIndexProducer_*_*",
         # links and associations
         f"keep *_flatten*_*_{processName}",
     )

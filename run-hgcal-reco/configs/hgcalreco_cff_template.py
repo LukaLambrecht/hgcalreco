@@ -249,6 +249,13 @@ process.out = cms.OutputModule("PoolOutputModule",
         #"keep *_g4SimHits_HGCHitsEE_*", # drop individual hits (no need to recalculate scores)
         #"keep *_g4SimHits_HGCHitsHEfront_*", # drop individual hits (no need to recalculate scores)
         #"keep *_g4SimHits_HGCHitsHEback_*", # drop individual hits (no need to recalculate scores)
+        # MC-truth graph (PhysicsTools/TruthInfo, cms-sw/cmssw PR #51213), only
+        # present if the input was produced with sample-production's
+        # --output-mode truth; harmless no-op "keep" otherwise. Not produced
+        # by this re-reco process, so process is wildcarded like MergedCaloTruth.
+        "keep *_truthGraphProducer_*_*",
+        "keep *_truthLogicalGraphProducer_*_*",
+        "keep *_truthLogicalGraphHitIndexProducer_*_*",
         # links and associations
         "keep *_flatten*_*_*",
     )

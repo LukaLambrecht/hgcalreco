@@ -163,6 +163,12 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *CaloParticle*_mix_MergedCaloTruth_*",
         "keep *SimCluster*_mix_MergedCaloTruth_*",
         "keep *CaloHit*_*_*_*",
+        # MC-truth graph (PhysicsTools/TruthInfo, cms-sw/cmssw PR #51213), only
+        # present if the input was produced with sample-production's
+        # --output-mode truth; harmless no-op "keep" otherwise.
+        "keep *_truthGraphProducer_*_*",
+        "keep *_truthLogicalGraphProducer_*_*",
+        "keep *_truthLogicalGraphHitIndexProducer_*_*",
         # links and associations
         "keep *_*_layerClusterCaloParticleAssociationFlat*_*",
         "keep *_*_layerClusterSimClusterAssociationFlat*_*",
