@@ -88,16 +88,17 @@ def plot_effandpur_vs(df, xcolumn, bins, xlabel, outputdir, suffix):
     print(f'Saved figure {figname}.')
 
 
-def plot_cp_tc_metrics(df, outputdir):
+def plot_cp_tc_metrics(df, outputdir, truth_label='CaloParticle', file_prefix='cp'):
     if len(df) == 0:
         return
 
+    truth_label_plural = truth_label + 's'
     eff_sum_max = max(1.2, np.quantile(df['eff_sum'].values, 0.98) * 1.1)
     plots = [
-        ('eff_primary', np.linspace(0, 1.2, 61), 'Efficiency of primary TICLCandidate', 'CaloParticles'),
-        ('eff_sum', np.linspace(0, eff_sum_max, 61), 'CaloParticle efficiency (total)', 'CaloParticles'),
-        ('pur_primary', np.linspace(0, 1.2, 61), 'Purity of primary TICLCandidate', 'CaloParticles'),
-        ('ntc', np.arange(-0.5, max(5, int(np.max(df['ntc'].values)) + 1.5), 1), 'TICLCandidates per CaloParticle', 'CaloParticles'),
+        ('eff_primary', np.linspace(0, 1.2, 61), 'Efficiency of primary TICLCandidate', truth_label_plural),
+        ('eff_sum', np.linspace(0, eff_sum_max, 61), f'{truth_label} efficiency (total)', truth_label_plural),
+        ('pur_primary', np.linspace(0, 1.2, 61), 'Purity of primary TICLCandidate', truth_label_plural),
+        ('ntc', np.arange(-0.5, max(5, int(np.max(df['ntc'].values)) + 1.5), 1), f'TICLCandidates per {truth_label}', truth_label_plural),
     ]
 
     for column, bins, xlabel, ylabel in plots:
@@ -106,7 +107,7 @@ def plot_cp_tc_metrics(df, outputdir):
         if column != 'ntc':
             ax.axvline(x=1, color='grey', linestyle='--')
         fig.tight_layout()
-        figname = os.path.join(outputdir, f'cp_{column}.png')
+        figname = os.path.join(outputdir, f'{file_prefix}_{column}.png')
         fig.savefig(figname)
         print(f'Saved figure {figname}.')
 
@@ -115,11 +116,11 @@ def plot_cp_tc_metrics(df, outputdir):
     pt_bins = np.linspace(0, pt_max, 15)
     for column, ylabel in [
             ('eff_primary', 'Efficiency of primary TICLCandidate'),
-            ('eff_sum', 'CaloParticle efficiency (total)'),
-            ('ntc', 'TICLCandidates per CaloParticle')]:
+            ('eff_sum', f'{truth_label} efficiency (total)'),
+            ('ntc', f'TICLCandidates per {truth_label}')]:
         for xcolumn, bins, xlabel, suffix in [
-                ('eta', eta_bins, 'CaloParticle eta', f'{column}_vs_eta'),
-                ('pt', pt_bins, 'CaloParticle pT', f'{column}_vs_pt')]:
+                ('eta', eta_bins, f'{truth_label} eta', f'{column}_vs_eta'),
+                ('pt', pt_bins, f'{truth_label} pT', f'{column}_vs_pt')]:
             quantity_per_bin = get_quantity_per_bin(df, xcolumn, column, bins)
             fig, ax = plot_quantity_per_bin(
                 quantity_per_bin,
@@ -131,7 +132,7 @@ def plot_cp_tc_metrics(df, outputdir):
             if column == 'ntc':
                 ax.lines[-1].remove()
             fig.tight_layout()
-            figname = os.path.join(outputdir, f'cp_{suffix}.png')
+            figname = os.path.join(outputdir, f'{file_prefix}_{suffix}.png')
             fig.savefig(figname)
             print(f'Saved figure {figname}.')
 
@@ -140,8 +141,20 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('inputfile')
-    parser.add_argument('--cp-inputfile', default=None)
+    parser.add_argument('--cp-inputfile', default=None,
+        help='Per-truth-object TICLCandidate metrics file (defaults to'
+             ' metrics_cp_tc.parquet next to inputfile; pass'
+             ' metrics_sc_tc.parquet here when plotting SimCluster-based'
+             ' metrics_tc_sc.parquet).')
     parser.add_argument('-o', '--outputdir', default=None)
+    parser.add_argument('--truth_label', default='CaloParticle',
+        help='Truth object name used in axis labels (e.g. "SimCluster" when'
+             ' plotting SimCluster-based metrics).')
+    parser.add_argument('--file_prefix', default='cp',
+        help='Filename prefix for the per-truth-object plots (e.g. "sc" when'
+             ' plotting SimCluster-based metrics, to avoid overwriting the'
+             ' CaloParticle-based cp_*.png files if writing to the same'
+             ' output directory).')
     args = parser.parse_args()
 
     inputfile = args.inputfile
@@ -178,14 +191,14 @@ if __name__ == '__main__':
     eta_bins = np.linspace(-3.2, 3.2, 17)
     pt_max = max(1., np.quantile(df['pt'].values, 0.98))
     pt_bins = np.linspace(0, pt_max, 15)
-    plot_effandpur_vs(df, 'caloparticle_eta', eta_bins, 'Matched CaloParticle eta', outputdir, 'eta')
-    plot_effandpur_vs(df, 'caloparticle_pt', pt_bins, 'Matched CaloParticle pT', outputdir, 'pt')
+    plot_effandpur_vs(df, 'caloparticle_eta', eta_bins, f'Matched {args.truth_label} eta', outputdir, 'eta')
+    plot_effandpur_vs(df, 'caloparticle_pt', pt_bins, f'Matched {args.truth_label} pT', outputdir, 'pt')
 
-    # CaloParticle-level TICLCandidate metrics, if present.
+    # Truth-object-level TICLCandidate metrics, if present.
     cp_inputfile = args.cp_inputfile
     if cp_inputfile is None:
         cp_inputfile = os.path.join(os.path.dirname(inputfile), 'metrics_cp_tc.parquet')
     if os.path.exists(cp_inputfile):
         df_cp = pd.read_parquet(cp_inputfile)
         print(df_cp)
-        plot_cp_tc_metrics(df_cp, outputdir)
+        plot_cp_tc_metrics(df_cp, outputdir, truth_label=args.truth_label, file_prefix=args.file_prefix)

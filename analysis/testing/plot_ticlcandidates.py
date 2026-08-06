@@ -128,6 +128,31 @@ def add_ticl_candidate_legend_entry(ax, color, label):
     ax.legend(loc='best')
 
 
+def scatter_by_candidate(ax, xs, ys, tcs, sizes, zs=None, matched_alpha=0.85,
+        unmatched_color='lightgrey', unmatched_alpha=0.3, unmatched_label='Not in a TICL candidate'):
+    '''
+    Scatter LayerClusters not part of any TICL candidate (tcs == -1, fixed
+    dummy colour, semi-transparent, low zorder) and LayerClusters that are
+    part of one (coloured by candidate index, more opaque, high zorder) onto
+    the same axes, so in-candidate points visually take precedence over
+    not-in-candidate ones wherever they overlap. Returns the matched-points
+    scatter handle (for the colorbar), or None if there are no matched points
+    to plot.
+    '''
+    um = tcs < 0
+    args3d = (zs[um],) if zs is not None else ()
+    if np.any(um):
+        ax.scatter(xs[um], ys[um], *args3d, c=unmatched_color, s=sizes[um],
+                   alpha=unmatched_alpha, zorder=1, label=unmatched_label)
+    scat = None
+    m = ~um
+    args3d = (zs[m],) if zs is not None else ()
+    if np.any(m):
+        scat = ax.scatter(xs[m], ys[m], *args3d, c=tcs[m], cmap='tab20', s=sizes[m],
+                          alpha=matched_alpha, zorder=2)
+    return scat
+
+
 def overlay_caloparticle_directions_xy(ax, cp_etas, cp_phis, z_reference):
     ax.scatter([0.], [0.], marker='x', s=90, c='black',
                linewidths=2.)
@@ -175,6 +200,19 @@ if __name__=='__main__':
     parser.add_argument('--do_primary_caloparticles', default=False, action='store_true')
     parser.add_argument('--do_tracksters', default=False, action='store_true')
     parser.add_argument('--do_layerclusters', default=False, action='store_true')
+    parser.add_argument('--event_indices', default=None, type=int, nargs='+',
+        help='Only process these event indices (1-based, in file order,'
+             ' matching the "Running on event N" printouts and the'
+             ' test_N_* output filenames).')
+    parser.add_argument('--only_in_candidates', default=False, action='store_true',
+        help='For the LayerCluster-by-candidate plots, only plot LayerClusters'
+             ' reachable through a TICLCandidate\'s Tracksters (the original'
+             ' behavior of this script). By default (this flag unset), all'
+             ' LayerClusters are plotted, with those not part of any TICL'
+             ' candidate shown in a fixed dummy colour - this keeps the dot'
+             ' count/spread comparable to'
+             ' plot_layerclusters_by_simcluster.py, which by default also'
+             ' plots all LayerClusters.')
     args = parser.parse_args()
 
     # set input configs
@@ -204,6 +242,11 @@ if __name__=='__main__':
     for event in events:
         event_counter += 1
         if args.nentries > 0 and event_counter > args.nentries: break
+        # optional event selection on event index, checked before reading the
+        # event's collections since that read is the expensive part
+        if args.event_indices is not None and event_counter not in args.event_indices:
+            if event_counter >= max(args.event_indices): break
+            continue
         print(f'Running on event {event_counter}...')
 
         # initialize plotting data
@@ -239,6 +282,7 @@ if __name__=='__main__':
         pcp_etas, pcp_phis, pcp_es = [], [], []
         tr_xs, tr_ys, tr_zs, tr_es, tr_tcs = [], [], [], [], []
         lc_xs, lc_ys, lc_zs, lc_es, lc_tcs = [], [], [], [], []
+        lc_used_indices = []
 
         # loop over CaloParticles
         for cp in caloparticles:
@@ -298,6 +342,22 @@ if __name__=='__main__':
                     lc_zs.append(lc_pos.z())
                     lc_es.append(lc.energy())
                     lc_tcs.append(tc_idx)
+                    lc_used_indices.append(lc_idx)
+
+        # By default, also add LayerClusters not reachable through any TICL
+        # candidate's Tracksters, with a dummy index (-1), so the LayerCluster
+        # count/spread here matches plot_layerclusters_by_simcluster.py, which
+        # by default also plots all LayerClusters (see --only_in_candidates).
+        if args.do_layerclusters and layerclusters is not None and not args.only_in_candidates:
+            used_lc_set = set(lc_used_indices)
+            for lc_idx, lc in enumerate(layerclusters):
+                if lc_idx in used_lc_set: continue
+                lc_pos = lc.position()
+                lc_xs.append(lc_pos.x())
+                lc_ys.append(lc_pos.y())
+                lc_zs.append(lc_pos.z())
+                lc_es.append(lc.energy())
+                lc_tcs.append(-1)
 
         # make arrays
         tc_etas = as_array(tc_etas)
@@ -470,12 +530,9 @@ if __name__=='__main__':
         # LayerCluster cloud accessed through TICL candidates.
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        sc = ax.scatter(lc_xs, lc_ys, lc_zs,
-                    c=lc_tcs,
-                    cmap='tab20',
-                    s=lc_sizes,
-                    alpha=0.65)
-        plt.colorbar(sc, label="TICL candidate index")
+        sc = scatter_by_candidate(ax, lc_xs, lc_ys, lc_tcs, lc_sizes, zs=lc_zs)
+        if sc is not None: plt.colorbar(sc, label="TICL candidate index")
+        if not args.only_in_candidates: ax.legend(loc='best')
         if args.do_caloparticles: overlay_caloparticle_directions_3d(ax, cp_etas, cp_phis, lc_z_reference)
         elif args.do_primary_caloparticles: overlay_caloparticle_directions_3d(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("x [cm]")
@@ -491,12 +548,9 @@ if __name__=='__main__':
         # Same in x-y projection
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        sc = ax.scatter(lc_xs, lc_ys,
-                    c=lc_tcs,
-                    cmap='tab20',
-                    s=lc_sizes,
-                    alpha=0.65)
-        plt.colorbar(sc, label="TICL candidate index")
+        sc = scatter_by_candidate(ax, lc_xs, lc_ys, lc_tcs, lc_sizes)
+        if sc is not None: plt.colorbar(sc, label="TICL candidate index")
+        if not args.only_in_candidates: ax.legend(loc='best')
         if args.do_caloparticles: overlay_caloparticle_directions_xy(ax, cp_etas, cp_phis, lc_z_reference)
         elif args.do_primary_caloparticles: overlay_caloparticle_directions_xy(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("x [cm]")
@@ -511,12 +565,9 @@ if __name__=='__main__':
         # Same in z-y projection
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        sc = ax.scatter(lc_zs, lc_ys,
-                    c=lc_tcs,
-                    cmap='tab20',
-                    s=lc_sizes,
-                    alpha=0.65)
-        plt.colorbar(sc, label="TICL candidate index")
+        sc = scatter_by_candidate(ax, lc_zs, lc_ys, lc_tcs, lc_sizes)
+        if sc is not None: plt.colorbar(sc, label="TICL candidate index")
+        if not args.only_in_candidates: ax.legend(loc='best')
         if args.do_caloparticles: overlay_caloparticle_directions_zy(ax, cp_etas, cp_phis, lc_z_reference)
         elif args.do_primary_caloparticles: overlay_caloparticle_directions_zy(ax, pcp_etas, pcp_phis, tr_z_reference)
         ax.set_xlabel("z [cm]")

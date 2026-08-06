@@ -184,35 +184,51 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
 
 def calculate_tc_event_metrics(collections, caloparticles,
         eventid = 0,
-        cp_selected_ids = None):
+        cp_selected_ids = None,
+        ticlcandidates_key='ticlcandidates_merge',
+        simtracksters_key='simtracksters_from_cps',
+        tstosimts_tsids_key='tstocpsimtsassociation_tsids',
+        tstosimts_simtsids_key='tstocpsimtsassociation_simtsids',
+        tstosimts_sharedenergy_key='tstocpsimtsassociation_sharedenergy'):
     '''
-    Calculate TICLCandidate-to-CaloParticle metrics for a single event.
+    Calculate TICLCandidate-to-truth-object metrics for a single event.
+    Despite the "caloparticles" name (kept for backwards compatibility), the truth
+    object list can be CaloParticles or SimClusters: both expose the .pt()/.eta()
+    used below, and which collections to read the SimTrackster/association products
+    from is controlled by the simtracksters_key/tstosimts_*_key arguments (default:
+    CaloParticle-based, exactly as before). Pass the SimCluster equivalents (see
+    input_config_customreco_sc_associations.json) to get SimCluster-based metrics
+    instead.
 
     Returns:
     - df_tc: one row per non-empty TICLCandidate kept by the mapping.
-    - df_cp_tc: one row per CaloParticle with TC-level summary metrics.
+    - df_cp_tc: one row per truth object with TC-level summary metrics.
     - has_empty_association_product: True when the Trackster association product
       exists but has no entries, in which case no TICLCandidate metrics are
       filled for this event.
     '''
 
     # get extra collections needed
-    ticlcandidates = collections.get('ticlcandidates_merge')
-    simtracksters_from_cps = collections.get('simtracksters_from_cps')
-    tstocpsimts_tsidx = collections.get('tstocpsimtsassociation_tsids')
-    tstocpsimts_simtsidx = collections.get('tstocpsimtsassociation_simtsids')
-    tstocpsimts_sharedenergy = collections.get('tstocpsimtsassociation_sharedenergy')
+    ticlcandidates = collections.get(ticlcandidates_key)
+    simtracksters_from_cps = collections.get(simtracksters_key)
+    tstocpsimts_tsidx = collections.get(tstosimts_tsids_key)
+    tstocpsimts_simtsidx = collections.get(tstosimts_simtsids_key)
+    tstocpsimts_sharedenergy = collections.get(tstosimts_sharedenergy_key)
 
     # handle special cases
     if ticlcandidates is None or tstocpsimts_tsidx is None: return None, None, False
     if len(tstocpsimts_tsidx) == 0: return None, None, True
 
-    # The flattened Trackster-to-CP-SimTrackster association stores indices into
-    # the ticlSimTracksters:fromCPs collection. In CMSSW 17 that collection is
-    # compressed: CaloParticles without reconstructed content are removed before
-    # writing, so the SimTrackster index is not generally the CaloParticle index
-    # anymore, especially in pileup samples. The original CaloParticle index is
-    # preserved as the SimTrackster seedIndex().
+    # The flattened Trackster-to-SimTrackster association stores indices into
+    # the ticlSimTracksters collection (":fromCPs" for CaloParticles, the
+    # inclusive/unlabeled instance for SimClusters). In CMSSW 17 the CP-derived
+    # collection is compressed: CaloParticles without reconstructed content are
+    # removed before writing, so the SimTrackster index is not generally the
+    # truth-object index anymore, especially in pileup samples. The SimCluster-
+    # derived instance skips unreconstructed SimClusters inline during
+    # construction rather than compressing afterwards, but the effect on indexing
+    # is the same. In both cases the original truth-object index is preserved as
+    # the SimTrackster seedIndex().
     simts_to_cp_indices = None
     if simtracksters_from_cps is not None:
         simts_to_cp_indices = [int(simts.seedIndex()) for simts in simtracksters_from_cps]
@@ -341,9 +357,9 @@ if __name__=='__main__':
     parser.add_argument('--do_lc_level', default=False, action='store_true')
     parser.add_argument('--do_tc_level', default=False, action='store_true')
     parser.add_argument('--gen_level', default='cp', choices=['cp', 'sc', 'both'],
-        help='Truth object(s) to use for LayerCluster-level metrics: CaloParticles ("cp",'
-             ' default, unchanged behavior), SimClusters ("sc"), or both. Only affects'
-             ' --do_lc_level; TICLCandidate-level metrics are still CaloParticle-only.')
+        help='Truth object(s) to use for LayerCluster- and TICLCandidate-level metrics:'
+             ' CaloParticles ("cp", default, unchanged behavior), SimClusters ("sc"), or'
+             ' both. Applies to --do_lc_level and --do_tc_level alike.')
     parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
     parser.add_argument('--make_plots', default=False, action='store_true')
@@ -378,15 +394,16 @@ if __name__=='__main__':
     # note: skip setting up Handles for collections this invocation will never use.
     # "tracksters" (baseline.json's raw CLUE3DHigh Trackster collection) is not read
     # anywhere in this script; "layerclusters" is only used by --do_lc_level; and
-    # "simclusters" only when --do_lc_level together with --gen_level sc/both.
-    # Constructing a Handle for a collection carries a large, mostly fixed memory
-    # cost (C++ dictionary/template instantiation) regardless of whether the
-    # underlying product actually exists in the file, so skipping the ones that are
-    # provably unused for this invocation meaningfully reduces peak memory.
+    # "simclusters" only when --gen_level sc/both together with --do_lc_level and/or
+    # --do_tc_level. Constructing a Handle for a collection carries a large, mostly
+    # fixed memory cost (C++ dictionary/template instantiation) regardless of whether
+    # the underlying product actually exists in the file, so skipping the ones that
+    # are provably unused for this invocation meaningfully reduces peak memory.
     exclude = ['tracksters']
     if not args.do_lc_level:
-        exclude += ['layerclusters', 'simclusters']
-    elif args.gen_level not in ('sc', 'both'):
+        exclude.append('layerclusters')
+    need_simclusters = args.gen_level in ('sc', 'both') and (args.do_lc_level or args.do_tc_level)
+    if not need_simclusters:
         exclude.append('simclusters')
     reader = Reader(input_configs, exclude=exclude)
 
@@ -397,7 +414,10 @@ if __name__=='__main__':
     dfs_sc_lc = []
     dfs_tc = []
     dfs_cp_tc = []
+    dfs_tc_sc = []
+    dfs_sc_tc = []
     n_empty_tstocpsimts_events = 0
+    n_empty_tstoscsimts_events = 0
     for file_idx, inputfile in enumerate(args.inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(args.inputfiles)}...')
         events = Events(inputfile)
@@ -452,15 +472,31 @@ if __name__=='__main__':
                     dfs_lc_sc.append(df_lc_sc)
                     dfs_sc_lc.append(df_sc_lc)
 
-            # calculate ticl candidate to caloparticle associations for this event
+            # calculate ticl candidate to caloparticle and/or simcluster associations
             if args.do_tc_level:
-                df_tc, df_cp_tc, has_empty_association_product = calculate_tc_event_metrics(
-                    collections, caloparticles,
-                    cp_selected_ids = cp_from_primary_interaction_ids,
-                    eventid = eventid)
-                if df_tc is not None: dfs_tc.append(df_tc)
-                if df_cp_tc is not None: dfs_cp_tc.append(df_cp_tc)
-                if has_empty_association_product: n_empty_tstocpsimts_events += 1
+                if args.gen_level in ('cp', 'both'):
+                    df_tc, df_cp_tc, has_empty_association_product = calculate_tc_event_metrics(
+                        collections, caloparticles,
+                        cp_selected_ids = cp_from_primary_interaction_ids,
+                        eventid = eventid)
+                    if df_tc is not None: dfs_tc.append(df_tc)
+                    if df_cp_tc is not None: dfs_cp_tc.append(df_cp_tc)
+                    if has_empty_association_product: n_empty_tstocpsimts_events += 1
+                if args.gen_level in ('sc', 'both'):
+                    simclusters = collections['simclusters']
+                    sc_is_from_primary_interaction = np.array([(sc.eventId().event()==0) for sc in simclusters])
+                    sc_from_primary_interaction_ids = np.nonzero(sc_is_from_primary_interaction)[0]
+                    df_tc_sc, df_sc_tc, has_empty_association_product_sc = calculate_tc_event_metrics(
+                        collections, simclusters,
+                        cp_selected_ids = sc_from_primary_interaction_ids,
+                        eventid = eventid,
+                        simtracksters_key='simtracksters_from_scs',
+                        tstosimts_tsids_key='tstoscsimtsassociation_tsids',
+                        tstosimts_simtsids_key='tstoscsimtsassociation_simtsids',
+                        tstosimts_sharedenergy_key='tstoscsimtsassociation_sharedenergy')
+                    if df_tc_sc is not None: dfs_tc_sc.append(df_tc_sc)
+                    if df_sc_tc is not None: dfs_sc_tc.append(df_sc_tc)
+                    if has_empty_association_product_sc: n_empty_tstoscsimts_events += 1
 
             # stop processing if sufficient events have been processed
             if args.nentries > 0 and event_idx >= args.nentries-1: break
@@ -534,12 +570,43 @@ if __name__=='__main__':
             'eta': [],
             'event': []
         })
+    if len(dfs_tc_sc) > 0: df_tc_sc = pd.concat(dfs_tc_sc)
+    else:
+        df_tc_sc = pd.DataFrame.from_dict({
+            'pur': [],
+            'eff': [],
+            'pt': [],
+            'eta': [],
+            'candidate_pt': [],
+            'candidate_eta': [],
+            'candidate_energy': [],
+            'candidate_raw_energy': [],
+            'ntracksters': [],
+            'nlayerclusters': [],
+            'event': []
+        })
+    if len(dfs_sc_tc) > 0: df_sc_tc = pd.concat(dfs_sc_tc)
+    else:
+        df_sc_tc = pd.DataFrame.from_dict({
+            'eff_primary': [],
+            'pur_primary': [],
+            'eff_sum': [],
+            'ntc': [],
+            'pt': [],
+            'eta': [],
+            'event': []
+        })
     if n_empty_tstocpsimts_events > 0:
         msg = 'WARNING: Found empty Trackster-to-CP-SimTrackster association products'
         msg += f' in {n_empty_tstocpsimts_events} processed events. TICLCandidate metrics'
         msg += ' were not filled for those events.'
         print(msg)
-    
+    if n_empty_tstoscsimts_events > 0:
+        msg = 'WARNING: Found empty Trackster-to-SC-SimTrackster association products'
+        msg += f' in {n_empty_tstoscsimts_events} processed events. TICLCandidate metrics'
+        msg += ' (SimCluster truth) were not filled for those events.'
+        print(msg)
+
     # write output file
     if not os.path.exists(args.outputdir): os.makedirs(args.outputdir)
     lc_output = os.path.join(args.outputdir, 'metrics_lc.parquet')
@@ -555,14 +622,22 @@ if __name__=='__main__':
         sc_lc_output = os.path.join(args.outputdir, 'metrics_sc_lc.parquet')
         df_lc_sc.to_parquet(lc_sc_output)
         df_sc_lc.to_parquet(sc_lc_output)
+    if args.do_tc_level and args.gen_level in ('sc', 'both'):
+        tc_sc_output = os.path.join(args.outputdir, 'metrics_tc_sc.parquet')
+        sc_tc_output = os.path.join(args.outputdir, 'metrics_sc_tc.parquet')
+        df_tc_sc.to_parquet(tc_sc_output)
+        df_sc_tc.to_parquet(sc_tc_output)
 
     if args.make_plots:
         plotting_commands = []
         if args.do_lc_level:
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_lc.py'), lc_output])
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_cp.py'), cp_lc_output])
-        if args.do_tc_level:
+        if args.do_tc_level and args.gen_level in ('cp', 'both'):
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_output])
+        if args.do_tc_level and args.gen_level in ('sc', 'both'):
+            plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_sc_output,
+                '--cp-inputfile', sc_tc_output, '--truth_label', 'SimCluster', '--file_prefix', 'sc'])
         for command in plotting_commands:
             print(f'Running plotting script: {" ".join(command)}')
             subprocess.run(command, check=True)
