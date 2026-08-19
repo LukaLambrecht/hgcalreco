@@ -17,6 +17,9 @@ if __name__=='__main__':
     parser.add_argument('--template', default='configs/hgcalreco_cff_template.py')
     parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D122')
+    parser.add_argument('--era', default='Phase2C26I13M9',
+        help='CMSSW era name (e.g. "Phase2C26I13M9" for D122, "Phase2C22I13M9" for D121).'
+             ' Must match the era used for sample production, similar to --geometry.')
     parser.add_argument('--modifiers', default=None)
     parser.add_argument('--no_exec', default=False, action='store_true')
     args = parser.parse_args()
@@ -45,6 +48,8 @@ if __name__=='__main__':
         line = line.replace('TEMPLATE_MAX_EVENTS', str(args.max_events))
         line = line.replace('TEMPLATE_GLOBAL_TAG', args.globaltag)
         line = line.replace('TEMPLATE_GEOMETRY', args.geometry)
+        line = line.replace('TEMPLATE_ERA_IMPORT', f'from Configuration.Eras.Era_{args.era}_cff import {args.era}')
+        line = line.replace('TEMPLATE_ERA', args.era)
         line = line.replace('TEMPLATE_MOD', modifier)
         lines[idx] = line
 

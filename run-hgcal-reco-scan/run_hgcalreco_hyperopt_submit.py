@@ -23,6 +23,9 @@ if __name__=='__main__':
     parser.add_argument('--config', default=os.path.join(thisdir, 'configs/hgcalreco_cff_template.py'))
     parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
     parser.add_argument('--geometry', default='GeometryExtendedRun4D122')
+    parser.add_argument('--era', default='Phase2C26I13M9',
+        help='CMSSW era name (e.g. "Phase2C26I13M9" for D122, "Phase2C22I13M9" for D121).'
+             ' Must match the era used for sample production, similar to --geometry.')
     parser.add_argument('--efficiency_level', default='both',
         choices=['lc', 'tc', 'both'],
         help='Efficiency metrics to calculate after re-reco.')
@@ -81,6 +84,7 @@ if __name__=='__main__':
         "max_events": args.max_events,
         "globaltag": args.globaltag,
         "geometry": args.geometry,
+        "era": args.era,
         "efficiency_script": os.path.join(topdir, 'analysis/efficiency/calculate_associations.py'),
         "efficiency_config_type": "customreco",
         "efficiency_level": args.efficiency_level,

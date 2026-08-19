@@ -93,7 +93,7 @@ def main(inputdir):
         losses[jobdir] = load_metric(jobpath)
 
         # load dataframe for layerclusters and get results, if available
-        df_lc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_lc.parquet'))
+        df_lc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_lc_cp.parquet'))
         if df_lc is not None:
             results_lc[jobdir] = get_lc_result_from_df(df_lc)
 
@@ -106,7 +106,7 @@ def main(inputdir):
 
         # TICLCandidate metrics are stored directly as dataframes, because the
         # scan-level plotter overlays their distributions across grid points.
-        df_tc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_tc.parquet'))
+        df_tc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_tc_cp.parquet'))
         if df_tc is not None:
             results_tc[jobdir] = df_tc
 

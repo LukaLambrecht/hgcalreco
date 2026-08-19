@@ -44,6 +44,9 @@ def build_config(template, params, context):
     config = config.replace('TEMPLATE_MAX_EVENTS', str(context["max_events"]))
     config = config.replace('TEMPLATE_GLOBAL_TAG', context["globaltag"])
     config = config.replace('TEMPLATE_GEOMETRY', context["geometry"])
+    era = context.get("era", "Phase2C26I13M9")
+    config = config.replace('TEMPLATE_ERA_IMPORT', f'from Configuration.Eras.Era_{era}_cff import {era}')
+    config = config.replace('TEMPLATE_ERA', era)
 
     # specific parameter modifiers
     modifiers = '\n'.join([val["mod"].replace("VALUE", str(val["value"])) for val in params.values()])
@@ -195,9 +198,9 @@ def run_local_evaluation(params, context,
         shutil.rmtree(rundir, ignore_errors=True)
 
     # metric extraction
-    metrics_lc_file = os.path.join(outputdir, "metrics_lc.parquet")
+    metrics_lc_file = os.path.join(outputdir, "metrics_lc_cp.parquet")
     metrics_cp_file = os.path.join(outputdir, "metrics_cp_lc.parquet")
-    metrics_tc_file = os.path.join(outputdir, "metrics_tc.parquet")
+    metrics_tc_file = os.path.join(outputdir, "metrics_tc_cp.parquet")
     metrics_cp_tc_file = os.path.join(outputdir, "metrics_cp_tc.parquet")
     if efficiency_level == "tc":
         metric = extract_tc_metric(metrics_tc_file, metrics_cp_tc_file)
