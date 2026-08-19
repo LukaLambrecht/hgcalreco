@@ -23,9 +23,9 @@ if __name__=='__main__':
     parser.add_argument('--tag', default='auto')
     parser.add_argument('--config', default=os.path.join(thisdir, 'configs/hgcalreco_cff_template.py'))
     parser.add_argument('--globaltag', default='auto:phase2_realistic_T35')
-    parser.add_argument('--geometry', default='GeometryExtendedRun4D122')
+    parser.add_argument('--geometry', default='GeometryExtendedRun4D127')
     parser.add_argument('--era', default='Phase2C26I13M9',
-        help='CMSSW era name (e.g. "Phase2C26I13M9" for D122, "Phase2C22I13M9" for D121).'
+        help='CMSSW era name (e.g. "Phase2C26I13M9" for D122/D127, "Phase2C22I13M9" for D121).'
              ' Must match the era used for sample production, similar to --geometry.')
     parser.add_argument('--efficiency_level', default='both',
         choices=['lc', 'tc', 'both'],

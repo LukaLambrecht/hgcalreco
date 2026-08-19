@@ -7,7 +7,8 @@
 #cmssw_version=CMSSW_14_0_9
 #cmssw_version=CMSSW_15_1_1
 #cmssw_version=CMSSW_16_0_5
-cmssw_version=CMSSW_20_0_0_pre1
+#cmssw_version=CMSSW_20_0_0_pre1
+cmssw_version=CMSSW_20_0_0
 
 # Resolve this script's own directory, so it can be run from anywhere
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

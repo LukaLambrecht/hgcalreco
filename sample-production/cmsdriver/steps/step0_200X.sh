@@ -5,7 +5,7 @@ cmsDriver.py Configuration/GenProduction/python/FRAGMENT \
   --conditions auto:phase2_realistic_T35 \
   --beamspot HLLHC14TeV \
   --step GEN,SIM \
-  --geometry ExtendedRun4D122 \
+  --geometry ExtendedRun4D127 \
   --era Phase2C26I13M9 \
   --mc \
   --fileout FILEOUT \

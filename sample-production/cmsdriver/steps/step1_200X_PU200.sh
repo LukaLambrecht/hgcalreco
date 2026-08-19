@@ -6,11 +6,11 @@ cmsDriver.py step1 \
   --conditions auto:phase2_realistic_T35 \
   --customise_commands "process.FEVTDEBUGHLToutput.outputCommands.append('keep *_l1tSC8PFL1PuppiCorrectedEmulator_*_HLT')" \
   --step DIGI:pdigi_valid,L1TrackTrigger,L1,L1P2GT,DIGI2RAW,HLT:@relvalRun4 \
-  --geometry ExtendedRun4D122 \
+  --geometry ExtendedRun4D127 \
   --era Phase2C26I13M9 \
   --mc \
   --filein file:FILEIN \
   --fileout FILEOUT \
-  -n NUM_EVENTS
-  --pileup_input "dbs:/RelValMinBias_14TeV/CMSSW_20_0_0_pre1-150X_mcRun4_realistic_v1_STD_RegeneratedGS_D121_noPU-v1/GEN-SIM" \
+  -n NUM_EVENTS \
+  --pileup_input "dbs:/RelValMinBias_14TeV/CMSSW_20_0_0-150X_mcRun4_realistic_v1_STD_D127_RecycledGEN_noPU_16Aug26-v1/GEN-SIM" \
   --pileup 'AVE_200_BX_25ns'
