@@ -338,6 +338,7 @@ def calculate_tc_event_metrics(collections, caloparticles,
         'ntc': cp_tc_ntc,
         'pt': np.array([cp.pt() for cp in caloparticles]),
         'eta': np.array([cp.eta() for cp in caloparticles]),
+        'energy': np.array([cp.energy() for cp in caloparticles]),
         'event': eventid
     })
 
@@ -495,7 +496,22 @@ if __name__=='__main__':
                         tstosimts_simtsids_key='tstoscsimtsassociation_simtsids',
                         tstosimts_sharedenergy_key='tstoscsimtsassociation_sharedenergy')
                     if df_tc_sc is not None: dfs_tc_sc.append(df_tc_sc)
-                    if df_sc_tc is not None: dfs_sc_tc.append(df_sc_tc)
+                    if df_sc_tc is not None:
+                        # Attach the parent CaloParticle's original index for each SimCluster
+                        # row. SimCluster itself carries no back-reference to its parent
+                        # CaloParticle, so this is built from CaloParticle.simClusters()
+                        # (a RefVector into the same "simclusters" collection; .key() gives
+                        # the original index), the same approach used to group SimClusters
+                        # by parent CaloParticle in check_cp_sc_consistency.py.
+                        sc_to_cp_index = {}
+                        for cp_idx in cp_from_primary_interaction_ids:
+                            for sc_ref in caloparticles[int(cp_idx)].simClusters():
+                                sc_to_cp_index[int(sc_ref.key())] = int(cp_idx)
+                        df_sc_tc['cp_index'] = np.array([
+                            sc_to_cp_index.get(int(orig_idx), -1)
+                            for orig_idx in sc_from_primary_interaction_ids
+                        ])
+                        dfs_sc_tc.append(df_sc_tc)
                     if has_empty_association_product_sc: n_empty_tstoscsimts_events += 1
 
             # stop processing if sufficient events have been processed
@@ -609,9 +625,9 @@ if __name__=='__main__':
 
     # write output file
     if not os.path.exists(args.outputdir): os.makedirs(args.outputdir)
-    lc_output = os.path.join(args.outputdir, 'metrics_lc.parquet')
+    lc_output = os.path.join(args.outputdir, 'metrics_lc_cp.parquet')
     cp_lc_output = os.path.join(args.outputdir, 'metrics_cp_lc.parquet')
-    tc_output = os.path.join(args.outputdir, 'metrics_tc.parquet')
+    tc_output = os.path.join(args.outputdir, 'metrics_tc_cp.parquet')
     cp_tc_output = os.path.join(args.outputdir, 'metrics_cp_tc.parquet')
     df_lc.to_parquet(lc_output)
     df_cp.to_parquet(cp_lc_output)
@@ -637,7 +653,7 @@ if __name__=='__main__':
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_output])
         if args.do_tc_level and args.gen_level in ('sc', 'both'):
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_sc_output,
-                '--cp-inputfile', sc_tc_output, '--truth_label', 'SimCluster', '--file_prefix', 'sc'])
+                '--truth-inputfile', sc_tc_output, '--truth-mode', 'sc'])
         for command in plotting_commands:
             print(f'Running plotting script: {" ".join(command)}')
             subprocess.run(command, check=True)

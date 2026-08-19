@@ -137,25 +137,29 @@ def plot_cp_tc_metrics(df, outputdir, truth_label='CaloParticle', file_prefix='c
             print(f'Saved figure {figname}.')
 
 
+TRUTH_MODES = {
+    'cp': ('CaloParticle', 'cp'),
+    'sc': ('SimCluster', 'sc'),
+}
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('inputfile')
-    parser.add_argument('--cp-inputfile', default=None,
+    parser.add_argument('--truth-inputfile', default=None,
         help='Per-truth-object TICLCandidate metrics file (defaults to'
-             ' metrics_cp_tc.parquet next to inputfile; pass'
-             ' metrics_sc_tc.parquet here when plotting SimCluster-based'
-             ' metrics_tc_sc.parquet).')
+             ' metrics_cp_tc.parquet or metrics_sc_tc.parquet next to'
+             ' inputfile, depending on --truth-mode).')
     parser.add_argument('-o', '--outputdir', default=None)
-    parser.add_argument('--truth_label', default='CaloParticle',
-        help='Truth object name used in axis labels (e.g. "SimCluster" when'
-             ' plotting SimCluster-based metrics).')
-    parser.add_argument('--file_prefix', default='cp',
-        help='Filename prefix for the per-truth-object plots (e.g. "sc" when'
-             ' plotting SimCluster-based metrics, to avoid overwriting the'
-             ' CaloParticle-based cp_*.png files if writing to the same'
-             ' output directory).')
+    parser.add_argument('--truth-mode', default='cp', choices=['cp', 'sc'],
+        help='Truth object type the input files were computed against:'
+             ' "cp" for CaloParticle (default), "sc" for SimCluster.'
+             ' Sets the axis labels and the per-truth-object plot filename'
+             ' prefix accordingly.')
     args = parser.parse_args()
+
+    truth_label, file_prefix = TRUTH_MODES[args.truth_mode]
 
     inputfile = args.inputfile
     outputdir = args.outputdir
@@ -191,14 +195,14 @@ if __name__ == '__main__':
     eta_bins = np.linspace(-3.2, 3.2, 17)
     pt_max = max(1., np.quantile(df['pt'].values, 0.98))
     pt_bins = np.linspace(0, pt_max, 15)
-    plot_effandpur_vs(df, 'caloparticle_eta', eta_bins, f'Matched {args.truth_label} eta', outputdir, 'eta')
-    plot_effandpur_vs(df, 'caloparticle_pt', pt_bins, f'Matched {args.truth_label} pT', outputdir, 'pt')
+    plot_effandpur_vs(df, 'caloparticle_eta', eta_bins, f'Matched {truth_label} eta', outputdir, 'eta')
+    plot_effandpur_vs(df, 'caloparticle_pt', pt_bins, f'Matched {truth_label} pT', outputdir, 'pt')
 
     # Truth-object-level TICLCandidate metrics, if present.
-    cp_inputfile = args.cp_inputfile
-    if cp_inputfile is None:
-        cp_inputfile = os.path.join(os.path.dirname(inputfile), 'metrics_cp_tc.parquet')
-    if os.path.exists(cp_inputfile):
-        df_cp = pd.read_parquet(cp_inputfile)
-        print(df_cp)
-        plot_cp_tc_metrics(df_cp, outputdir, truth_label=args.truth_label, file_prefix=args.file_prefix)
+    truth_inputfile = args.truth_inputfile
+    if truth_inputfile is None:
+        truth_inputfile = os.path.join(os.path.dirname(inputfile), f'metrics_{file_prefix}_tc.parquet')
+    if os.path.exists(truth_inputfile):
+        df_truth = pd.read_parquet(truth_inputfile)
+        print(df_truth)
+        plot_cp_tc_metrics(df_truth, outputdir, truth_label=truth_label, file_prefix=file_prefix)
