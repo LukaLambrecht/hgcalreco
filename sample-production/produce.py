@@ -37,6 +37,8 @@ if __name__=='__main__':
         help='Requested memory in MB. Increase this for pileup chains,'
              ' which need substantially more memory than no-pileup ones'
              ' (e.g. 8000 for PU200).')
+    parser.add_argument('--submit', default=False, action='store_true',
+        help='Submit the jobs (default False, just prepare but do not submit yet).')
     args = parser.parse_args()
 
     # parse tag
@@ -387,6 +389,11 @@ if __name__=='__main__':
         for exe in exes: f.write(f'    {exe}\n')
         f.write(')')
 
-    # print output
-    print(f'Job working directory {args.workdir} has been prepared.')
-    print(f'Check if everything looks fine, then run condor_submit {jobdescriptor} to submit the jobs.')
+    # submit jobs or print output
+    if args.submit:
+        cmd = f'condor_submit {jobdescriptor}'
+        print('Submitting jobs...')
+        os.system(cmd)
+    else:
+        print(f'Job working directory {args.workdir} has been prepared.')
+        print(f'Check if everything looks fine, then run condor_submit {jobdescriptor} to submit the jobs.')
