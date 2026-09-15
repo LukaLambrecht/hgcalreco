@@ -83,6 +83,26 @@ if __name__=='__main__':
         cmd = ' '.join([line.strip(' \\\n\t') for line in lines])
         cmds.append(cmd)
 
+    # safety check: steps referencing a remote dataset or file (DBS or xrootd)
+    # need a valid grid proxy exported in the job's environment to resolve them
+    # on the worker node. Without --proxy, X509_USER_PROXY is never set there,
+    # and the failure only surfaces much later and non-obviously (e.g.
+    # cmsDriver's internal DAS query silently returning zero files, showing up
+    # as a "NoSecondaryFiles" exception deep into cmsRun) -- catch it here instead.
+    remote_patterns = ['dbs:', 'root://']
+    remote_steps = [cmd for cmd in cmds if any(p in cmd for p in remote_patterns)]
+    if len(remote_steps) > 0 and args.proxy is None:
+        msg = 'One or more steps in this chain reference a remote dataset or file'
+        msg += ' (via "dbs:" or "root://"), but no --proxy was provided:\n'
+        for cmd in remote_steps: msg += f'  {cmd}\n'
+        msg += 'Without a valid grid proxy in the job environment, this reference'
+        msg += ' will silently fail to resolve on the worker node.'
+        msg += ' Rerun with --proxy /path/to/your/valid/proxy'
+        msg += ' (see e.g. `voms-proxy-info -path`).'
+        raise Exception(msg)
+    if args.proxy is not None and not os.path.exists(args.proxy):
+        raise Exception(f'Provided --proxy {args.proxy} does not exist.')
+
     # replace placeholders
     for stepidx, cmd in enumerate(cmds):
         cmd = cmd.replace('FRAGMENT', os.path.basename(args.fragment))
