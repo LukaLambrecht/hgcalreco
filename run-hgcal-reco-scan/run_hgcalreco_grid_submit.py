@@ -17,7 +17,7 @@ if __name__=='__main__':
     # read command line args
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
-    parser.add_argument('-g', '--grid', required=True)
+    parser.add_argument('-g', '--grid', required=True, nargs='+')
     parser.add_argument('-n', '--max_events', default=-1, type=int)
     parser.add_argument('-w', '--workdir', default='auto')
     parser.add_argument('--tag', default='auto')
@@ -40,12 +40,18 @@ if __name__=='__main__':
              ' --do_tc_level alone), so this defaults higher than a typical condor job.')
     args = parser.parse_args()
 
-    # parse tag
-    if args.tag == 'auto': args.tag = os.path.basename(args.grid).replace('.json', '')
+    # parse tag(s)
+    # (note: for multiple grids, only "auto" is supported)
+    if args.tag == 'auto':
+        args.tag = [os.path.basename(grid).replace('.json', '') for grid in args.grid]
+    else:
+        if len(args.grid) != 1: raise Exception('Only "auto" is supported for --tag if multiple grids are used.')
+        args.tag = [args.tag]
 
-    # parse working directory
-    if args.workdir == 'auto': args.workdir = os.path.abspath(f'output_{args.tag}')
-    else: args.workdir = os.path.abspath(args.workdir)
+    # parse working directory(s)
+    args.workdir = os.path.abspath(args.workdir)
+    if args.workdir == 'auto': args.workdir = os.path.abspath(f'output_test')
+    workdirs = [os.path.join(args.workdir, tag) for tag in args.tag]
 
     # get CMSSW if provided
     cmssw = get_cmssw(args.cmssw, error_if_none=True)
@@ -65,15 +71,19 @@ if __name__=='__main__':
         raise Exception(f'Template config {args.config} does not exist.')
     args.config = os.path.abspath(args.config) # important since jobs run from their own workdir
 
-    # read grid
-    with open(args.grid, 'r') as f:
-        grid = json.load(f)
+    # read grid(s)
+    grids = []
+    for gridfile in args.grid:
+        with open(gridfile, 'r') as f:
+            grid = json.load(f)
+        grids.append(grid)
 
-    # make working directory
-    if os.path.exists(args.workdir) and not args.overwrite:
-        raise Exception(f'Working directory {args.workdir} already exists.')
-    if not os.path.exists(args.workdir):
-        os.makedirs(args.workdir)
+    # make working directory(s)
+    for workdir in workdirs:
+        if os.path.exists(workdir) and not args.overwrite:
+            raise Exception(f'Working directory {workdir} already exists.')
+        if not os.path.exists(workdir):
+            os.makedirs(workdir)
 
     # make full context
     # (shared between all jobs)
@@ -91,42 +101,48 @@ if __name__=='__main__':
         "efficiency_recalculate": False
     }
 
-    # loop over all grid points
+    # loop over grids
     exes = []
-    gridpoints = get_grid_points(grid)
-    for jobidx, gridpoint in enumerate(gridpoints):
+    for grididx, grid in enumerate(grids):
+        workdir = workdirs[grididx]
+        tag = args.tag[grididx]
+
+        # loop over grid points
+        gridpoints = get_grid_points(grid)
+        for jobidx, gridpoint in enumerate(gridpoints):
         
-        # make job directory
-        jobdir = os.path.join(args.workdir, f'job{jobidx}')
-        if not os.path.exists(jobdir): os.makedirs(jobdir)
+            # make job directory
+            jobdir = os.path.join(workdir, f'job{jobidx}')
+            if not os.path.exists(jobdir): os.makedirs(jobdir)
 
-        # copy script to run to job directory
-        cmd = f'cp {os.path.join(thisdir, "templates", "run_hgcalreco.py")} {jobdir}'
-        os.system(cmd)
+            # copy script to run to job directory
+            cmd = f'cp {os.path.join(thisdir, "templates", "run_hgcalreco.py")} {jobdir}'
+            os.system(cmd)
 
-        # write context to job directory
-        context["workdir"] = jobdir
-        context_file = os.path.join(jobdir, "context.json")
-        with open(context_file, 'w') as f:
-            json.dump(context, f, indent=2)
+            # write context to job directory
+            context["workdir"] = jobdir
+            context_file = os.path.join(jobdir, "context.json")
+            with open(context_file, 'w') as f:
+                json.dump(context, f, indent=2)
 
-        # write parameters to job directory
-        param_file = os.path.join(jobdir, "params.json")
-        with open(param_file, 'w') as f:
-            json.dump(gridpoint, f, indent=2)
+            # write parameters to job directory
+            param_file = os.path.join(jobdir, "params.json")
+            with open(param_file, 'w') as f:
+                json.dump(gridpoint, f, indent=2)
         
-        # make job script
-        jobscript = os.path.abspath(f'cjob_run_{args.tag}_{jobidx}.sh')
-        ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
-        with open(jobscript, 'a') as f:
-            # go to working directory
-            f.write(f'cd {jobdir}\n')
-            # write actual commands to run
-            f.write('python3 run_hgcalreco.py params.json context.json\n')
-        exes.append(jobscript)
+            # make job script
+            jobscript = os.path.abspath(f'cjob_run_{tag}_{jobidx}.sh')
+            ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
+            with open(jobscript, 'a') as f:
+                # go to working directory
+                f.write(f'cd {jobdir}\n')
+                # write actual commands to run
+                f.write('python3 run_hgcalreco.py params.json context.json\n')
+            exes.append(jobscript)
 
     # make job description
-    name = f'cjob_run_{args.tag}'
+    jdtag = '_' + args.tag[0] if len(args.tag)==1 else ''
+    name = f'cjob_run{jdtag}'
     jobdescriptor = name + '.txt'
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
