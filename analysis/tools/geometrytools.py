@@ -26,7 +26,7 @@ HGCAL_LAYER_OFFSETS = {
 
 def get_detid_subdetid(detid):
     detid = ROOT.DetId(detid)
-    detid = ROOT.HGCalDetId(detid)
+    #detid = ROOT.HGCalDetId(detid)
     det = detid.det()
     if det == ROOT.DetId.HGCalEE: return 0
     elif det == ROOT.DetId.HGCalHSi: return 1
@@ -35,7 +35,7 @@ def get_detid_subdetid(detid):
 
 def cast_detid(detid):
     detid = ROOT.DetId(detid)
-    detid = ROOT.HGCalDetId(detid)
+    #detid = ROOT.HGCalDetId(detid)
     subdetid = get_detid_subdetid(detid)
     if subdetid == 0: return ROOT.HGCSiliconDetId(detid)
     elif subdetid == 1: return ROOT.HGCSiliconDetId(detid)

@@ -78,6 +78,12 @@ if __name__=='__main__':
         #if len(caloparticles) != 2: continue
         #if len(tracksters) < 2: continue
 
+        # do some printouts
+        print('Found following objects:')
+        print(f'- {len(caloparticles)} caloparticles')
+        print(f'- {len(tracksters)} tracksters')
+        print(f'- {len(layerclusters)} layerclusters')
+
         # loop over tracksters
         for tr_idx, tr in enumerate(tracksters):
 
@@ -135,7 +141,9 @@ if __name__=='__main__':
     ax.set_zlabel("z [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(args.outputdir, f'test_lrs.png'))
+    outputfile = os.path.join(args.outputdir, f'test_lrs.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in x-y projection
@@ -150,7 +158,9 @@ if __name__=='__main__':
     ax.set_ylabel("y [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(args.outputdir, f'test_lrs_xy.png'))
+    outputfile = os.path.join(args.outputdir, f'test_lrs_xy.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in z-y projection
@@ -163,7 +173,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Layer")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_lrs_zy.png'))
+    outputfile = os.path.join(args.outputdir, f'test_lrs_zy.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot but take absolute value of z coordinate
@@ -176,7 +188,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Layer")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_lrs_zy_abs.png'))
+    outputfile = os.path.join(args.outputdir, f'test_lrs_zy_abs.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot but in z-r projection
@@ -189,7 +203,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Layer")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("r [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_lrs_zr_abs.png'))
+    outputfile = os.path.join(args.outputdir, f'test_lrs_zr_abs.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # make similar plot but coloured by zside
@@ -205,7 +221,9 @@ if __name__=='__main__':
     ax.set_zlabel("z [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(args.outputdir, f'test_zsides.png'))
+    outputfile = os.path.join(args.outputdir, f'test_zsides.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in x-y projection
@@ -220,7 +238,9 @@ if __name__=='__main__':
     ax.set_ylabel("y [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(args.outputdir, f'test_zsides_xy.png'))
+    outputfile = os.path.join(args.outputdir, f'test_zsides_xy.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in z-y projection
@@ -233,7 +253,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Z-side")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_zsides_zy.png'))
+    outputfile = os.path.join(args.outputdir, f'test_zsides_zy.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot but take absolute value of z coordinate
@@ -246,7 +268,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Z-side")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_zsides_zy_abs.png'))
+    outputfile = os.path.join(args.outputdir, f'test_zsides_zy_abs.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # make similar plot but coloured by subdetector
@@ -262,7 +286,9 @@ if __name__=='__main__':
     ax.set_zlabel("z [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(args.outputdir, f'test_subdets.png'))
+    outputfile = os.path.join(args.outputdir, f'test_subdets.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in x-y projection
@@ -277,7 +303,9 @@ if __name__=='__main__':
     ax.set_ylabel("y [cm]")
     ax.set_xlim((-maxxy, maxxy))
     ax.set_ylim((-maxxy, maxxy))
-    fig.savefig(os.path.join(args.outputdir, f'test_subdets_xy.png'))
+    outputfile = os.path.join(args.outputdir, f'test_subdets_xy.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in z-y projection
@@ -290,7 +318,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Subdetector")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_subdets_zy.png'))
+    outputfile = os.path.join(args.outputdir, f'test_subdets_zy.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot but take absolute value of z coordinate
@@ -303,7 +333,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Subdetector")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("y [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_subdets_zy_abs.png'))
+    outputfile = os.path.join(args.outputdir, f'test_subdets_zy_abs.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # same plot in z-r projection
@@ -316,7 +348,9 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Subdetector")
     ax.set_xlabel("z [cm]")
     ax.set_ylabel("r [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_subdets_zr_abs.png'))
+    outputfile = os.path.join(args.outputdir, f'test_subdets_zr_abs.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()
 
     # plot correlation between z coordinate and layer number
@@ -329,5 +363,7 @@ if __name__=='__main__':
     plt.colorbar(sc, label="Layer")
     ax.set_xlabel("|Layer|")
     ax.set_ylabel("|z| [cm]")
-    fig.savefig(os.path.join(args.outputdir, f'test_layer_zcoord.png'))
+    outputfile = os.path.join(args.outputdir, f'test_layer_zcoord.png')
+    fig.savefig(outputfile)
+    print(f'Saved figure {outputfile}.')
     plt.close()

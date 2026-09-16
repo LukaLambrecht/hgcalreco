@@ -1,0 +1,8 @@
+[
+{
+    "name": "deltao_all",
+    "mod": "process.hgcalLayerClustersEE.plugin.deltao = cms.vdouble(VALUE, VALUE, VALUE, VALUE); process.hgcalLayerClustersHSi.plugin.deltao = cms.vdouble(VALUE, VALUE, VALUE, VALUE); process.hgcalLayerClustersHSci.plugin.deltao = cms.vdouble(VALUE/2.6*0.063, VALUE/2.6*0.063, VALUE/2.6*0.063, VALUE/2.6*0.063)",
+    "values": [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.3, 1.5, 1.75, 2, 3, 5, 7.5, 10, 12.5, 15, 17.5, 20, 25, 30],
+    "info": "Outlier distance (delta_o) in all parts together (EE, HSi, HSci; HFNose ignored). VALUE is applied directly in silicon units (EE, HSi); HSci is rescaled by its default ratio to silicon (0.063/2.6). Default value is 2.6 (0.063 for HSci)."
+}
+]

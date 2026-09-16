@@ -1,0 +1,8 @@
+[
+{
+    "name": "kappa_all",
+    "mod": "process.hgcalLayerClustersEE.plugin.kappa = cms.double(VALUE); process.hgcalLayerClustersHSi.plugin.kappa = cms.double(VALUE); process.hgcalLayerClustersHSci.plugin.kappa = cms.double(VALUE)",
+    "values": [0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2, 5, 7.5, 9, 12.5, 15, 17.5, 20, 25, 30, 50, 100, 200, 500],
+    "info": "Seed density threshold in all parts together (EE, HSi, HSci; HFNose ignored). Scalar parameter with the same default in all three producers (9), so no unit rescaling needed."
+}
+]
