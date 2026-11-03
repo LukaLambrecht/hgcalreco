@@ -1,0 +1,22 @@
+diff --git a/SimCalorimetry/HGCalAssociatorProducers/plugins/AllTracksterToSimTracksterAssociatorsByLCsProducer.cc b/SimCalorimetry/HGCalAssociatorProducers/plugins/AllTracksterToSimTracksterAssociatorsByLCsProducer.cc
+index d10388e3cab..1a283bab64e 100644
+--- a/SimCalorimetry/HGCalAssociatorProducers/plugins/AllTracksterToSimTracksterAssociatorsByLCsProducer.cc
++++ b/SimCalorimetry/HGCalAssociatorProducers/plugins/AllTracksterToSimTracksterAssociatorsByLCsProducer.cc
+@@ -288,7 +288,16 @@ void AllTracksterToSimTracksterAssociatorsByLCsProducer::produce(edm::StreamID,
+             }
+           }
+         }
+-        assert(simToRecoScoresDenominator > 0.f);
++        // A SimTrackster can end up with a zero denominator in degenerate reconstruction
++        // configurations (e.g. an extreme 2D-clustering distance parameter causing near-total
++        // merging, which can leave a low-energy CaloParticle/SimCluster with no surviving
++        // LayerCluster association at all). The sibling recoToSim loop above has no equivalent
++        // assert and simply produces no association entries in that case; skip here the same
++        // way instead of crashing, rather than asserting on a case that is degenerate but not
++        // actually invalid.
++        if (simToRecoScoresDenominator <= 0.f) {
++          continue;
++        }
+         const float invDenominator = 1.f / simToRecoScoresDenominator;
+ 
+         for (unsigned int i = 0; i < layerClustersIds.size(); ++i) {

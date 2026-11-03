@@ -58,6 +58,7 @@ process = cms.Process(processName, TEMPLATE_ERA)
 
 # load basic configs
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
+process.load("Configuration.StandardSequences.Accelerators_cff") # for the @alpaka modules
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 process.load("Configuration.Geometry.TEMPLATE_GEOMETRY_cff")
@@ -93,7 +94,7 @@ process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 # TICL (Tracksters)
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 # SimTracksters, used as truth targets for Trackster-level associations
-process.load("RecoHGCal.TICL.SimTracksters_cff")
+process.load("SimCalorimetry.TICLSimProducers.SimTracksters_cff")
 
 # Reuse the HGCAL RecHits stored in the sample-production output. This keeps
 # the configurable part of this re-reco step at the LayerCluster/TICL level,
@@ -113,7 +114,14 @@ process.hgcalLayerClusterTask = cms.Task(
     process.hgcalLayerClustersEE,
     process.hgcalLayerClustersHSi,
     process.hgcalLayerClustersHSci,
-    process.hgcalMergeLayerClusters
+    process.hgcalMergeLayerClusters,
+    # TICL geometry EventSetup producers (needed from CMSSW_20_1_X onwards);
+    # in the central reco they are part of the HGCAL local reco task.
+    process.ticlGeomESProducer,
+    process.ticlGeomLookupESProducer,
+    process.ticlGeomLayersESProducer,
+    process.ticlGeomWithBarrelESProducer,
+    process.ticlGeomWithBarrelLookupESProducer
 )
 if hasattr(process, "hgcalLayerClustersHFNose"):
     process.hgcalLayerClusterTask.add(process.hgcalLayerClustersHFNose)
@@ -181,6 +189,11 @@ process.ticlSimTracksters.layerClusterCaloParticleAssociator = cms.InputTag("lay
 process.ticlSimTracksters.recoTracks = cms.InputTag("generalTracks", "", "RECO")
 process.ticlSimTracksters.tpToTrack = cms.InputTag("trackingParticleRecoTrackAsssociation", "", "RECO")
 process.ticlSimTracksters.simTrackToTPMap = cms.InputTag("simHitTPAssocProducer", "simTrackToTP", "RECO")
+# From CMSSW_20_1_X onwards, ticlSimTracksters also optionally uses GSF tracks and their
+# TrackingParticle association. Neither is in the input (and the association cannot be
+# recomputed from it), so drop the association module; ticlSimTracksters handles their absence.
+process.ticlSimTrackstersTask.remove(process.trackingParticleGsfTrackAssociation)
+del process.trackingParticleGsfTrackAssociation
 
 # Only associate the merged TICLCandidate tracksters to the CP-derived SimTrackster
 # collection: neither the pre-merge Trackster stages (CLUE3DHigh/TracksterLinks/...)
@@ -226,6 +239,75 @@ process.hgcalAssociatorTask = cms.Task(
 )
 process.hgcal_step.associate(process.hgcalAssociatorTask)
 
+##########################################
+# Calculate and parse truth graph        #
+# to reco associations (if available)   #
+##########################################
+
+# The MC-truth graph (see PhysicsTools/TruthInfo) is only present in the input
+# if it was produced with sample-production's --output-mode truth,
+# so check the first input file and only schedule the associations if it is there.
+def input_has_truth_graph(filename):
+    import ROOT
+    if filename.startswith('file:'): filename = filename[len('file:'):]
+    f = ROOT.TFile.Open(filename)
+    if not f or f.IsZombie(): return False
+    events = f.Get("Events")
+    found = bool(events) and any(b.GetName().startswith("truthGraph_truthLogicalGraphProducer_")
+                                 for b in events.GetListOfBranches())
+    f.Close()
+    return found
+useTruthGraph = input_has_truth_graph(str(process.source.fileNames[0]))
+print(f'Truth graph found in input: {useTruthGraph}')
+
+# Trackster collections (from this re-reco process) to associate to truth Branches
+# note: only the TICLCandidate tracksters, consistent with the rest of this template.
+truthGraphTracksterCollections = ["ticlCandidate"]
+
+if useTruthGraph:
+    from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff import (
+        truthBranchTargets, truthBranchTracksterAssociators)
+    from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff import (
+        truthBranchWorkingPointsPSet)
+
+    # truth targets: candidate truth Branches and efficiency denominators per truth level
+    process.truthBranchTargets = truthBranchTargets.clone()
+
+    # Trackster to truth Branch associations
+    # note: the reco collections and layer clusters are taken from this re-reco process,
+    #       the rechits from the input; the barrel PF rechits (not in the input) are not needed.
+    process.truthBranchTracksterAssociators = truthBranchTracksterAssociators.clone(
+        recoCollections = cms.VInputTag(*[cms.InputTag(c, "", processName) for c in truthGraphTracksterCollections]),
+        layerClusters = cms.InputTag("hgcalMergeLayerClusters", "", processName),
+        hgcalRecHits = cms.VInputTag(
+            cms.InputTag("HGCalRecHit", "HGCEERecHits", inputRecHitProcess),
+            cms.InputTag("HGCalRecHit", "HGCHEFRecHits", inputRecHitProcess),
+            cms.InputTag("HGCalRecHit", "HGCHEBRecHits", inputRecHitProcess),
+        ),
+        pfRecHits = cms.VInputTag(),
+    )
+    process.truthGraphAssociatorTask = cms.Task(
+        process.truthBranchTargets,
+        process.truthBranchTracksterAssociators
+    )
+
+    # initialize association map flatteners
+    # (one reco-to-truth map per working point, and one truth-to-reco map, per collection)
+    for collection in truthGraphTracksterCollections:
+        maps = [("RecoToTruth" + wp, "TS", "Branch") for wp in truthBranchWorkingPointsPSet.names]
+        maps.append(("TruthToReco", "Branch", "TS"))
+        for mapname, first, second in maps:
+            label = f"flatten{collection[0].upper()}{collection[1:]}{mapname}"
+            setattr(process, label, cms.EDProducer(
+                "FlattenTruthBranchAssociator",
+                src = cms.InputTag("truthBranchTracksterAssociators", collection + mapname),
+                dest = cms.string(f"{collection}{mapname}Flat"),
+                first = cms.string(first),
+                second = cms.string(second)
+            ))
+            process.truthGraphAssociatorTask.add(getattr(process, label))
+    process.hgcal_step.associate(process.truthGraphAssociatorTask)
+
 ##########################
 # Parameter modification #
 ##########################
@@ -254,8 +336,13 @@ process.out = cms.OutputModule("PoolOutputModule",
         f"keep *_ticlSimTracksters_fromCPs_{processName}", # CP-derived truth SimTracksters only.
         # gen-level output
         "keep CaloParticles_mix_MergedCaloTruth_*", # CaloParticles only, not SimClusters/SimClustersRefs.
+        # MC-truth graph and truth Branch targets (only if truth graph is present, see above);
+        # the hit index is not needed for TICLCandidate-level metrics and is dropped.
+        "keep *_truthLogicalGraphProducer_*_*",
+        f"keep *_truthBranchTargets_*_{processName}",
         # links and associations
         f"keep *_flattenMergeTracksterToCPSimTrackster_*_{processName}",
+        f"keep *_flattenTiclCandidate*_*_{processName}", # truth graph associations (if present)
     )
 )
 

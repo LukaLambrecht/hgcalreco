@@ -1,20 +1,22 @@
 # Truth graph validation
 
-Tools to visualize the experimental MC-truth graph (see `PhysicsTools/TruthInfo`,
-from [cms-sw/cmssw PR #51213](https://github.com/cms-sw/cmssw/pull/51213)) for
+Tools to visualize the MC-truth graph (see `PhysicsTools/TruthInfo` in CMSSW) for
 samples produced with `sample-production/produce.py --output-mode truth`.
+See `status.md` for the integration status in this repository,
+and the [documentation](https://cms-truth.docs.cern.ch) for the truth graph itself
+(CERN SSO required; the sources are also available in
+[this repository](https://github.com/felicepantaleo/cms-truth-docs)).
 
-Status note: the truth graph itself is an experimental prototype, "under heavy
-development, not yet open to external contributions" per its own README. Expect
-the data model/APIs (and the two files here that depend on them) to need updates
-if the upstream prototype changes.
+Status note: the truth graph is still under active development upstream.
+Expect the data model/APIs (and the two files here that depend on them) to need updates
+when moving to a newer CMSSW release.
 
 
 ## Prerequisites
 
-- A CMSSW checkout with `PhysicsTools/TruthInfo` merged in (`git cms-merge-topic
-  51213` from the `CMSSW_20_0_0_pre1/src` area; see the conversation this
-  directory was introduced in for the full setup).
+- A CMSSW release from `CMSSW_20_1_X` onwards (tested with `CMSSW_20_1_0_pre5`),
+  where the truth graph is part of the release (no merge-topic needed);
+  see `cmssw_setup.sh` in the top directory.
 - A sample produced with `--output-mode truth`, e.g.:
   ```
   cd ../sample-production
@@ -41,8 +43,9 @@ Useful options:
 - `--tag`: suffix for output file names, useful when dumping into a shared
   directory.
 - `--process`: the process name the truth-graph producers *originally ran
-  under*. Defaults to `"RECO"`, matching the standard sample-production chain
-  (`step2_200X.sh`). Note this stays `"RECO"` even when dumping from a
+  under*. Defaults to `"HLT"`, matching the standard sample-production chain,
+  where the graph is built at DIGI (`step1_200X.sh`, which also runs the HLT and
+  hence has process name `"HLT"`). Note this stays `"HLT"` even when dumping from a
   re-reco'd file (`run-hgcal-reco`/`run-hgcal-reco-scan` output): the truth
   graph products are pass-through there (re-reco doesn't recompute them, just
   keeps them - see those templates' output-content lists), so they keep their
@@ -53,9 +56,6 @@ Useful options:
   dump. `dot` (default) draws a hierarchical left-to-right tree, good for
   normal decay chains. For very dense or highly-recombined graphs, a
   force-directed layout (`sfdp`/`fdp`/`neato`) can be easier to read.
-- `--show-all`: by default, zero-simhit subgraphs and large SIM-only source
-  vertices are hidden from the logical-graph dump to keep it readable; this
-  flag disables that filtering.
 - `--format {png,svg,pdf}`: image format. For large/busy events, `png` can hit
   graphviz's cairo bitmap size cap (it auto-scales down, with a "graph is too
   large" warning on stderr - harmless, but detail gets lost); `svg` or `pdf`

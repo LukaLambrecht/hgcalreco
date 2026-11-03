@@ -18,7 +18,7 @@ that can be read with FWLite.
 
 class FlattenLCToTSAssociator : public edm::global::EDProducer<> {
 public:
-  typedef ticl::AssociationMap<ticl::mapWithSharedEnergy, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>
+  typedef ticl::TICLAssociationMap<ticl::mapWithSharedEnergy, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>
       AssocMap;
 
   explicit FlattenLCToTSAssociator(edm::ParameterSet const& cfg) {

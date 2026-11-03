@@ -1,14 +1,13 @@
-# Dump the MC-truth graph (see PhysicsTools/TruthInfo, cms-sw/cmssw PR #51213)
+# Dump the MC-truth graph (see PhysicsTools/TruthInfo)
 # from a sample-production file produced with `produce.py --output-mode truth`,
 # as visualizable DOT files.
 #
 # Unlike the upstream PhysicsTools/TruthInfo/test/dumpTruthGraphsFromGENSIMRECO_cfg.py
-# (which re-runs the TruthGraphProducer/TruthLogicalGraphProducer/
-# TruthLogicalGraphHitIndexProducer EDProducers from raw SimTracks/RecHits), this
+# (which re-runs the truth graph producers from raw SimTracks/RecHits), this
 # reads the already-persisted TruthGraph/truth::Graph/truth::LogicalGraphHitIndex
 # products directly from the input file and only runs the two dumper EDAnalyzers.
-# This works because --output-mode truth already computed and kept those products
-# at production time (see sample-production/produce.py), and keeps this script
+# This works because these products are built at DIGI and kept with --output-mode truth
+# (see sample-production/produce.py), and keeps this script
 # usable on the same small, lean output file rather than requiring one that also
 # carries raw g4SimHits/generatorSmeared (which --output-mode truth deliberately
 # does not keep, to keep the output small).
@@ -26,17 +25,14 @@ parser.add_argument('-o', "--outdir", default='',
 parser.add_argument('-n', "--maxevts", type=int, default=-1,
                     help="maximum number of events to process, default=%(default)s")
 parser.add_argument('-t', "--tag", default='', help="tag for output file names")
-parser.add_argument("--process", default="RECO",
+parser.add_argument("--process", default="HLT",
                     help="process name the truth-graph producers ran in during"
-                         " production (RECO for the default sample-production"
-                         " chain), default=%(default)r")
+                         " production (HLT, i.e. the DIGI step, for the default"
+                         " sample-production chain), default=%(default)r")
 parser.add_argument("--layout", default="dot",
                     help="DOT layout for the logical-graph dump: 'dot' (default,"
                          " hierarchical L->R ranks) or a force-directed engine"
                          " ('sfdp'/'fdp'/'neato') for node repulsion + spring edges")
-parser.add_argument("--showAll", action='store_true',
-                    help="do not hide zero-simhit subgraphs or large SIM source"
-                         " vertices in the logical DOT dump")
 args = parser.parse_args()
 
 if '/' not in args.inputFile and ':' not in args.inputFile:
@@ -61,7 +57,7 @@ process.source = cms.Source(
 
 process.options = cms.untracked.PSet(wantSummary=cms.untracked.bool(True))
 
-truthGraphTag = cms.InputTag("truthGraphProducer", "", args.process)
+truthGraphTag = cms.InputTag("mix", "", args.process)
 truthLogicalGraphTag = cms.InputTag("truthLogicalGraphProducer", "", args.process)
 hitIndexTag = cms.InputTag("truthLogicalGraphHitIndexProducer", "", args.process)
 
@@ -69,8 +65,6 @@ process.truthGraphDumper = cms.EDAnalyzer(
     "TruthGraphDumper",
     src=truthGraphTag,
     dotFile=cms.string(os.path.join(args.outdir, f"truthgraph{args.tag}.dot")),
-    maxNodes=cms.uint32(20000),
-    maxEdgesPerNode=cms.uint32(50),
     # SimTracks/SimVertices/HepMC are optional (mayConsume) enrichments the
     # dumper does not strictly need; --output-mode truth output does not keep
     # them, so leave these at their (absent, harmlessly skipped) defaults.
@@ -86,10 +80,12 @@ process.truthLogicalGraphDumper = cms.EDAnalyzer(
     rawSrc=truthGraphTag,
     hitIndex=hitIndexTag,
 
+    # note: the rechits are produced in a later step than the truth graph,
+    #       so do not restrict them to args.process.
     hgcalRecHits=cms.VInputTag(
-        cms.InputTag("HGCalRecHit", "HGCEERecHits", args.process),
-        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", args.process),
-        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", args.process),
+        cms.InputTag("HGCalRecHit", "HGCEERecHits"),
+        cms.InputTag("HGCalRecHit", "HGCHEFRecHits"),
+        cms.InputTag("HGCalRecHit", "HGCHEBRecHits"),
     ),
     # PFRecHits are not part of --output-mode truth's lean output; the dumper
     # handles missing collections gracefully (as DetIdToRecHitMapProducer does).
@@ -98,15 +94,6 @@ process.truthLogicalGraphDumper = cms.EDAnalyzer(
     dotFile=cms.string(os.path.join(args.outdir, f"truthlogicalgraph{args.tag}.dot")),
 
     layout=cms.string(args.layout),
-
-    maxParticles=cms.uint32(20000),
-    maxVertices=cms.uint32(20000),
-    maxEdgesPerNode=cms.uint32(1000000 if args.showAll else 300),
-
-    hideLargeSimSourceVertices=cms.bool(not args.showAll),
-    largeSimSourceVertexMinOutgoing=cms.uint32(50),
-
-    hideZeroSimHitSubgraphs=cms.bool(not args.showAll),
 )
 
 process.MessageLogger.cerr.threshold = "INFO"

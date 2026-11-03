@@ -16,6 +16,7 @@ process = cms.Process(processName, TEMPLATE_ERA)
 
 # load basic configs
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
+process.load("Configuration.StandardSequences.Accelerators_cff") # for the @alpaka modules
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
 process.load("Configuration.Geometry.TEMPLATE_GEOMETRY_cff")
@@ -162,12 +163,12 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *CaloParticle*_mix_MergedCaloTruth_*",
         "keep *SimCluster*_mix_MergedCaloTruth_*",
         "keep *CaloHit*_*_*_*",
-        # MC-truth graph (PhysicsTools/TruthInfo, cms-sw/cmssw PR #51213), only
+        # MC-truth graph (see PhysicsTools/TruthInfo), only
         # present if the input was produced with sample-production's
         # --output-mode truth; harmless no-op "keep" otherwise.
-        "keep *_truthGraphProducer_*_*",
         "keep *_truthLogicalGraphProducer_*_*",
         "keep *_truthLogicalGraphHitIndexProducer_*_*",
+        "keep TruthGraph_mix_*_*",
         # links and associations
         "keep *_*_layerClusterCaloParticleAssociationFlat*_*",
         "keep *_*_layerClusterSimClusterAssociationFlat*_*",

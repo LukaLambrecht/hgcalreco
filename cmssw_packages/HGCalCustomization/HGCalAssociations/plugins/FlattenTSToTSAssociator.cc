@@ -18,7 +18,7 @@ SimTrackster maps and the reverse maps produced by TICL associators.
 
 class FlattenTSToTSAssociator : public edm::global::EDProducer<> {
 public:
-  typedef ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore,
+  typedef ticl::TICLAssociationMap<ticl::mapWithSharedEnergyAndScore,
                                std::vector<ticl::Trackster>,
                                std::vector<ticl::Trackster>>
       AssocMap;

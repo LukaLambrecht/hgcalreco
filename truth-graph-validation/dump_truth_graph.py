@@ -1,5 +1,4 @@
-# Convenience wrapper: dump and render the MC-truth graph (see PhysicsTools/TruthInfo,
-# cms-sw/cmssw PR #51213) for a sample-production file produced with
+# Convenience wrapper: dump and render the MC-truth graph (see PhysicsTools/TruthInfo) for a sample-production file produced with
 # `produce.py --output-mode truth` (see ../sample-production).
 #
 # Runs dump_truth_graph_cfg.py via cmsRun to produce .dot files (one raw-graph
@@ -26,16 +25,13 @@ if __name__=='__main__':
     parser.add_argument('-n', '--maxevents', default=-1, type=int,
         help='Maximum number of events to process (default: all).')
     parser.add_argument('--tag', default='', help='Tag appended to output file names.')
-    parser.add_argument('--process', default='RECO',
+    parser.add_argument('--process', default='HLT',
         help='Process name the truth-graph producers ran in during production'
              ' (check with edmDumpEventContent on the input file if unsure;'
-             ' "RECO" matches the default sample-production chain).')
+             ' "HLT", i.e. the DIGI step, matches the default sample-production chain).')
     parser.add_argument('--layout', default='dot', choices=['dot', 'sfdp', 'fdp', 'neato'],
         help='DOT layout for the logical-graph dump: "dot" for a hierarchical'
              ' tree (default), or a force-directed engine for dense graphs.')
-    parser.add_argument('--show-all', default=False, action='store_true',
-        help='Do not hide zero-simhit subgraphs or large SIM source vertices'
-             ' in the logical-graph dump.')
     parser.add_argument('--format', default='png', choices=['png', 'svg', 'pdf'],
         help='Image format to render .dot files to with graphviz.')
     parser.add_argument('--no-render', default=False, action='store_true',
@@ -58,7 +54,6 @@ if __name__=='__main__':
         '--process', args.process,
         '--layout', args.layout,
     ]
-    if args.show_all: cmd.append('--showAll')
     print(f'Running: {" ".join(cmd)}')
     subprocess.run(cmd, check=True)
 

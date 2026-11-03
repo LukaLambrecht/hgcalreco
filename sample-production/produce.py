@@ -1,7 +1,6 @@
 # Run a sample production chain
 
 import os
-import re
 import sys
 import json
 import argparse
@@ -27,12 +26,10 @@ if __name__=='__main__':
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--remove-intermediate-output', default=False, action='store_true')
     parser.add_argument('--output-mode', default='hgcal', choices=['hgcal', 'full', 'truth'],
-        help='"truth" enables the experimental MC-truth graph (see'
-             ' PhysicsTools/TruthInfo, from cms-sw/cmssw PR #51213): the'
-             ' enableTruth process modifier plus the VALIDATION:@baseValidation'
-             ' step it needs to actually produce the graph. Requires'
-             ' PhysicsTools/TruthInfo to be present in the CMSSW checkout'
-             ' (git cms-merge-topic 51213).')
+        help='"truth" is the same as "hgcal", but also keeps the MC-truth graph'
+             ' (see PhysicsTools/TruthInfo). The graph itself is built at DIGI by'
+             ' default for all Run4 eras (via the enableTruth process modifier)'
+             ' from CMSSW_20_1_X onwards; older releases are not supported.')
     parser.add_argument('--request-memory', default=2000, type=int,
         help='Requested memory in MB. Increase this for pileup chains,'
              ' which need substantially more memory than no-pileup ones'
@@ -128,13 +125,6 @@ if __name__=='__main__':
         # note: this currently assumes the last step is MiniAOD level,
         #       maybe later try to generalize.
         if stepidx == len(cmds)-1:
-
-            # For output-mode "truth", the MC-truth graph producers only get
-            # scheduled if this (last, RECO-level) step's --step argument also
-            # requests the @baseValidation preset (see the "truth" output-mode
-            # branch below for why). Modify the --step value in place.
-            if args.output_mode == "truth":
-                cmd = re.sub(r'(--step\s+\S+)', r'\1,VALIDATION:@baseValidation', cmd)
 
             # Produce association between TrackingParticles and RecoTracks.
             # These products do not depend on HGCAL CLUE settings,
@@ -245,20 +235,11 @@ if __name__=='__main__':
                     customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'keep {collection}\')')
 
             # output option 3: same lean content as "hgcal", plus the MC-truth graph
-            # products (see PhysicsTools/TruthInfo, cms-sw/cmssw PR #51213).
-            # note: getting these products to exist at all requires appending
-            # ",VALIDATION:@baseValidation" to this (last) step's --step argument
-            # (handled below, after this per-step loop) in addition to the
-            # enableTruth process modifier: the truth-graph producers are wired
-            # into the (normally empty) baseCommonPreValidation/baseCommonValidation
-            # sequences, only populated when enableTruth is active. @baseValidation
-            # is the minimal autoValidation preset that includes those sequences,
-            # deliberately narrower than the full @phase2Validation preset used in
-            # official relval workflows, which would also pull in unrelated tracking/
-            # muon/jet/electron/photon/b-tag/tau/HCAL/HGCal/barrel/MTD/ECAL/HLT
-            # validation sequences - much more runtime for no additional truth-graph
-            # content. No DQM/harvesting step is added, so validation histograms are
-            # computed but never persisted, keeping this a single, lean output file.
+            # products (see PhysicsTools/TruthInfo).
+            # note: from CMSSW_20_1_X onwards, the graph is built at DIGI for every Run4 era
+            #       (enableTruth is part of the era) and kept in the FEVTDEBUGHLT output of that step,
+            #       so it only needs to be kept in the output of this (last) step as well.
+            #       The truth-to-reco associations are not produced here but in the re-reco step.
             elif args.output_mode == "truth":
 
                 drop = [
@@ -302,11 +283,11 @@ if __name__=='__main__':
                   '*_allTrackstersToSimTrackstersAssociations*_*_*',
                   '*_allLayerClusterToTracksterAssociations*_*_*',
                   # the MC-truth graph itself (not part of the standard MINIAODSIM
-                  # event content, so must be added explicitly; confirmed by testing
-                  # that these are otherwise silently dropped even though produced)
-                  '*_truthGraphProducer_*_*',
+                  # event content, so must be added explicitly);
+                  # same as the compact truth content in PhysicsTools/TruthInfo/python/truthEventContent_cff.py
                   '*_truthLogicalGraphProducer_*_*',
                   '*_truthLogicalGraphHitIndexProducer_*_*',
+                  'TruthGraph_mix_*_*',
                 ]
                 for collection in drop:
                     customization.append(f'process.MINIAODSIMoutput.outputCommands.append(\'drop {collection}\')')
@@ -326,14 +307,6 @@ if __name__=='__main__':
 
         # replace original command
         cmds[stepidx] = cmd
-
-    # for output-mode "truth", enable the experimental MC-truth graph's process
-    # modifier (see PhysicsTools/TruthInfo, from cms-sw/cmssw PR #51213) on every
-    # step in the chain. Combined with the VALIDATION:@baseValidation addition
-    # above, this is what actually produces the graph.
-    if args.output_mode == "truth":
-        for stepidx, cmd in enumerate(cmds):
-            cmds[stepidx] = cmd + ' --procModifiers enableTruth'
 
     # make set of commands for each job
     job_cmds = []

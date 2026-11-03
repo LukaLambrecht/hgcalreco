@@ -1,125 +1,62 @@
 # Truth graph: integration status and path to replacing SimClusters/CaloParticles
 
-Reference notes from investigating [cms-sw/cmssw PR #51213](https://github.com/cms-sw/cmssw/pull/51213)
-("MC-truth graph prototype", `PhysicsTools/TruthInfo`) for this repo. See
-`README.md` in this directory for day-to-day usage of the dump tool; this file
-is the longer-form summary of what works today, what doesn't, and why.
-
-Status of the upstream code itself: **experimental prototype**, "under heavy
-development, not open to external contributions" per its own README. Expect
-the data model/APIs to change without notice.
+Reference notes on using the MC-truth graph (`PhysicsTools/TruthInfo`,
+`SimGeneral/TruthGraphAssociatorProducers`) in this repository.
+See `README.md` in this directory for day-to-day usage of the dump tool,
+and the [documentation](https://cms-truth.docs.cern.ch) for the truth graph itself
+(sources in [this repository](https://github.com/felicepantaleo/cms-truth-docs)).
 
 
-## What's done and working in this repo
+## History
 
-- **CMSSW**: `PhysicsTools/TruthInfo` merged into the local `CMSSW_20_0_0_pre1`
-  checkout via `git cms-merge-topic 51213` (not part of the `pre1` release
-  itself, but present on the `CMSSW_20_0_X` IB branch from ~2026-07-14
-  onward). Compiles cleanly alongside the rest of this repo's patches.
-- **Sample production**: `sample-production/produce.py --output-mode truth`
-  enables the `enableTruth` process modifier and appends
-  `VALIDATION:@baseValidation` to the RECO step's `--step` argument - the
-  minimal addition that actually schedules the truth-graph producers
-  (`baseCommonPreValidation`/`baseCommonValidation`/`postValidation_common`
-  are empty sequences by default, only populated by `enableTruth`'s hooks).
-  Deliberately narrower than the official relval recipe's full
-  `@phase2Validation` preset, which would also pull in unrelated
-  tracking/muon/jet/electron/photon/b-tag/tau/HCAL/HGCal/barrel/MTD/ECAL/HLT
-  validation. No DQM/harvesting step is added, so validation histograms are
-  computed (costing runtime) but never persisted - output stays small and
-  single-file, keeping `TruthGraph`, `truth::Graph`, and
-  `truth::LogicalGraphHitIndex` alongside the same lean reco-level content as
-  `--output-mode hgcal`.
-- **Re-reco**: `run-hgcal-reco`/`run-hgcal-reco-scan`'s templates
-  (`hgcalreco_cff_template.py`, `hgcalreco_cff_template_noticl.py`) now keep
-  the three truth-graph products as pass-through output, verified end-to-end.
-  Note: they keep their *original* process label (`"RECO"` for the standard
-  chain) even in re-reco'd files, since re-reco doesn't recompute them.
+- Up to `CMSSW_20_0_X`: experimental prototype from
+  [cms-sw/cmssw#51213](https://github.com/cms-sw/cmssw/pull/51213), merged in by hand.
+  Only the graph itself and a Branch <-> CaloParticle/SimCluster cross-check were usable;
+  there was no proper truth definition for showering particles
+  and no persisted association to reco objects.
+- From `CMSSW_20_1_0_pre5` onwards (used here), both are solved upstream:
+  - [cms-sw/cmssw#51716](https://github.com/cms-sw/cmssw/pull/51716) adds truth *levels*
+    (e.g. `signal`, `caloBoundary`, `reconstructableFinalState`), flags on the graph
+    that each define a valid set of truth objects (no member is an ancestor of another).
+  - [cms-sw/cmssw#51829](https://github.com/cms-sw/cmssw/pull/51829) adds the association layer:
+    `TruthBranchTargetsProducer` (candidate truth Branches and one efficiency denominator per level)
+    and per-domain reco-to-truth associators, among which `truthBranchTracksterAssociators`.
+
+
+## What's done and working in this repository
+
+- **Sample production**: the graph is built at DIGI by default for all Run4 eras
+  (the `enableTruth` process modifier is part of the era), so `--output-mode truth`
+  in `sample-production/produce.py` only needs to keep the products in the final output:
+  `truth::Graph` (`truthLogicalGraphProducer`), `truth::LogicalGraphHitIndex`
+  (`truthLogicalGraphHitIndexProducer`) and the raw `TruthGraph` (`mix`),
+  all with process name `HLT` (the DIGI step).
+  Measured on a 20-event single pion sample: about 43 kB/event compressed in total
+  (compared to about 31 kB/event for CaloParticles + SimClusters).
+- **Re-reco**: the templates in `run-hgcal-reco` and `run-hgcal-reco-scan` automatically
+  run the truth associations if the input contains the truth graph:
+  - `truthBranchTargets` (kept in the output).
+  - `truthBranchTracksterAssociators` for `ticlTrackstersCLUE3DHigh` and `ticlCandidate`
+    (only `ticlCandidate` in the `tc_only` template), with all working points
+    (`Fixed`, `AdaptiveTight`, `AdaptiveNominal`).
+  - The resulting maps are flattened for FWLite access by `FlattenTruthBranchAssociator`
+    (see `cmssw_packages/HGCalCustomization/HGCalAssociations`), e.g. for `ticlCandidate`:
+    `flattenTiclCandidateRecoToTruthFixed:ticlCandidateRecoToTruthFixedFlat{TSIdx,BranchIdx,SharedEnergy,Score}`
+    and `flattenTiclCandidateTruthToReco:ticlCandidateTruthToRecoFlat{BranchIdx,TSIdx,SharedEnergy,Score}`.
+    Truth Branches are identified by the particle id of their root in the `truth::Graph`.
+    Note: in the TruthToReco maps, `SharedEnergy` is the shared energy fraction
+    normalized to the truth Branch.
 - **Visualization**: `dump_truth_graph.py` / `dump_truth_graph_cfg.py` in this
-  directory render the graph to DOT/PNG/SVG/PDF directly from the persisted
-  products (no need to keep raw SimTracks/RecHits around for this).
+  directory render the graph to DOT/PNG/SVG/PDF directly from the persisted products.
+- **Python access**: `PhysicsTools.TruthInfo.graphTools.eventGraphs` gives a per-event view
+  of the graph (particles, kinematics, levels, navigation) directly from an EDM file.
 
 
-## Is there already a mapping to reco objects (LayerClusters/Tracksters/TICLCandidates)?
+## What's still to do
 
-Short answer: **not usably, not yet.** Two different things exist upstream and
-it's easy to conflate them:
-
-### 1. `TruthBranchCaloAssociationProducer` - Branch <-> CaloParticle/SimCluster
-
-Already running (part of `baseCommonPreValidation`, so already active in
-`--output-mode truth` samples). Produces a real, persistable, TICL-style
-`AssociationMap`, bidirectional, with shared-energy scores.
-
-**But** this maps the *new* truth graph against the *old* truth objects
-(CaloParticle, SimCluster) - it's a consistency check ("does the graph
-correctly reproduce the legacy truth?"), not a mapping to reconstructed
-objects. `BranchHGCalValidator` consumes it to produce "reproduction
-efficiency" DQM plots for exactly this purpose.
-
-### 2. `BranchTracksterRecoValidator` - Branch <-> ticl::Trackster (real reco objects)
-
-This is the one that would actually matter for replacing CaloParticle/SimCluster
-in our downstream analysis: it matches `ticl::Trackster` to `truth::Branch` via
-shared hits, the direct analogue of what `analysis/efficiency/calculate_associations.py`
-already does. It compiles and runs. However:
-
-- **Deliberately excluded from the default validation sequence** (not part of
-  `baseValidation`), so `--output-mode truth` does not run it. Confirmed from
-  the upstream source comments, not inferred.
-- **Why**: a meaningful efficiency needs the "interesting particles" reference
-  set to be an *antichain* (no particle is an ancestor of another). A `Branch`
-  subgraph aggregates all of a particle's descendants, so for anything that
-  showers (photons, electrons, hadrons - i.e. everything relevant to HGCAL),
-  a flat PDG-ID list is *not* a valid antichain: every ancestor's branch
-  already contains its descendants' hits, so every match looks like a "merge"
-  and the efficiency comes out near zero. The upstream authors' own comment:
-  the proper fix (a detector-aware `BranchSelector` antichain, roughly "one
-  Branch per CaloParticle") is explicitly **"not yet wired."** Only muons
-  (non-showering) currently give meaningful numbers with this validator.
-- **Output form**: fills DQM histograms in-memory only. No persisted per-event
-  association product to read back the way `calculate_associations.py` does
-  today (unlike `TruthBranchCaloAssociationProducer`, which does persist one).
-
-It *can* be enabled by hand (real cfi: `branchTracksterRecoValidator` in
-`PhysicsTools/TruthInfo/python/truthGraphValidation_cff.py`, runnable via
-`test/validateBranchRecoDQM_cfg.py`) but the results would currently be
-degenerate/meaningless for HGCAL objects specifically, per the code's own
-caveats.
-
-
-## What would be needed to actually replace SimClusters/CaloParticles downstream
-
-1. **A proper antichain "interesting particles" selection for HGCAL/calo** -
-   the specific piece the upstream authors flagged as unfinished. Without it,
-   Trackster-level truth-graph validation is degenerate for anything but
-   muons.
-2. **A persistable Branch <-> Trackster/TICLCandidate association product** -
-   e.g. a new producer analogous to `TruthBranchCaloAssociationProducer` but
-   for `ticl::Trackster`, or a refactor of `BranchRecoValidator`'s existing
-   matching logic into producer form. Does not exist upstream yet.
-3. **TICLCandidate-level aggregation** on top of Trackster-level matching
-   (summing over constituent Tracksters), mirroring
-   `tools/tcassociationtools.py::get_ticl_candidate_matrices_from_trackster_associations`
-   already built in this repo for the CaloParticle/SimCluster case.
-4. **Flattening for FWLite/Python access**, mirroring this repo's own
-   `FlattenTSToTSAssociator` custom EDProducer (see
-   `cmssw_packages/HGCalCustomization/HGCalAssociations`).
-5. All of the above sits on top of code that is explicitly "under heavy
-   development, not open to external contributions" - expect to need rework
-   as the upstream prototype evolves.
-
-**Bottom line**: the raw truth graph and the CaloParticle/SimCluster
-cross-check (`TruthBranchCaloAssociationProducer`) are usable today. The
-reco-object-level piece - the part that would actually replace
-`calculate_associations.py`'s CaloParticle/SimCluster-based validation - has a
-known, upstream-acknowledged gap (the antichain selection) and a missing
-persistence layer. Not a drop-in replacement yet.
-
-
-## References
-
-- PR: https://github.com/cms-sw/cmssw/pull/51213
-- Docs (CERN SSO required): https://cms-truth.docs.cern.ch
-- `PhysicsTools/TruthInfo/README.md` (in the CMSSW checkout, once merged)
-- `PhysicsTools/TruthInfo/doc/branch_design.md` for the `Branch`/`BranchSelector` design
+- Use the truth Branch associations in `analysis/efficiency/calculate_associations.py`
+  as an alternative to CaloParticles/SimClusters, with a configurable truth level
+  (e.g. `signal` for particle guns) and working point,
+  and validate against the CaloParticle-based results on the same events.
+- Optionally: a LayerCluster <-> Branch association (not available upstream),
+  using `truth::BranchHitAssociator` directly in a custom producer in the re-reco step.

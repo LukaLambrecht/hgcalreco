@@ -77,3 +77,26 @@ Settings:
 Note: HGCAL v19 requires cms-sw PR [#51544](https://github.com/cms-sw/cmssw/pull/51544), not yet integrated
 into `CMSSW_20_0_0_pre1`. It was cherry-picked manually into the local checkout with `git cms-cherry-pick-pr`
 and recompiled; see `sample-production` for the corresponding cmsDriver step files.
+
+
+### Fifth version (3 November 2026)
+
+Settings:
+- Input files: custom produced samples from `sample-production`, using the `200X` cmsDriver chains
+  (unchanged; they are valid for `CMSSW_20_1_X` as well), optionally with `--output-mode truth`.
+- CMSSW version: `CMSSW_20_1_0_pre5`.
+- Geometry: `GeometryExtendedRun4D127`, era `Phase2C26I13M9`, global tag `auto:phase2_realistic_T35`
+  (as in the `Run4D127` relval workflow of this release).
+
+Changes to the templates in [configs](configs) (and in `run-hgcal-reco-scan/configs`):
+- TICL was restructured into `RecoTICL/*` (cms-sw PR [#51919](https://github.com/cms-sw/cmssw/pull/51919)):
+  the SimTracksters config moved to `SimCalorimetry.TICLSimProducers`,
+  and the TICL geometry EventSetup producers (`@alpaka`) must be scheduled together with the LayerClusters,
+  which in turn requires loading `Configuration.StandardSequences.Accelerators_cff`.
+- `ticlSimTracksters` now optionally uses GSF tracks and their TrackingParticle association.
+  These are not in the input, so the association module is removed from the task.
+- If the input contains the MC-truth graph, the Trackster to truth Branch associations are computed and flattened
+  (see `truth-graph-validation/status.md`).
+- Known issue: `hgcalreco_cff_template_noticl.py` fails in this release with a ROOT dictionary parsing error
+  for `edm::Ref<vector<io_v1::TrackingParticle>>` (in `HepMCProduct.h`) at the end of the job configuration;
+  the other templates are not affected.
