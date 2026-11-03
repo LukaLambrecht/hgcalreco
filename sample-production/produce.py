@@ -223,6 +223,12 @@ if __name__=='__main__':
                   '*_mtdTrackQualityMVA_*_*',
                   '*_trackingParticleRecoTrackAsssociation_*_*',
                   '*_simHitTPAssocProducer_simTrackToTP_*',
+                  # muon segments: from CMSSW_20_1_X onwards, the TICLCandidate muon interpretation
+                  # follows the references from the muons to their segments
+                  '*_dt4DSegments_*_*',
+                  '*_cscSegments_*_*',
+                  '*_gemSegments_*_*',
+                  '*_me0Segments_*_*',
                   # associations, if produced in the reconstruction chain
                   '*_layerClusterCaloParticleAssociation_*_*',
                   '*_layerClusterSimClusterAssociation_*_*',
@@ -277,6 +283,12 @@ if __name__=='__main__':
                   '*_mtdTrackQualityMVA_*_*',
                   '*_trackingParticleRecoTrackAsssociation_*_*',
                   '*_simHitTPAssocProducer_simTrackToTP_*',
+                  # muon segments: from CMSSW_20_1_X onwards, the TICLCandidate muon interpretation
+                  # follows the references from the muons to their segments
+                  '*_dt4DSegments_*_*',
+                  '*_cscSegments_*_*',
+                  '*_gemSegments_*_*',
+                  '*_me0Segments_*_*',
                   # associations, if produced in the reconstruction chain
                   '*_layerClusterCaloParticleAssociation_*_*',
                   '*_layerClusterSimClusterAssociation_*_*',

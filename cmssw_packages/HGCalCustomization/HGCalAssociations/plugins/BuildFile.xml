@@ -6,5 +6,9 @@
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/HGCalReco"/>
 <use name="SimDataFormats/Associations"/>
+<use name="SimDataFormats/TruthInfo"/>
+<use name="DataFormats/DetId"/>
+<use name="DataFormats/HGCRecHit"/>
+<use name="PhysicsTools/TruthInfo"/>
 
 <flags EDM_PLUGIN="1"/>

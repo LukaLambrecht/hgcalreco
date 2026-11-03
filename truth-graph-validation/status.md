@@ -44,8 +44,20 @@ and the [documentation](https://cms-truth.docs.cern.ch) for the truth graph itse
     `flattenTiclCandidateRecoToTruthFixed:ticlCandidateRecoToTruthFixedFlat{TSIdx,BranchIdx,SharedEnergy,Score}`
     and `flattenTiclCandidateTruthToReco:ticlCandidateTruthToRecoFlat{BranchIdx,TSIdx,SharedEnergy,Score}`.
     Truth Branches are identified by the particle id of their root in the `truth::Graph`.
+    Note: this particle id is not the same as the index of the corresponding CaloParticle
+    (e.g. for a pion gun, CaloParticle 0 can be the pi+ while particle 0 in the graph is the pi-).
     Note: in the TruthToReco maps, `SharedEnergy` is the shared energy fraction
     normalized to the truth Branch.
+  - LayerCluster to truth Branch associations, with a custom producer
+    (`LayerClusterToTruthBranchAssociatorProducer` in `cmssw_packages/HGCalCustomization/HGCalAssociations`;
+    not available upstream) that follows exactly the same logic and output format as the upstream
+    trackster associator, only with a LayerCluster as reco object.
+    Optional via `truthGraphLayerClusters` in the templates (on by default, not in the `tc_only` template).
+    Flattened as e.g. `flattenHgcalMergeLayerClustersRecoToTruthFixed:hgcalMergeLayerClustersRecoToTruthFixedFlat{LCIdx,BranchIdx,SharedEnergy,Score}`.
+    Validated on 3 single pion events against the existing LayerCluster to CaloParticle association:
+    the same LayerClusters are matched, every LayerCluster's best Branch descends from the same pion
+    as its best CaloParticle, and the scores are identical where the best Branch is the pion itself.
+    Cost: about 6 ms/event (out of about 5.5 s/event for the full re-reco, no pileup).
 - **Visualization**: `dump_truth_graph.py` / `dump_truth_graph_cfg.py` in this
   directory render the graph to DOT/PNG/SVG/PDF directly from the persisted products.
 - **Python access**: `PhysicsTools.TruthInfo.graphTools.eventGraphs` gives a per-event view
@@ -58,5 +70,4 @@ and the [documentation](https://cms-truth.docs.cern.ch) for the truth graph itse
   as an alternative to CaloParticles/SimClusters, with a configurable truth level
   (e.g. `signal` for particle guns) and working point,
   and validate against the CaloParticle-based results on the same events.
-- Optionally: a LayerCluster <-> Branch association (not available upstream),
-  using `truth::BranchHitAssociator` directly in a custom producer in the re-reco step.
+- Measure the cost of the associations (in particular the LayerCluster one) with pileup.
