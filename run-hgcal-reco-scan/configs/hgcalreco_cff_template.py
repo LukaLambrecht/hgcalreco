@@ -257,6 +257,9 @@ print(f'Truth graph found in input: {useTruthGraph}')
 
 # Trackster collections (from this re-reco process) to associate to truth Branches
 truthGraphTracksterCollections = ["ticlTrackstersCLUE3DHigh", "ticlCandidate"]
+# Whether to also associate the LayerClusters to truth Branches
+# (with a custom producer, see cmssw_packages/HGCalCustomization/HGCalAssociations)
+truthGraphLayerClusters = True
 
 if useTruthGraph:
     from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff import (
@@ -284,17 +287,39 @@ if useTruthGraph:
         process.truthBranchTargets,
         process.truthBranchTracksterAssociators
     )
+    # (associator label, collection key, short name of reco object) for the flatteners below
+    truthGraphMaps = [("truthBranchTracksterAssociators", c, "TS") for c in truthGraphTracksterCollections]
+
+    # LayerCluster to truth Branch associations
+    # note: same inputs and working points as for the Tracksters above.
+    if truthGraphLayerClusters:
+        process.layerClusterToTruthBranchAssociator = cms.EDProducer(
+            "LayerClusterToTruthBranchAssociatorProducer",
+            src = process.truthBranchTracksterAssociators.src,
+            hitIndex = process.truthBranchTracksterAssociators.hitIndex,
+            layerClusters = process.truthBranchTracksterAssociators.layerClusters,
+            hgcalRecHits = process.truthBranchTracksterAssociators.hgcalRecHits,
+            targetsSrc = process.truthBranchTracksterAssociators.targetsSrc,
+            assignableTargetsSrc = process.truthBranchTracksterAssociators.assignableTargetsSrc,
+            denominatorDetectors = process.truthBranchTracksterAssociators.denominatorDetectors,
+            key = cms.string("hgcalMergeLayerClusters"),
+            workingPointNames = cms.vstring(*truthBranchWorkingPointsPSet.names),
+            adaptiveReverseWeight = cms.vdouble(*truthBranchWorkingPointsPSet.adaptiveReverseWeight),
+            adaptiveMaxReverseScore = cms.vdouble(*truthBranchWorkingPointsPSet.adaptiveMaxReverseScore),
+        )
+        process.truthGraphAssociatorTask.add(process.layerClusterToTruthBranchAssociator)
+        truthGraphMaps.append(("layerClusterToTruthBranchAssociator", "hgcalMergeLayerClusters", "LC"))
 
     # initialize association map flatteners
     # (one reco-to-truth map per working point, and one truth-to-reco map, per collection)
-    for collection in truthGraphTracksterCollections:
-        maps = [("RecoToTruth" + wp, "TS", "Branch") for wp in truthBranchWorkingPointsPSet.names]
-        maps.append(("TruthToReco", "Branch", "TS"))
+    for associator, collection, reconame in truthGraphMaps:
+        maps = [("RecoToTruth" + wp, reconame, "Branch") for wp in truthBranchWorkingPointsPSet.names]
+        maps.append(("TruthToReco", "Branch", reconame))
         for mapname, first, second in maps:
             label = f"flatten{collection[0].upper()}{collection[1:]}{mapname}"
             setattr(process, label, cms.EDProducer(
                 "FlattenTruthBranchAssociator",
-                src = cms.InputTag("truthBranchTracksterAssociators", collection + mapname),
+                src = cms.InputTag(associator, collection + mapname),
                 dest = cms.string(f"{collection}{mapname}Flat"),
                 first = cms.string(first),
                 second = cms.string(second)
