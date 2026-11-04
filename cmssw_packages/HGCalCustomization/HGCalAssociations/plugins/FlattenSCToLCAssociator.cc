@@ -40,8 +40,8 @@ public:
     destName_ = cfg.getParameter<std::string>("dest");
     produces<std::vector<unsigned int>>(destName_ + "SCIdx");
     produces<std::vector<unsigned int>>(destName_ + "LCIdx");
+    produces<std::vector<float>>(destName_ + "SharedEnergy");
     produces<std::vector<float>>(destName_ + "Score");
-    produces<std::vector<float>>(destName_ + "SharedEnergyFraction");
   }
 
   // main 
@@ -57,8 +57,8 @@ public:
     // initializations
     auto scIdx = std::make_unique<std::vector<unsigned int>>();
     auto lcIdx = std::make_unique<std::vector<unsigned int>>();
+    auto sharedEnergy = std::make_unique<std::vector<float>>();
     auto score = std::make_unique<std::vector<float>>();
-    auto eFrac = std::make_unique<std::vector<float>>();
 
     // loop over simclusters
     for (auto const& entry : *map) {
@@ -71,16 +71,17 @@ public:
         // add to vectors
         scIdx->push_back(sc);
         lcIdx->push_back(lc);
-        score->push_back(match.second.first);
-        eFrac->push_back(match.second.second);
+        // note: the association map stores the pair <shared energy, score>
+        sharedEnergy->push_back(match.second.first);
+        score->push_back(match.second.second);
       }
     }
 
     // add flat collections to the event
     event.put(std::move(scIdx), destName_ + "SCIdx");
     event.put(std::move(lcIdx), destName_ + "LCIdx");
+    event.put(std::move(sharedEnergy), destName_ + "SharedEnergy");
     event.put(std::move(score), destName_ + "Score");
-    event.put(std::move(eFrac), destName_ + "SharedEnergyFraction");
   }
 
 private:

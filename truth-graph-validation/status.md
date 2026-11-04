@@ -64,10 +64,24 @@ and the [documentation](https://cms-truth.docs.cern.ch) for the truth graph itse
   of the graph (particles, kinematics, levels, navigation) directly from an EDM file.
 
 
+- **Efficiency calculation**: `analysis/efficiency/calculate_associations.py` supports truth Branches
+  as truth objects, for LayerClusters and TICLCandidates alike, via `--gen_level` (any combination of
+  `cp`, `sc`, `truthbranch-signal` and `truthbranch-caloboundary`, i.e. truth Branches at the
+  `signal` and `caloBoundary` truth levels; outputs e.g. `metrics_tc_truthbranch-signal.parquet`);
+  see `analysis/tools/truthbranchtools.py` for the definitions.
+  Validated on single pion samples: with `truthbranch-signal`, the TICLCandidate metrics are identical to the
+  CaloParticle-based ones without pileup (and very close with pileup), and so is the LayerCluster purity.
+  The LayerCluster efficiency is defined differently (per-layer shared energy fraction instead of
+  1 - per-layer score), since the truth Branch association has no per-layer score.
+
+
 ## What's still to do
 
-- Use the truth Branch associations in `analysis/efficiency/calculate_associations.py`
-  as an alternative to CaloParticles/SimClusters, with a configurable truth level
-  (e.g. `signal` for particle guns) and working point,
-  and validate against the CaloParticle-based results on the same events.
+- LayerCluster-level metrics (for any truth object, including CaloParticles) do not work with
+  pileup: the dense (truth objects x LayerClusters) matrices need O(10 GB) per event with
+  O(100k) LayerClusters; this needs a sparse implementation.
+- Possibly a per-layer LayerCluster efficiency for truth Branches normalized to the Branch energy
+  on that layer (would need the per-layer Branch energy from the hit index).
+- The grid scans still use CaloParticles (default `--gen_level cp`); the truth level can be added
+  as an option to the scan context.
 - Measure the cost of the associations (in particular the LayerCluster one) with pileup.

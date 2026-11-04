@@ -28,8 +28,23 @@ from tools.lcassociationtools import get_cptolc_matrix_from_builtin
 from tools.lcassociationtools import get_lctocp_matrix_from_builtin
 from tools.tcassociationtools import get_ticl_candidate_matrices_from_trackster_associations
 from tools.tcassociationtools import get_mapping as get_tc_mapping
+from tools.tcassociationtools import get_all_ticl_candidate_trackster_indices
 from tools.metrics import response
 from tools.metrics import efficiency
+from tools.truthbranchtools import get_level_partition
+from tools.truthbranchtools import prune_truth
+from tools.truthbranchtools import get_shared_energy_matrix
+from tools.truthbranchtools import get_matrices_from_shared_energy
+from tools.truthbranchtools import get_purity_matrix_from_scores
+from tools.truthbranchtools import get_ticl_candidate_matrices
+
+
+# truth Branches that can be used as truth objects (see tools/truthbranchtools.py):
+# name of the truth object type in this script -> truth level in the MC-truth graph
+TRUTH_BRANCH_LEVELS = {
+    'truthbranch-signal': 'signal',
+    'truthbranch-caloboundary': 'caloBoundary',
+}
 
 
 def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
@@ -38,16 +53,21 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
         lctotruth_scores_key='lctocpassociation_scores',
         truthtolc_truthids_key='cptolcassociation_cpids',
         truthtolc_lcids_key='cptolcassociation_lcids',
-        truthtolc_efracs_key='cptolcassociation_efracs'):
+        truthtolc_scores_key='cptolcassociation_scores',
+        matrices=None,
+        truth_selected_ids=None):
     '''
     Calculate LayerCluster-to-truth-object metrics for a single event.
     Despite the "caloparticles" name (kept for backwards compatibility), the truth
-    object list can be CaloParticles or SimClusters: both expose the .pt()/.eta()
-    used below, and which collections to read the flattened associations from is
-    controlled by the lctotruth_*/truthtolc_* keys (default: CaloParticle-based,
-    exactly as before). Pass the SimCluster equivalents (see
+    object list can be CaloParticles, SimClusters, or truth Branches (see tools/truthbranchtools.py):
+    all expose the .pt()/.eta() used below. For CaloParticles and SimClusters, which collections to
+    read the flattened associations from is controlled by the lctotruth_*/truthtolc_* keys (default:
+    CaloParticle-based, exactly as before). Pass the SimCluster equivalents (see
     input_config_customreco_sc_associations.json) to get SimCluster-based metrics
-    instead.
+    instead. For truth Branches, pass the precomputed (purity, efficiency) matrices
+    with the matrices argument instead.
+    Optionally, truth_selected_ids restricts the output to the given truth objects
+    (after the mapping is made, i.e. LayerClusters mapped to other truth objects are dropped).
 
     Returns:
     - df_lc: one row per purity-matched LayerCluster.
@@ -55,8 +75,12 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
     '''
     layerclusters = collections['layerclusters']
 
+    # Case 0: use precomputed purity and efficiency matrices.
+    if matrices is not None:
+        pur_matrix, eff_matrix = matrices
+
     # Case 1: recalculate LC-CP associations from rechits and CaloParticle hits.
-    if args.recalculate:
+    elif args.recalculate:
         calohits_ee = collections['calohitees']
         calohits_heb = collections['calohithebs']
         calohits_hef = collections['calohithefs']
@@ -108,8 +132,10 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
         lctocp_score = collections[lctotruth_scores_key]
         cptolc_cpidx = collections[truthtolc_truthids_key]
         cptolc_lcidx = collections[truthtolc_lcids_key]
-        cptolc_efrac = collections[truthtolc_efracs_key]
+        cptolc_score = collections[truthtolc_scores_key]
 
+        # purity = 1 - reco-normalized score (LC to CP),
+        # efficiency = 1 - sim-normalized score (CP to LC, normalized per layer)
         pur_matrix = get_lctocp_matrix_from_builtin(
             lctocp_lcidx,
             lctocp_cpidx,
@@ -119,7 +145,7 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
         eff_matrix = get_cptolc_matrix_from_builtin(
             cptolc_cpidx,
             cptolc_lcidx,
-            cptolc_efrac,
+            cptolc_score,
             len(caloparticles),
             len(layerclusters))
 
@@ -127,6 +153,13 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
     threshold = None
     mapping = get_mapping(pur_matrix, threshold=threshold)
     (cptolc_ids, lctocp_ids) = mapping
+    if matrices is not None:
+        # LayerClusters without any shared energy with a truth object are unmatched
+        # (for the precomputed matrices, all-zero columns would otherwise map to index 0)
+        lctocp_ids = np.where(np.max(pur_matrix, axis=0) > 0, lctocp_ids, -1) if pur_matrix.shape[0] > 0 \
+            else np.full(len(layerclusters), -1)
+    if truth_selected_ids is not None:
+        lctocp_ids = np.where(np.isin(lctocp_ids, truth_selected_ids), lctocp_ids, -1)
     linked_lc_ids = np.nonzero(lctocp_ids != -1)[0]
     linked_lc_cp_ids = lctocp_ids[linked_lc_ids]
 
@@ -158,9 +191,10 @@ def calculate_lc_event_metrics(collections, caloparticles, eventid, args,
                 this_cp_eff[layer] = eff
             cps_eff.append(this_cp_eff)
 
-    layers_per_cp = [list(el.keys()) for el in cps_eff]
-    cp_layer = np.array(sum(layers_per_cp, []))
-    cp_eff = np.array([cps_eff[idx][l] for idx in range(len(caloparticles)) for l in layers_per_cp[idx]])
+    truth_ids = range(len(caloparticles)) if truth_selected_ids is None else [int(idx) for idx in truth_selected_ids]
+    layers_per_cp = {idx: list(cps_eff[idx].keys()) for idx in truth_ids}
+    cp_layer = np.array(sum(layers_per_cp.values(), []))
+    cp_eff = np.array([cps_eff[idx][l] for idx in truth_ids for l in layers_per_cp[idx]])
 
     df_lc = pd.DataFrame.from_dict({
         'pur': lc_pur,
@@ -189,16 +223,18 @@ def calculate_tc_event_metrics(collections, caloparticles,
         simtracksters_key='simtracksters_from_cps',
         tstosimts_tsids_key='tstocpsimtsassociation_tsids',
         tstosimts_simtsids_key='tstocpsimtsassociation_simtsids',
-        tstosimts_sharedenergy_key='tstocpsimtsassociation_sharedenergy'):
+        tstosimts_sharedenergy_key='tstocpsimtsassociation_sharedenergy',
+        matrices=None):
     '''
     Calculate TICLCandidate-to-truth-object metrics for a single event.
     Despite the "caloparticles" name (kept for backwards compatibility), the truth
-    object list can be CaloParticles or SimClusters: both expose the .pt()/.eta()
-    used below, and which collections to read the SimTrackster/association products
-    from is controlled by the simtracksters_key/tstosimts_*_key arguments (default:
-    CaloParticle-based, exactly as before). Pass the SimCluster equivalents (see
-    input_config_customreco_sc_associations.json) to get SimCluster-based metrics
-    instead.
+    object list can be CaloParticles, SimClusters, or truth Branches (see tools/truthbranchtools.py):
+    all expose the .pt()/.eta() used below. For CaloParticles and SimClusters, which collections
+    to read the SimTrackster/association products from is controlled by the
+    simtracksters_key/tstosimts_*_key arguments (default: CaloParticle-based, exactly as before).
+    Pass the SimCluster equivalents (see input_config_customreco_sc_associations.json)
+    to get SimCluster-based metrics instead. For truth Branches, pass the precomputed
+    (Trackster indices per TICLCandidate, purity, efficiency) with the matrices argument instead.
 
     Returns:
     - df_tc: one row per non-empty TICLCandidate kept by the mapping.
@@ -210,13 +246,21 @@ def calculate_tc_event_metrics(collections, caloparticles,
 
     # get extra collections needed
     ticlcandidates = collections.get(ticlcandidates_key)
+    if ticlcandidates is None: return None, None, False
+
+    # use precomputed matrices if provided
+    if matrices is not None:
+        tc_ts_indices, pur_matrix, eff_matrix = matrices
+        return _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
+            tc_ts_indices, pur_matrix, eff_matrix, eventid=eventid, cp_selected_ids=cp_selected_ids)
+
     simtracksters_from_cps = collections.get(simtracksters_key)
     tstocpsimts_tsidx = collections.get(tstosimts_tsids_key)
     tstocpsimts_simtsidx = collections.get(tstosimts_simtsids_key)
     tstocpsimts_sharedenergy = collections.get(tstosimts_sharedenergy_key)
 
     # handle special cases
-    if ticlcandidates is None or tstocpsimts_tsidx is None: return None, None, False
+    if tstocpsimts_tsidx is None: return None, None, False
     if len(tstocpsimts_tsidx) == 0: return None, None, True
 
     # The flattened Trackster-to-SimTrackster association stores indices into
@@ -249,6 +293,22 @@ def calculate_tc_event_metrics(collections, caloparticles,
     #print(pur_matrix[:2, :10])
     #print(np.max(pur_matrix, axis=0)[:10])
     #print(np.argmax(pur_matrix, axis=0)[:10])
+
+    return _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
+        tc_ts_indices, pur_matrix, eff_matrix, eventid=eventid, cp_selected_ids=cp_selected_ids)
+
+
+def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
+        tc_ts_indices, pur_matrix, eff_matrix,
+        eventid = 0,
+        cp_selected_ids = None):
+    '''
+    Calculate TICLCandidate-to-truth-object metrics from the purity- and efficiency-like matrices
+    (see calculate_tc_event_metrics for more info).
+    '''
+
+    # handle special case of no truth objects
+    if len(caloparticles) == 0: return None, None, False
 
     # problem: for samples with pileup, the association above does not seem to work properly,
     # and there are many ticl candidates with 0 maximum purity
@@ -357,17 +417,22 @@ if __name__=='__main__':
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
     parser.add_argument('--do_lc_level', default=False, action='store_true')
     parser.add_argument('--do_tc_level', default=False, action='store_true')
-    parser.add_argument('--gen_level', default='cp', choices=['cp', 'sc', 'both'],
-        help='Truth object(s) to use for LayerCluster- and TICLCandidate-level metrics:'
-             ' CaloParticles ("cp", default, unchanged behavior), SimClusters ("sc"), or'
-             ' both. Applies to --do_lc_level and --do_tc_level alike.')
+    parser.add_argument('--gen_level', default=['cp'], nargs='+', choices=['cp', 'sc', 'both'] + list(TRUTH_BRANCH_LEVELS.keys()),
+        help='Truth object(s) to use for LayerCluster- and TICLCandidate-level metrics (one or more of):'
+             ' CaloParticles ("cp", default, unchanged behavior), SimClusters ("sc"),'
+             ' "both" (= cp and sc), or truth Branches of the MC-truth graph at a given truth level'
+             f' ({", ".join(TRUTH_BRANCH_LEVELS.keys())}; requires a re-reco output with the truth graph'
+             ' associations, see tools/truthbranchtools.py). Applies to --do_lc_level and --do_tc_level alike.')
     parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
     parser.add_argument('--make_plots', default=False, action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     args = parser.parse_args()
-    if args.recalculate and args.gen_level in ('sc', 'both'):
-        raise NotImplementedError('--recalculate is not yet supported together with --gen_level sc/both.')
+    gen_levels = set(args.gen_level)
+    if 'both' in gen_levels: gen_levels = (gen_levels - {'both'}) | {'cp', 'sc'}
+    branch_levels = [level for level in TRUTH_BRANCH_LEVELS if level in gen_levels]
+    if args.recalculate and gen_levels != {'cp'}:
+        raise NotImplementedError('--recalculate is only supported together with --gen_level cp.')
 
     # set input configs
     input_configs = []
@@ -382,12 +447,14 @@ if __name__=='__main__':
             input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_hits.json'))
         else:
             input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_associations.json'))
-            if args.gen_level in ('sc', 'both'):
+            if 'sc' in gen_levels:
                 sc_config = os.path.join(topdir, f'configs/input_config_{args.input_config_type}_sc_associations.json')
                 if os.path.exists(sc_config):
                     input_configs.append(sc_config)
                 else:
-                    print(f'WARNING: --gen_level {args.gen_level} requested but {sc_config} does not exist; skipping SimCluster-level associations.')
+                    print(f'WARNING: --gen_level sc requested but {sc_config} does not exist; skipping SimCluster-level associations.')
+            if len(branch_levels) > 0:
+                input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_truth_associations.json'))
     print('Found following input configs:')
     print(json.dumps(input_configs, indent=2))
 
@@ -403,7 +470,7 @@ if __name__=='__main__':
     exclude = ['tracksters']
     if not args.do_lc_level:
         exclude.append('layerclusters')
-    need_simclusters = args.gen_level in ('sc', 'both') and (args.do_lc_level or args.do_tc_level)
+    need_simclusters = 'sc' in gen_levels and (args.do_lc_level or args.do_tc_level)
     if not need_simclusters:
         exclude.append('simclusters')
     reader = Reader(input_configs, exclude=exclude)
@@ -419,6 +486,7 @@ if __name__=='__main__':
     dfs_sc_tc = []
     n_empty_tstocpsimts_events = 0
     n_empty_tstoscsimts_events = 0
+    dfs_branch = {level: {'lc': [], 'truth_lc': [], 'tc': [], 'truth_tc': []} for level in branch_levels}
     for file_idx, inputfile in enumerate(args.inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(args.inputfiles)}...')
         events = Events(inputfile)
@@ -457,11 +525,11 @@ if __name__=='__main__':
 
             # calculate layercluster to caloparticle and/or simcluster associations
             if args.do_lc_level:
-                if args.gen_level in ('cp', 'both'):
+                if 'cp' in gen_levels:
                     df_lc, df_cp = calculate_lc_event_metrics(collections, caloparticles, eventid, args)
                     dfs_lc.append(df_lc)
                     dfs_cp_lc.append(df_cp)
-                if args.gen_level in ('sc', 'both'):
+                if 'sc' in gen_levels:
                     simclusters = collections['simclusters']
                     df_lc_sc, df_sc_lc = calculate_lc_event_metrics(collections, simclusters, eventid, args,
                         lctotruth_lcids_key='lctoscassociation_lcids',
@@ -469,13 +537,13 @@ if __name__=='__main__':
                         lctotruth_scores_key='lctoscassociation_scores',
                         truthtolc_truthids_key='sctolcassociation_scids',
                         truthtolc_lcids_key='sctolcassociation_lcids',
-                        truthtolc_efracs_key='sctolcassociation_efracs')
+                        truthtolc_scores_key='sctolcassociation_scores')
                     dfs_lc_sc.append(df_lc_sc)
                     dfs_sc_lc.append(df_sc_lc)
 
             # calculate ticl candidate to caloparticle and/or simcluster associations
             if args.do_tc_level:
-                if args.gen_level in ('cp', 'both'):
+                if 'cp' in gen_levels:
                     df_tc, df_cp_tc, has_empty_association_product = calculate_tc_event_metrics(
                         collections, caloparticles,
                         cp_selected_ids = cp_from_primary_interaction_ids,
@@ -483,7 +551,7 @@ if __name__=='__main__':
                     if df_tc is not None: dfs_tc.append(df_tc)
                     if df_cp_tc is not None: dfs_cp_tc.append(df_cp_tc)
                     if has_empty_association_product: n_empty_tstocpsimts_events += 1
-                if args.gen_level in ('sc', 'both'):
+                if 'sc' in gen_levels:
                     simclusters = collections['simclusters']
                     sc_is_from_primary_interaction = np.array([(sc.eventId().event()==0) for sc in simclusters])
                     sc_from_primary_interaction_ids = np.nonzero(sc_is_from_primary_interaction)[0]
@@ -513,6 +581,46 @@ if __name__=='__main__':
                         ])
                         dfs_sc_tc.append(df_sc_tc)
                     if has_empty_association_product_sc: n_empty_tstoscsimts_events += 1
+
+            # calculate layercluster and/or ticl candidate to truth branch associations
+            for level in branch_levels:
+                graph = collections['truthgraph']
+                truth, truth_selected_ids = get_level_partition(graph, TRUTH_BRANCH_LEVELS[level])
+                # keep only truth objects that are selected or share energy with a reco object
+                branch_id_arrays = []
+                if args.do_lc_level: branch_id_arrays.append(collections['lctobranch_branchids'])
+                if args.do_tc_level: branch_id_arrays.append(collections['tctobranch_branchids'])
+                truth, truth_selected_ids = prune_truth(truth, truth_selected_ids, *branch_id_arrays)
+                if args.do_lc_level:
+                    layerclusters = collections['layerclusters']
+                    lc_layers = np.array([get_layercluster_layer(lc) if len(lc.hitsAndFractions()) > 0 else -1
+                                          for lc in layerclusters])
+                    shared = get_shared_energy_matrix(
+                        collections['lctobranch_lcids'], collections['lctobranch_branchids'],
+                        collections['lctobranch_sharedenergy'], truth, len(layerclusters))
+                    _, eff_matrix = get_matrices_from_shared_energy(shared, reco_groups=lc_layers)
+                    pur_matrix = get_purity_matrix_from_scores(
+                        collections['lctobranch_lcids'], collections['lctobranch_branchids'],
+                        collections['lctobranch_scores'], truth, len(layerclusters))
+                    df_lc_b, df_b_lc = calculate_lc_event_metrics(collections, truth, eventid, args,
+                        matrices=(pur_matrix, eff_matrix),
+                        truth_selected_ids=truth_selected_ids)
+                    dfs_branch[level]['lc'].append(df_lc_b)
+                    dfs_branch[level]['truth_lc'].append(df_b_lc)
+                if args.do_tc_level:
+                    ticlcandidates = collections['ticlcandidates_merge']
+                    tc_ts_indices = get_all_ticl_candidate_trackster_indices(ticlcandidates)
+                    pur_matrix, eff_matrix = get_ticl_candidate_matrices(ticlcandidates, tc_ts_indices,
+                        collections['tctobranch_tsids'], collections['tctobranch_branchids'],
+                        collections['tctobranch_sharedenergy'], truth)
+                    df_tc_b, df_b_tc, _ = calculate_tc_event_metrics(collections, truth,
+                        eventid = eventid,
+                        cp_selected_ids = truth_selected_ids,
+                        matrices = (tc_ts_indices, pur_matrix, eff_matrix))
+                    if df_tc_b is not None: dfs_branch[level]['tc'].append(df_tc_b)
+                    if df_b_tc is not None:
+                        df_b_tc['pdgid'] = np.array([truth[int(idx)].pdgId() for idx in truth_selected_ids])
+                        dfs_branch[level]['truth_tc'].append(df_b_tc)
 
             # stop processing if sufficient events have been processed
             if args.nentries > 0 and event_idx >= args.nentries-1: break
@@ -633,25 +741,37 @@ if __name__=='__main__':
     df_cp.to_parquet(cp_lc_output)
     df_tc.to_parquet(tc_output)
     df_cp_tc.to_parquet(cp_tc_output)
-    if args.do_lc_level and args.gen_level in ('sc', 'both'):
+    if args.do_lc_level and 'sc' in gen_levels:
         lc_sc_output = os.path.join(args.outputdir, 'metrics_lc_sc.parquet')
         sc_lc_output = os.path.join(args.outputdir, 'metrics_sc_lc.parquet')
         df_lc_sc.to_parquet(lc_sc_output)
         df_sc_lc.to_parquet(sc_lc_output)
-    if args.do_tc_level and args.gen_level in ('sc', 'both'):
+    if args.do_tc_level and 'sc' in gen_levels:
         tc_sc_output = os.path.join(args.outputdir, 'metrics_tc_sc.parquet')
         sc_tc_output = os.path.join(args.outputdir, 'metrics_sc_tc.parquet')
         df_tc_sc.to_parquet(tc_sc_output)
         df_sc_tc.to_parquet(sc_tc_output)
+    branch_outputs = {}
+    for level in branch_levels:
+        for key, reco in [('lc', 'lc'), ('tc', 'tc')]:
+            if not getattr(args, f'do_{reco}_level'): continue
+            dfs_reco, dfs_truth = dfs_branch[level][key], dfs_branch[level][f'truth_{key}']
+            df_reco = pd.concat(dfs_reco) if len(dfs_reco) > 0 else pd.DataFrame()
+            df_truth = pd.concat(dfs_truth) if len(dfs_truth) > 0 else pd.DataFrame()
+            reco_output = os.path.join(args.outputdir, f'metrics_{reco}_{level}.parquet')
+            truth_output = os.path.join(args.outputdir, f'metrics_{level}_{reco}.parquet')
+            df_reco.to_parquet(reco_output)
+            df_truth.to_parquet(truth_output)
+            branch_outputs[(level, reco)] = (reco_output, truth_output)
 
     if args.make_plots:
         plotting_commands = []
         if args.do_lc_level:
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_lc.py'), lc_output])
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_cp.py'), cp_lc_output])
-        if args.do_tc_level and args.gen_level in ('cp', 'both'):
+        if args.do_tc_level and 'cp' in gen_levels:
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_output])
-        if args.do_tc_level and args.gen_level in ('sc', 'both'):
+        if args.do_tc_level and 'sc' in gen_levels:
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_tc.py'), tc_sc_output,
                 '--truth-inputfile', sc_tc_output, '--truth-mode', 'sc'])
         for command in plotting_commands:

@@ -63,8 +63,8 @@ if __name__=='__main__':
             lctocp_score = collections['lctocpassociation_scores']
             cptolc_cpidx = collections['cptolcassociation_cpids']
             cptolc_lcidx = collections['cptolcassociation_lcids']
+            cptolc_sharedenergy = collections['cptolcassociation_sharedenergy']
             cptolc_score = collections['cptolcassociation_scores']
-            cptolc_efrac = collections['cptolcassociation_efracs']
 
             # make dicts mapping ID to object
             calohit_map = {hit.id(): hit for hit in calohits_ee}
@@ -76,7 +76,7 @@ if __name__=='__main__':
 
             # get builtin associations
             pur_builtin = get_lctocp_matrix_from_builtin(lctocp_lcidx, lctocp_cpidx, lctocp_score, len(layerclusters), len(caloparticles))
-            eff_builtin = get_cptolc_matrix_from_builtin(cptolc_cpidx, cptolc_lcidx, cptolc_efrac, len(caloparticles), len(layerclusters))
+            eff_builtin = get_cptolc_matrix_from_builtin(cptolc_cpidx, cptolc_lcidx, cptolc_score, len(caloparticles), len(layerclusters))
             mapping_builtin = get_mapping(pur_builtin)
             cp_ids_builtin = mapping_builtin[1]
 

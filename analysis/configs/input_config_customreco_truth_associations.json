@@ -1,0 +1,10 @@
+{
+    "truthgraph": ["truth::Graph", "truthLogicalGraphProducer", ""],
+    "lctobranch_lcids": ["std::vector<unsigned int>", "flattenHgcalMergeLayerClustersRecoToTruthFixed", "hgcalMergeLayerClustersRecoToTruthFixedFlatLCIdx", "HGCALTICL"],
+    "lctobranch_branchids": ["std::vector<unsigned int>", "flattenHgcalMergeLayerClustersRecoToTruthFixed", "hgcalMergeLayerClustersRecoToTruthFixedFlatBranchIdx", "HGCALTICL"],
+    "lctobranch_sharedenergy": ["std::vector<float>", "flattenHgcalMergeLayerClustersRecoToTruthFixed", "hgcalMergeLayerClustersRecoToTruthFixedFlatSharedEnergy", "HGCALTICL"],
+    "lctobranch_scores": ["std::vector<float>", "flattenHgcalMergeLayerClustersRecoToTruthFixed", "hgcalMergeLayerClustersRecoToTruthFixedFlatScore", "HGCALTICL"],
+    "tctobranch_tsids": ["std::vector<unsigned int>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatTSIdx", "HGCALTICL"],
+    "tctobranch_branchids": ["std::vector<unsigned int>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatBranchIdx", "HGCALTICL"],
+    "tctobranch_sharedenergy": ["std::vector<float>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatSharedEnergy", "HGCALTICL"]
+}

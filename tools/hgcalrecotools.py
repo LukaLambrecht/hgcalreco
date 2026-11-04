@@ -162,6 +162,9 @@ def run_local_evaluation(params, context,
     if efficiency_level in ["tc", "both"]:
         cmd.append("--do_tc_level")
     if context["efficiency_recalculate"]: cmd.append("--recalculate")
+    # truth object types (e.g. cp, truthbranch-signal; see calculate_associations.py)
+    gen_levels = context.get("efficiency_gen_level", ["cp"])
+    cmd += ["--gen_level"] + gen_levels
     # note: see the note above the cmsRun call for why this is written to a log file
     # in workdir rather than captured via a pipe (this also surfaces the per-event
     # "Reading event N..." printouts from calculate_associations.py).
@@ -215,10 +218,22 @@ def run_local_evaluation(params, context,
         metric = extract_metric(metrics_lc_file, metrics_cp_file)
         output_metrics_files = [metrics_lc_file, metrics_cp_file]
 
+    # TICLCandidate-level metric per truth object type
+    # (the main metric above is the CaloParticle-based one, as before)
+    metrics = {}
+    if efficiency_level in ["tc", "both"]:
+        for gen_level in gen_levels:
+            tc_file = os.path.join(outputdir, f"metrics_tc_{gen_level}.parquet")
+            truth_tc_file = os.path.join(outputdir, f"metrics_{gen_level}_tc.parquet")
+            metrics[gen_level] = extract_tc_metric(tc_file, truth_tc_file)
+            for f in [tc_file, truth_tc_file]:
+                if f not in output_metrics_files: output_metrics_files.append(f)
+
     return {
         "loss": -metric,
         "status": "ok",
         "metric": metric,
+        "metrics": metrics,
         "params": params,
         "output_reco_file": os.path.join(workdir, "hgcalreco_out.root"),
         "output_metrics_files": output_metrics_files

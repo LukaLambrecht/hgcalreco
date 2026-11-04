@@ -77,7 +77,10 @@ def _positive_bins(dfs, column, default_max=1., nbins=60):
     return np.linspace(0, high, nbins + 1)
 
 
-def plot_tc_result(result, outputdir, params=None, legend_dict=None):
+def plot_tc_result(result, outputdir, params=None, legend_dict=None,
+        truth_label='CaloParticle', figname_prefix='tc_cp'):
+    # note: truth_label and figname_prefix allow to make the same plots for other truth objects
+    #       (e.g. truth Branches), with the defaults corresponding to CaloParticles.
     if len(result) == 0:
         print('No TICLCandidate scan results to plot.')
         return
@@ -95,8 +98,8 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None):
     dfs = list(result.values())
 
     histograms = [
-        ('pur', np.linspace(0, 1.2, 61), 'TICLCandidate purity', 'TICLCandidates', True),
-        ('eff', np.linspace(0, 1.2, 61), 'TICLCandidate efficiency', 'TICLCandidates', True),
+        ('pur', np.linspace(0, 1.2, 61), f'TICLCandidate purity w.r.t. matched {truth_label}', 'TICLCandidates', True),
+        ('eff', np.linspace(0, 1.2, 61), f'TICLCandidate efficiency w.r.t. matched {truth_label}', 'TICLCandidates', True),
         ('ntracksters', _integer_bins(dfs, 'ntracksters', 5), 'Tracksters per TICLCandidate', 'TICLCandidates', False),
         ('nlayerclusters', _integer_bins(dfs, 'nlayerclusters', 10), 'LayerClusters per TICLCandidate', 'TICLCandidates', False),
         ('pt', _positive_bins(dfs, 'pt'), 'TICLCandidate pT', 'TICLCandidates', False),
@@ -123,13 +126,13 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None):
         if len(result) > 1:
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1, 1))
         fig.tight_layout()
-        figname = os.path.join(outputdir, f'tc_{column}.png')
+        figname = os.path.join(outputdir, f'{figname_prefix}_{column}.png')
         save_with_logy(fig, ax, figname)
         plt.close(fig)
 
     for xcolumn, bins, xlabel, suffix in [
-            ('caloparticle_eta', np.linspace(-3.2, 3.2, 17), 'Matched CaloParticle eta', 'eta'),
-            ('caloparticle_pt', _positive_bins(dfs, 'caloparticle_pt', nbins=14), 'Matched CaloParticle pT', 'pt')]:
+            ('caloparticle_eta', np.linspace(-3.2, 3.2, 17), f'Matched {truth_label} eta', 'eta'),
+            ('caloparticle_pt', _positive_bins(dfs, 'caloparticle_pt', nbins=14), f'Matched {truth_label} pT', 'pt')]:
         fig, ax = plt.subplots(figsize=(12, 6))
         ax.grid(visible=True, which='both', axis='both')
         for key, df in result.items():
@@ -142,17 +145,20 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None):
         ax.axhline(y=1, color='grey', linestyle='--')
         ax.set_ylim((0, 1.2))
         ax.set_xlabel(xlabel, fontsize=15)
-        ax.set_ylabel('Mean TICLCandidate purity', fontsize=15)
+        ax.set_ylabel(f'Mean TICLCandidate purity\nw.r.t. matched {truth_label}', fontsize=15)
         ax.tick_params(axis='both', which='both', labelsize=15)
         if len(result) > 1:
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1, 1))
         fig.tight_layout()
-        figname = os.path.join(outputdir, f'tc_purity_vs_{suffix}.png')
+        figname = os.path.join(outputdir, f'{figname_prefix}_purity_vs_{suffix}.png')
         save_with_logy(fig, ax, figname)
         plt.close(fig)
 
 
-def plot_cp_tc_result(result, outputdir, params=None, legend_dict=None):
+def plot_cp_tc_result(result, outputdir, params=None, legend_dict=None,
+        truth_label='CaloParticle', figname_prefix='cp_tc'):
+    # note: truth_label and figname_prefix allow to make the same plots for other truth objects
+    #       (e.g. truth Branches), with the defaults corresponding to CaloParticles.
     if len(result) == 0:
         print('No CaloParticle TICLCandidate scan results to plot.')
         return
@@ -170,10 +176,10 @@ def plot_cp_tc_result(result, outputdir, params=None, legend_dict=None):
     dfs = list(result.values())
 
     histograms = [
-        ('eff_primary', np.linspace(0, 1.2, 61), 'Efficiency of primary TICLCandidate', 'CaloParticles', True),
-        ('pur_primary', np.linspace(0, 1.2, 61), 'Purity of primary TICLCandidate', 'CaloParticles', True),
-        ('eff_sum', _positive_bins(dfs, 'eff_sum', default_max=1.2), 'CaloParticle efficiency (total)', 'CaloParticles', False),
-        ('ntc', _integer_bins(dfs, 'ntc', 5), 'TICLCandidates per CaloParticle', 'CaloParticles', False),
+        ('eff_primary', np.linspace(0, 1.2, 61), f'{truth_label} efficiency w.r.t. primary TICLCandidate', f'{truth_label}s', True),
+        ('pur_primary', np.linspace(0, 1.2, 61), f'Primary TICLCandidate purity w.r.t. {truth_label}', f'{truth_label}s', True),
+        ('eff_sum', _positive_bins(dfs, 'eff_sum', default_max=1.2), f'{truth_label} efficiency w.r.t. all matched TICLCandidates', f'{truth_label}s', False),
+        ('ntc', _integer_bins(dfs, 'ntc', 5), f'TICLCandidates per {truth_label}', f'{truth_label}s', False),
     ]
 
     for column, bins, xlabel, ylabel, unit_interval in histograms:
@@ -196,7 +202,7 @@ def plot_cp_tc_result(result, outputdir, params=None, legend_dict=None):
         if len(result) > 1:
             ax.legend(fontsize=15, loc='upper left', bbox_to_anchor=(1, 1))
         fig.tight_layout()
-        figname = os.path.join(outputdir, f'cp_tc_{column}.png')
+        figname = os.path.join(outputdir, f'{figname_prefix}_{column}.png')
         save_with_logy(fig, ax, figname)
         plt.close(fig)
 
