@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from DataFormats.FWLite import Events
 
-topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.append(topdir)
 
 from tools.iotools import Reader

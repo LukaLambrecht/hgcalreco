@@ -165,6 +165,8 @@ def run_local_evaluation(params, context,
     # truth object types (e.g. cp, truthbranch-signal; see calculate_associations.py)
     gen_levels = context.get("efficiency_gen_level", ["cp"])
     cmd += ["--gen_level"] + gen_levels
+    # composition of TICLCandidates and truth objects per subdetector (see calculate_associations.py)
+    if context.get("efficiency_do_composition", False): cmd.append("--do_composition")
     # note: see the note above the cmsRun call for why this is written to a log file
     # in workdir rather than captured via a pipe (this also surfaces the per-event
     # "Reading event N..." printouts from calculate_associations.py).
@@ -228,6 +230,8 @@ def run_local_evaluation(params, context,
             metrics[gen_level] = extract_tc_metric(tc_file, truth_tc_file)
             for f in [tc_file, truth_tc_file]:
                 if f not in output_metrics_files: output_metrics_files.append(f)
+    if context.get("efficiency_do_composition", False):
+        output_metrics_files.append(os.path.join(outputdir, "metrics_event_lc.parquet"))
 
     return {
         "loss": -metric,

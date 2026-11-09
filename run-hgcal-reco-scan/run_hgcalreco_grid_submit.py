@@ -30,6 +30,9 @@ if __name__=='__main__':
     parser.add_argument('--gen_level', default=['cp'], nargs='+',
         help='Truth object type(s) for the efficiency calculation (see analysis/efficiency/calculate_associations.py),'
              ' e.g. "cp truthbranch-signal"; the main metric is always the CaloParticle-based one.')
+    parser.add_argument('--do_composition', default=False, action='store_true',
+        help='Also store the composition of TICLCandidates and truth objects per HGCAL subdetector'
+             ' (see analysis/efficiency/calculate_associations.py).')
     parser.add_argument('--efficiency_level', default='both',
         choices=['lc', 'tc', 'both'],
         help='Efficiency metrics to calculate after re-reco.')
@@ -102,6 +105,7 @@ if __name__=='__main__':
         "efficiency_config_type": "customreco",
         "efficiency_level": args.efficiency_level,
         "efficiency_gen_level": args.gen_level,
+        "efficiency_do_composition": args.do_composition,
         "efficiency_recalculate": False
     }
 

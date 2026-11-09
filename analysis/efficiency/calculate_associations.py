@@ -32,6 +32,10 @@ from tools.tcassociationtools import get_all_ticl_candidate_trackster_indices
 from tools.metrics import response
 from tools.metrics import efficiency
 from tools.truthbranchtools import get_level_partition
+from tools.compositiontools import get_layercluster_info
+from tools.compositiontools import get_ticl_candidate_composition
+from tools.compositiontools import get_event_layercluster_summary
+from tools.compositiontools import get_truth_composition
 from tools.truthbranchtools import prune_truth
 from tools.truthbranchtools import get_shared_energy_matrix
 from tools.truthbranchtools import get_matrices_from_shared_energy
@@ -326,10 +330,11 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
     (cptotc_ids, tctocp_ids) = tc_mapping
 
     # select specific caloparticles (optional)
-    if cp_selected_ids is not None:
-        caloparticles = [caloparticles[int(cpidx)] for cpidx in cp_selected_ids]
-        cptotc_ids = [cptotc_ids[int(cpidx)] for cpidx in cp_selected_ids]
-        tctocp_ids = np.where(np.isin(tctocp_ids, cp_selected_ids), tctocp_ids, -1)
+    # note: all indices below (in tctocp_ids, cptotc_ids, and the rows of the matrices)
+    #       refer to the original (non-selected) list of caloparticles.
+    if cp_selected_ids is None: cp_selected_ids = np.arange(len(caloparticles))
+    cp_selected_ids = np.asarray(cp_selected_ids, dtype=int)
+    tctocp_ids = np.where(np.isin(tctocp_ids, cp_selected_ids), tctocp_ids, -1)
 
     # get index linking in more suitable format
     linked_tc_ids = np.nonzero(tctocp_ids != -1)[0] # indices of ticlcandidates with a match
@@ -373,32 +378,40 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
         'raw_energy': tc_raw_energy,
         'ntracksters': tc_ntracksters,
         'nlayerclusters': tc_nlayerclusters,
+        'tc_index': linked_tc_ids,
+        'truth_index': linked_tc_cp_ids, # index of the matched truth object (same indexing as truth_index in df_cp_tc)
         'event': eventid
     })
 
-    cp_tc_eff_primary = np.zeros(len(caloparticles))
-    cp_tc_pur_primary = np.zeros(len(caloparticles))
-    cp_tc_eff_sum = np.zeros(len(caloparticles))
-    cp_tc_ntc = np.zeros(len(caloparticles), dtype=int)
+    nselected = len(cp_selected_ids)
+    cp_tc_eff_primary = np.zeros(nselected)
+    cp_tc_pur_primary = np.zeros(nselected)
+    cp_tc_eff_sum = np.zeros(nselected)
+    cp_tc_ntc = np.zeros(nselected, dtype=int)
+    cp_tc_primary_tc_index = np.full(nselected, -1, dtype=int) # -1 if no matched TICLCandidate
 
-    for cp_idx, tc_ids in enumerate(cptotc_ids):
-        cp_tc_ntc[cp_idx] = len(tc_ids)
+    for pos, cp_idx in enumerate(cp_selected_ids):
+        tc_ids = cptotc_ids[cp_idx]
+        cp_tc_ntc[pos] = len(tc_ids)
         if len(tc_ids) > 0:
             this_cp_eff = eff_matrix[cp_idx, tc_ids]
             primary_idx = np.argmax(this_cp_eff)
             primary_tc_id = tc_ids[primary_idx]
-            cp_tc_eff_primary[cp_idx] = this_cp_eff[primary_idx]
-            cp_tc_pur_primary[cp_idx] = pur_matrix[cp_idx, primary_tc_id]
-            cp_tc_eff_sum[cp_idx] = np.sum(this_cp_eff)
+            cp_tc_primary_tc_index[pos] = primary_tc_id
+            cp_tc_eff_primary[pos] = this_cp_eff[primary_idx]
+            cp_tc_pur_primary[pos] = pur_matrix[cp_idx, primary_tc_id]
+            cp_tc_eff_sum[pos] = np.sum(this_cp_eff)
 
     df_cp_tc = pd.DataFrame.from_dict({
         'eff_primary': cp_tc_eff_primary,
         'pur_primary': cp_tc_pur_primary,
         'eff_sum': cp_tc_eff_sum,
         'ntc': cp_tc_ntc,
-        'pt': np.array([cp.pt() for cp in caloparticles]),
-        'eta': np.array([cp.eta() for cp in caloparticles]),
-        'energy': np.array([cp.energy() for cp in caloparticles]),
+        'pt': np.array([caloparticles[int(idx)].pt() for idx in cp_selected_ids]),
+        'eta': np.array([caloparticles[int(idx)].eta() for idx in cp_selected_ids]),
+        'energy': np.array([caloparticles[int(idx)].energy() for idx in cp_selected_ids]),
+        'truth_index': cp_selected_ids,
+        'primary_tc_index': cp_tc_primary_tc_index, # tc_index of the primary TICLCandidate (-1 if none)
         'event': eventid
     })
 
@@ -425,6 +438,11 @@ if __name__=='__main__':
              ' associations, see tools/truthbranchtools.py). Applies to --do_lc_level and --do_tc_level alike.')
     parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
+    parser.add_argument('--do_composition', default=False, action='store_true',
+        help='Also calculate the composition of TICLCandidates (number of LayerClusters and energy per'
+             ' HGCAL subdetector), of their truth objects (energy per subdetector, from the shared energy'
+             ' with all LayerClusters), and a per-event summary of all LayerClusters per subdetector'
+             ' (stored in metrics_event_lc.parquet). See tools/compositiontools.py.')
     parser.add_argument('--make_plots', default=False, action='store_true')
     parser.add_argument('--verbose', default=False, action='store_true')
     args = parser.parse_args()
@@ -468,7 +486,7 @@ if __name__=='__main__':
     # the underlying product actually exists in the file, so skipping the ones that
     # are provably unused for this invocation meaningfully reduces peak memory.
     exclude = ['tracksters']
-    if not args.do_lc_level:
+    if not (args.do_lc_level or args.do_composition):
         exclude.append('layerclusters')
     need_simclusters = 'sc' in gen_levels and (args.do_lc_level or args.do_tc_level)
     if not need_simclusters:
@@ -487,6 +505,18 @@ if __name__=='__main__':
     n_empty_tstocpsimts_events = 0
     n_empty_tstoscsimts_events = 0
     dfs_branch = {level: {'lc': [], 'truth_lc': [], 'tc': [], 'truth_tc': []} for level in branch_levels}
+    event_lc_rows = []
+
+    def add_tc_composition(df_tc, tc_composition):
+        '''Add the TICLCandidate composition columns to a TICLCandidate-level dataframe.'''
+        if df_tc is None or tc_composition is None: return df_tc
+        return df_tc.join(tc_composition, on='tc_index')
+
+    def add_truth_composition(df_truth, truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids):
+        '''Add the truth object composition columns to a truth-level dataframe.'''
+        if df_truth is None or lc_subdets is None: return df_truth
+        composition = get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids)
+        return pd.concat([df_truth.reset_index(drop=True), composition], axis=1)
     for file_idx, inputfile in enumerate(args.inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(args.inputfiles)}...')
         events = Events(inputfile)
@@ -541,6 +571,15 @@ if __name__=='__main__':
                     dfs_lc_sc.append(df_lc_sc)
                     dfs_sc_lc.append(df_sc_lc)
 
+            # calculate composition of layerclusters and ticl candidates per subdetector
+            lc_subdets, tc_composition = None, None
+            if args.do_composition:
+                lc_subdets, lc_energies = get_layercluster_info(collections['layerclusters'])
+                tc_composition, lc_used_in_tc = get_ticl_candidate_composition(
+                    collections['ticlcandidates_merge'], lc_subdets, lc_energies)
+                event_lc_rows.append({'event': eventid,
+                    **get_event_layercluster_summary(lc_subdets, lc_energies, lc_used_in_tc)})
+
             # calculate ticl candidate to caloparticle and/or simcluster associations
             if args.do_tc_level:
                 if 'cp' in gen_levels:
@@ -548,6 +587,11 @@ if __name__=='__main__':
                         collections, caloparticles,
                         cp_selected_ids = cp_from_primary_interaction_ids,
                         eventid = eventid)
+                    df_tc = add_tc_composition(df_tc, tc_composition)
+                    if df_cp_tc is not None:
+                        df_cp_tc = add_truth_composition(df_cp_tc,
+                            collections['cptolcassociation_cpids'], collections['cptolcassociation_lcids'],
+                            collections['cptolcassociation_sharedenergy'], lc_subdets, df_cp_tc['truth_index'].values)
                     if df_tc is not None: dfs_tc.append(df_tc)
                     if df_cp_tc is not None: dfs_cp_tc.append(df_cp_tc)
                     if has_empty_association_product: n_empty_tstocpsimts_events += 1
@@ -563,8 +607,12 @@ if __name__=='__main__':
                         tstosimts_tsids_key='tstoscsimtsassociation_tsids',
                         tstosimts_simtsids_key='tstoscsimtsassociation_simtsids',
                         tstosimts_sharedenergy_key='tstoscsimtsassociation_sharedenergy')
+                    df_tc_sc = add_tc_composition(df_tc_sc, tc_composition)
                     if df_tc_sc is not None: dfs_tc_sc.append(df_tc_sc)
                     if df_sc_tc is not None:
+                        df_sc_tc = add_truth_composition(df_sc_tc,
+                            collections['sctolcassociation_scids'], collections['sctolcassociation_lcids'],
+                            collections['sctolcassociation_sharedenergy'], lc_subdets, df_sc_tc['truth_index'].values)
                         # Attach the parent CaloParticle's original index for each SimCluster
                         # row. SimCluster itself carries no back-reference to its parent
                         # CaloParticle, so this is built from CaloParticle.simClusters()
@@ -617,9 +665,14 @@ if __name__=='__main__':
                         eventid = eventid,
                         cp_selected_ids = truth_selected_ids,
                         matrices = (tc_ts_indices, pur_matrix, eff_matrix))
+                    df_tc_b = add_tc_composition(df_tc_b, tc_composition)
                     if df_tc_b is not None: dfs_branch[level]['tc'].append(df_tc_b)
                     if df_b_tc is not None:
                         df_b_tc['pdgid'] = np.array([truth[int(idx)].pdgId() for idx in truth_selected_ids])
+                        df_b_tc['particle_id'] = np.array([truth[int(idx)].id for idx in truth_selected_ids])
+                        df_b_tc = add_truth_composition(df_b_tc,
+                            collections['lctobranch_branchids'], collections['lctobranch_lcids'],
+                            collections['lctobranch_sharedenergy'], lc_subdets, df_b_tc['particle_id'].values)
                         dfs_branch[level]['truth_tc'].append(df_b_tc)
 
             # stop processing if sufficient events have been processed
@@ -751,6 +804,8 @@ if __name__=='__main__':
         sc_tc_output = os.path.join(args.outputdir, 'metrics_sc_tc.parquet')
         df_tc_sc.to_parquet(tc_sc_output)
         df_sc_tc.to_parquet(sc_tc_output)
+    if args.do_composition:
+        pd.DataFrame(event_lc_rows).to_parquet(os.path.join(args.outputdir, 'metrics_event_lc.parquet'))
     branch_outputs = {}
     for level in branch_levels:
         for key, reco in [('lc', 'lc'), ('tc', 'tc')]:
