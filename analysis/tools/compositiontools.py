@@ -77,7 +77,7 @@ def get_event_layercluster_summary(lc_subdets, lc_energies, used_in_tc):
     return row
 
 
-def get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids):
+def get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids, lc_mask=None):
     '''
     Get the energy per subdetector of the given truth objects, as the sum of their shared energy
     with all LayerClusters (from a flattened truth-to-LayerCluster or LayerCluster-to-truth map).
@@ -86,7 +86,10 @@ def get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, select
     - truth_ids, lc_ids, shared_energies: flat arrays of the same length representing the map.
     - lc_subdets: subdetector index for each LayerCluster.
     - selected_truth_ids: truth ids (as used in truth_ids) for which to return the composition.
-    Returns a DataFrame with one row per selected truth object and columns truthe_<subdet>.
+    - lc_mask (optional): boolean mask of length nlc (e.g. the LayerClusters used in any TICLCandidate);
+      if provided, also the energy in the masked LayerClusters only is returned (columns truthe_tc_<subdet>).
+    Returns a DataFrame with one row per selected truth object and columns truthe_<subdet>
+    (and truthe_tc_<subdet> if lc_mask is provided).
     '''
     truth_ids = np.asarray(truth_ids, dtype=np.int64)
     lc_ids = np.asarray(lc_ids, dtype=np.int64)
@@ -94,13 +97,20 @@ def get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, select
     selected_truth_ids = np.asarray(selected_truth_ids, dtype=np.int64)
     position = {int(t): idx for idx, t in enumerate(selected_truth_ids)}
     energies = np.zeros((len(selected_truth_ids), len(SUBDETS)))
+    energies_masked = np.zeros((len(selected_truth_ids), len(SUBDETS)))
     if len(truth_ids) > 0 and len(selected_truth_ids) > 0:
         mask = np.isin(truth_ids, selected_truth_ids)
         rows = np.array([position[int(t)] for t in truth_ids[mask]], dtype=int)
         subdets = lc_subdets[lc_ids[mask]]
         valid = (subdets >= 0)
         np.add.at(energies, (rows[valid], subdets[valid]), shared_energies[mask][valid])
-    return pd.DataFrame({f'truthe_{subdet}': energies[:, idx] for idx, subdet in enumerate(SUBDETS)})
+        if lc_mask is not None:
+            valid = valid & np.asarray(lc_mask)[lc_ids[mask]]
+            np.add.at(energies_masked, (rows[valid], subdets[valid]), shared_energies[mask][valid])
+    data = {f'truthe_{subdet}': energies[:, idx] for idx, subdet in enumerate(SUBDETS)}
+    if lc_mask is not None:
+        data.update({f'truthe_tc_{subdet}': energies_masked[:, idx] for idx, subdet in enumerate(SUBDETS)})
+    return pd.DataFrame(data)
 
 
 # Tools for analysing the stored output of analysis/efficiency/calculate_associations.py (with --do_composition).

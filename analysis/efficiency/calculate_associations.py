@@ -512,10 +512,16 @@ if __name__=='__main__':
         if df_tc is None or tc_composition is None: return df_tc
         return df_tc.join(tc_composition, on='tc_index')
 
-    def add_truth_composition(df_truth, truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids):
-        '''Add the truth object composition columns to a truth-level dataframe.'''
+    def add_truth_composition(df_truth, truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids,
+            lc_used_in_tc=None):
+        '''
+        Add the truth object composition columns to a truth-level dataframe
+        (truthe_<subdet>: energy in all LayerClusters; truthe_tc_<subdet>: energy in LayerClusters
+        that are part of any TICLCandidate).
+        '''
         if df_truth is None or lc_subdets is None: return df_truth
-        composition = get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids)
+        composition = get_truth_composition(truth_ids, lc_ids, shared_energies, lc_subdets, selected_truth_ids,
+            lc_mask=lc_used_in_tc)
         return pd.concat([df_truth.reset_index(drop=True), composition], axis=1)
     for file_idx, inputfile in enumerate(args.inputfiles):
         print(f'Reading events from file {file_idx+1} / {len(args.inputfiles)}...')
@@ -572,7 +578,7 @@ if __name__=='__main__':
                     dfs_sc_lc.append(df_sc_lc)
 
             # calculate composition of layerclusters and ticl candidates per subdetector
-            lc_subdets, tc_composition = None, None
+            lc_subdets, tc_composition, lc_used_in_tc = None, None, None
             if args.do_composition:
                 lc_subdets, lc_energies = get_layercluster_info(collections['layerclusters'])
                 tc_composition, lc_used_in_tc = get_ticl_candidate_composition(
@@ -591,7 +597,7 @@ if __name__=='__main__':
                     if df_cp_tc is not None:
                         df_cp_tc = add_truth_composition(df_cp_tc,
                             collections['cptolcassociation_cpids'], collections['cptolcassociation_lcids'],
-                            collections['cptolcassociation_sharedenergy'], lc_subdets, df_cp_tc['truth_index'].values)
+                            collections['cptolcassociation_sharedenergy'], lc_subdets, df_cp_tc['truth_index'].values, lc_used_in_tc)
                     if df_tc is not None: dfs_tc.append(df_tc)
                     if df_cp_tc is not None: dfs_cp_tc.append(df_cp_tc)
                     if has_empty_association_product: n_empty_tstocpsimts_events += 1
@@ -612,7 +618,7 @@ if __name__=='__main__':
                     if df_sc_tc is not None:
                         df_sc_tc = add_truth_composition(df_sc_tc,
                             collections['sctolcassociation_scids'], collections['sctolcassociation_lcids'],
-                            collections['sctolcassociation_sharedenergy'], lc_subdets, df_sc_tc['truth_index'].values)
+                            collections['sctolcassociation_sharedenergy'], lc_subdets, df_sc_tc['truth_index'].values, lc_used_in_tc)
                         # Attach the parent CaloParticle's original index for each SimCluster
                         # row. SimCluster itself carries no back-reference to its parent
                         # CaloParticle, so this is built from CaloParticle.simClusters()
@@ -672,7 +678,7 @@ if __name__=='__main__':
                         df_b_tc['particle_id'] = np.array([truth[int(idx)].id for idx in truth_selected_ids])
                         df_b_tc = add_truth_composition(df_b_tc,
                             collections['lctobranch_branchids'], collections['lctobranch_lcids'],
-                            collections['lctobranch_sharedenergy'], lc_subdets, df_b_tc['particle_id'].values)
+                            collections['lctobranch_sharedenergy'], lc_subdets, df_b_tc['particle_id'].values, lc_used_in_tc)
                         dfs_branch[level]['truth_tc'].append(df_b_tc)
 
             # stop processing if sufficient events have been processed
