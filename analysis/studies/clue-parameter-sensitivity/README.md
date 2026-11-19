@@ -10,24 +10,34 @@ is in CE-H silicon and ends up in its TICLCandidates). Open leads:
 
 ## Scripts
 
-All scripts run on a grid scan output directory (default: the latest PU200 scan, see `scanutils.py`),
+All scripts run on a grid scan output directory (default: the latest 1D PU200 scan, see `scanutils.py`),
 with `calculate_associations.py` run with `--do_composition`, and use `truthbranch-signal` as truth reference by default.
 Common options: `-i <scan output dir>`, `-g <grids>`, `-t <truth type>`, `-o <output dir>`.
 
-- `lc_sensitivity.py`: how much does each parameter change the LayerClusters themselves?
-  Per subdetector and grid point: number of LayerClusters, their total and mean energy, their energy in
-  TICLCandidates, and the signal particle energy in them, relative to the default point.
-  Overview heatmaps/tables of the maximum relative change per grid (full range and within a factor `--window`
-  of the default), and a printed list of grids that change none of the CE-H silicon quantities by more
-  than `--threshold`.
-- `metric_sensitivity.py`: why do efficiency and purity barely change for the parameters that do change the
-  LayerClusters? Follows each truth object across the grid points, and tests (1) the normalization
-  (efficiency rescaled to a fixed reference energy per truth object, approximate)
-  and (2) cancellation (change of the mean vs mean absolute change per truth object).
+- `scan_sensitivity.py`: per grid, one table with
+  one row per grid point (`<output dir>/<grid>/summary_<truth type>.csv`) with
+  - the LayerCluster quantities per subdetector and for HGCAL as a whole (number of LayerClusters, their total
+    and mean energy, their energy in TICLCandidates, the signal particle energy in them and in TICLCandidates),
+    also relative to the default point;
+  - the metrics w.r.t. all matched TICLCandidates: efficiency, purity and truth-normalized efficiency
+    (the efficiency normalized to the truth energy, approximately), with their changes w.r.t. the default point;
+
+  and plots of these vs the scanned parameter: `metrics_vs_param`, `metric_changes_vs_param`, and per subdetector
+  (`ee`, `hsi`, `hsci`, and `hgcal` for their sum) `lc_vs_param_<subdet>` (LayerCluster quantities) and
+  `combined_vs_param_<subdet>` (purity, truth-normalized efficiency and number of LayerClusters,
+  relative to the default point).
+  With `--flat` (for any grid, including multi-parameter grids), all grid points are shown on a single axis instead,
+  sorted by the mean purity, the mean truth-normalized efficiency, their average, and the number of LayerClusters
+  (per subdetector, or in HGCAL; one set of plots `<plot>_flat_<sorting>[_<subdet>].png` each, see `--flat_sort`).
+  Grid points are read in parallel processes (`--workers`, default 8).
+- `plot_param_distributions.py`: distributions of the parameter values for a range of grid points
+  (e.g. in a flat plot) after sorting, from a summary CSV file of `scan_sensitivity.py --flat`.
 - `plot_scan_trends.py`: general trends of the composition and metrics (incl. per truth category)
   vs the scanned parameter.
 - `scanutils.py`: common tools (default parameter values, axis labels, grid point iteration, plotting helpers).
 
-To do: the rescaled efficiency in `metric_sensitivity.py` is approximate, since only the efficiency
-(not the absolute shared energy of the primary TICLCandidate) is stored;
-storing the absolute shared energies in `calculate_associations.py` would make it exact.
+Outputs: `output_scan_sensitivity` (1D scans, 2026-11-09) and `output_scan_sensitivity_5d` (5D HSi scan, 2026-11-13, `--flat`).
+
+To do: the truth-normalized efficiency is approximate, since only the efficiency (not the absolute shared energy
+with the matched TICLCandidates) is stored; storing the absolute shared energies in `calculate_associations.py`
+would make it exact.

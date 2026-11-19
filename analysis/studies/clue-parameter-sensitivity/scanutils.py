@@ -1,8 +1,12 @@
-# Common tools for the studies on 1D CLUE parameter grid scans.
+# Common tools for the studies on CLUE parameter grid scans.
+# Most plots are made for 1D grids (one scanned parameter, on the x-axis);
+# with the "flat" option, any grid (1D or multi-dimensional) can be shown with all grid points
+# on a single axis, sorted by a chosen quantity.
 
 
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -35,12 +39,24 @@ PARAM_LABELS = {
 
 
 
+def get_job_params(jobdir):
+    '''Get all scanned parameter names and values of a grid scan job (as a dict).'''
+    with open(os.path.join(jobdir, 'params_summary.json'), 'r') as f:
+        return json.load(f)
+
+
 def get_job_param(jobdir):
     '''Get the (single) scanned parameter name and value of a grid scan job.'''
-    with open(os.path.join(jobdir, 'params_summary.json'), 'r') as f:
-        params = json.load(f)
-    if len(params) != 1: raise Exception(f'Expected 1 parameter in {jobdir}, found {len(params)}.')
+    params = get_job_params(jobdir)
+    if len(params) != 1:
+        raise Exception(f'Expected 1 parameter in {jobdir}, found {len(params)}'
+            + ' (use the --flat option for multi-parameter grids).')
     return list(params.items())[0]
+
+
+def is_default_params(params):
+    '''Check whether all parameters (dict of name: value) are at their default values.'''
+    return all(name in DEFAULT_PARAMS and np.isclose(value, DEFAULT_PARAMS[name]) for name, value in params.items())
 
 
 def job_is_ok(jobdir):
@@ -68,6 +84,30 @@ def get_grid_jobs(griddir):
     return sorted(jobs, key=lambda j: j[2])
 
 
+def get_grid_jobs_flat(griddir):
+    '''
+    Get the successful grid points of a grid (with composition output), for any number of parameters,
+    as a list of (job name, dict of parameter values, efficiency output directory), sorted by job number.
+    '''
+    jobdirs = [d for d in os.listdir(griddir) if d.startswith('job')]
+    jobdirs = sorted(jobdirs, key=lambda d: int(d[3:]) if d[3:].isdigit() else d)
+    def check(jobdir):
+        jobpath = os.path.join(griddir, jobdir)
+        if not job_is_ok(jobpath): return None
+        effdir = os.path.join(jobpath, 'efficiency')
+        if not os.path.exists(os.path.join(effdir, 'metrics_event_lc.parquet')): return None
+        return (jobdir, get_job_params(jobpath), effdir)
+    # (reading many small files from EOS is mostly waiting for I/O, so use parallel threads)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        jobs = list(executor.map(check, jobdirs))
+    return [job for job in jobs if job is not None]
+
+
+def get_job_number(jobdir):
+    '''Numeric job index from a job directory name (e.g. "job12" -> 12; -1 if not numeric).'''
+    return int(jobdir[3:]) if jobdir.startswith('job') and jobdir[3:].isdigit() else -1
+
+
 def get_grids(inputdir):
     '''Get all grid names in a grid scan output directory.'''
     return sorted([d for d in os.listdir(inputdir) if os.path.isdir(os.path.join(inputdir, d))])
@@ -86,6 +126,28 @@ def make_axes(df, ylabel):
     return fig, ax
 
 
+def make_flat_axes(ylabel, sortlabel, default_x=None):
+    '''
+    Axes for a "flat" grid scan plot: all grid points on a single axis (x = position after sorting).
+    default_x: position of the default grid point (if any), marked with a vertical line.
+    '''
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.set_xlabel(f'Grid scan point (sorted by {sortlabel})', fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
+    if default_x is not None:
+        ax.axvline(default_x, color='#6b6b6b', linestyle=':', linewidth=1)
+        ax.text(default_x, 1.01, 'default', transform=ax.get_xaxis_transform(),
+            ha='center', va='bottom', fontsize=9, color='#6b6b6b')
+    return fig, ax
+
+
+def flat_style(npoints, linewidth=2, markersize=5):
+    '''Line width and marker size for flat plots (smaller for many points).'''
+    if npoints <= 30: return linewidth, markersize
+    if npoints <= 100: return 1.5, 3
+    return 1, 1.5
+
+
 def savefig(fig, outputdir, name):
     fig.tight_layout()
     path = os.path.join(outputdir, f'{name}.png')
@@ -96,17 +158,6 @@ def savefig(fig, outputdir, name):
 
 
 
-def get_window_mask(values, param_name, factor):
-    '''
-    Mask of the parameter values within a factor of the default value
-    (all values if factor is None or the default is unknown).
-    '''
-    values = np.asarray(values, dtype=float)
-    default = DEFAULT_PARAMS.get(param_name)
-    if factor is None or default is None: return np.ones(len(values), dtype=bool)
-    return (values >= default / factor * (1 - 1e-9)) & (values <= default * factor * (1 + 1e-9))
-
-
 # a grid point with all CLUE parameters at their default values
 # (all grids run on the same events, so it can serve as reference for grids without a default point,
 #  e.g. the deltao grids, which do not contain the default value 2.6; verified that all default points
@@ -115,31 +166,11 @@ DEFAULT_REFERENCE_JOB = 'kappa_hsi_1d/job10'
 
 
 def get_default_row(df):
-    '''Get the row of a per-grid-point dataframe at the default parameter value (or None).'''
+    '''Get the row of a per-grid-point dataframe at the default parameter value(s) (or None).'''
+    if 'is_default' in df.columns:
+        rows = df[df['is_default']]
+        return rows.iloc[0] if len(rows) > 0 else None
     param_name = df['param_name'].iloc[0]
     if param_name not in DEFAULT_PARAMS: return None
     rows = df[np.isclose(df['param_value'], DEFAULT_PARAMS[param_name])]
     return rows.iloc[0] if len(rows) > 0 else None
-
-
-def plot_heatmap(table, outputdir, name, title_text=None, cmax=0.5, fmt='{:.0%}'):
-    '''
-    Plot a table (DataFrame, rows = grids, columns = quantities) of (absolute) changes as an annotated heatmap.
-    The colour scale saturates at cmax.
-    '''
-    fig, ax = plt.subplots(figsize=(1.6 * len(table.columns) + 3, 0.45 * len(table) + 2))
-    values = table.values.astype(float)
-    im = ax.imshow(np.clip(values, 0, cmax), cmap='Blues', vmin=0, vmax=cmax, aspect='auto')
-    for i in range(values.shape[0]):
-        for j in range(values.shape[1]):
-            if not np.isfinite(values[i, j]): continue
-            color = 'white' if values[i, j] > 0.6 * cmax else '#1a1a1a'
-            ax.text(j, i, fmt.format(values[i, j]), ha='center', va='center', fontsize=9, color=color)
-    ax.set_xticks(np.arange(len(table.columns)))
-    ax.set_xticklabels(table.columns, fontsize=9, rotation=20, ha='right')
-    ax.set_yticks(np.arange(len(table)))
-    ax.set_yticklabels(table.index, fontsize=9)
-    fig.colorbar(im, ax=ax, label=f'Maximum change (saturated at {fmt.format(cmax)})')
-    if title_text is not None:
-        ax.set_title(title_text, fontsize=10, loc='left')
-    savefig(fig, outputdir, name)
