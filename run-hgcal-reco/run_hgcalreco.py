@@ -4,7 +4,7 @@ import argparse
 
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
-from tools.hgcalrecotools import format_vstring_files
+from tools.hgcalrecotools import build_config
 
 
 if __name__=='__main__':
@@ -34,24 +34,24 @@ if __name__=='__main__':
 
     # read template
     with open(args.template, 'r') as f:
-        lines = f.readlines()
+        template = f.read()
 
     # read modifiers
-    modifier = '# (no modifiers added)'
+    modifier = None
     if args.modifiers is not None:
         with open(args.modifiers, 'r') as f:
             modifier = f.read()
 
-    # replace tags
-    for idx, line in enumerate(lines):
-        line = line.replace('TEMPLATE_INPUT_FILES', format_vstring_files(args.inputfiles))
-        line = line.replace('TEMPLATE_MAX_EVENTS', str(args.max_events))
-        line = line.replace('TEMPLATE_GLOBAL_TAG', args.globaltag)
-        line = line.replace('TEMPLATE_GEOMETRY', args.geometry)
-        line = line.replace('TEMPLATE_ERA_IMPORT', f'from Configuration.Eras.Era_{args.era}_cff import {args.era}')
-        line = line.replace('TEMPLATE_ERA', args.era)
-        line = line.replace('TEMPLATE_MOD', modifier)
-        lines[idx] = line
+    # fill the template
+    # (same function as used in the grid scans in run-hgcal-reco-scan, to keep both in sync)
+    context = {
+        "inputfiles": args.inputfiles,
+        "max_events": args.max_events,
+        "globaltag": args.globaltag,
+        "geometry": args.geometry,
+        "era": args.era,
+    }
+    config = build_config(template, {}, context, extra_modifiers=modifier)
 
     # make working directory
     if not os.path.exists(args.workdir):
@@ -61,7 +61,7 @@ if __name__=='__main__':
     cffile = os.path.basename(args.template).replace('_template', '')
     cffile = os.path.join(args.workdir, cffile)
     with open(cffile, 'w') as f:
-        for line in lines: f.write(line)
+        f.write(config)
 
     # stop here if no execution is needed
     if args.no_exec: sys.exit()

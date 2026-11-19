@@ -18,7 +18,12 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--inputfiles', required=True, nargs='+')
     parser.add_argument('-g', '--grid', required=True, nargs='+')
-    parser.add_argument('-n', '--max_events', default=-1, type=int)
+    parser.add_argument('-n', '--max_events', default=-1, type=int,
+        help='Maximum number of events (per input file, unless --no_per_file is given; default: all)')
+    parser.add_argument('--no_per_file', default=False, action='store_true',
+        help='Run a single re-reco over all input files (and a single efficiency calculation on its output),'
+            + ' instead of the default re-reco and efficiency calculation per input file,'
+            + ' with the outputs combined at the end')
     parser.add_argument('-w', '--workdir', default='auto')
     parser.add_argument('--tag', default='auto')
     parser.add_argument('--config', default=os.path.join(thisdir, 'configs/hgcalreco_cff_template.py'))
@@ -98,6 +103,7 @@ if __name__=='__main__':
         "template": args.config,
         "inputfiles": args.inputfiles,
         "max_events": args.max_events,
+        "process_per_file": not args.no_per_file,
         "globaltag": args.globaltag,
         "geometry": args.geometry,
         "era": args.era,

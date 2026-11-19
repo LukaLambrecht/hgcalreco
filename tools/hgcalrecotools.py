@@ -27,14 +27,17 @@ def format_vstring_files(files):
     return ',\n        '.join(f"'{entry}'" for entry in entries)
 
 
-def build_config(template, params, context):
+def build_config(template, params, context, extra_modifiers=None):
     """
     Builds a cmsRun config starting from a template.
     Input arguments:
     - template: template cmsRun config in string format.
     - params: dict of the form {parameter name: {"value": parameter value, "mod": modifier string}}.
-    - context: dict with extra info.
+    - context: dict with extra info (inputfiles, max_events, globaltag, geometry, era).
+    - extra_modifiers: optional string with additional config modifications
+      (e.g. the content of a modifier file), added after the parameter modifiers.
     Returns the cmsRun config in string format.
+    Used by both run-hgcal-reco/run_hgcalreco.py and the grid scans in run-hgcal-reco-scan.
     """
 
     config = template
@@ -48,11 +51,93 @@ def build_config(template, params, context):
     config = config.replace('TEMPLATE_ERA_IMPORT', f'from Configuration.Eras.Era_{era}_cff import {era}')
     config = config.replace('TEMPLATE_ERA', era)
 
-    # specific parameter modifiers
-    modifiers = '\n'.join([val["mod"].replace("VALUE", str(val["value"])) for val in params.values()])
+    # specific parameter modifiers (and optional extra modifiers)
+    modifiers = [val["mod"].replace("VALUE", str(val["value"])) for val in params.values()]
+    if extra_modifiers is not None: modifiers.append(extra_modifiers)
+    modifiers = '\n'.join(modifiers) if len(modifiers) > 0 else '# (no modifiers added)'
     config = config.replace('TEMPLATE_MOD', modifiers)
 
     return config
+
+
+def _run_logged(cmd, cwd, logpath, description, append=False, header=None):
+    """
+    Run a command with stdout/stderr written to a log file.
+    Returns None on success, or an error message on failure.
+    note: the output is written directly to a small log file in workdir (not rundir, which may be
+    local/scratch storage), rather than captured via a pipe. This makes progress printouts
+    (e.g. "Begin processing the Nth record..." from cmsRun, "Reading event N..." from the
+    efficiency calculation) visible in near-real-time from the persistent output directory
+    while the job is still running (see jobprogress.py), instead of being buffered in memory
+    and only surfaced if the call fails.
+    """
+    with open(logpath, "a" if append else "w") as logfile:
+        if header is not None:
+            logfile.write(f"\n===== {header} =====\n")
+            logfile.flush()
+        try:
+            subprocess.run(cmd, cwd=cwd, check=True, stdout=logfile, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            pass
+        else:
+            return None
+    with open(logpath, "r") as f: logtext = f.read()
+    error_msg = f"{description} failed with return code {e.returncode}"
+    error_msg += f"\nLog (last 1000 chars):\n{logtext[-1000:]}"  # avoid huge logs
+    print(error_msg, file=sys.stderr)
+    return error_msg
+
+
+def get_efficiency_command(context, inputfile, outputdir):
+    """Build the command for the efficiency calculation (see analysis/efficiency/calculate_associations.py)."""
+    cmd = ([
+        "python3",
+        context["efficiency_script"],
+        "-i", inputfile,
+        "-o", outputdir,
+        "--input_config_type", context["efficiency_config_type"]
+    ])
+    efficiency_level = context.get("efficiency_level", "both")
+    if efficiency_level not in ["lc", "tc", "both"]:
+        raise ValueError(f'Unknown efficiency_level "{efficiency_level}".')
+    if efficiency_level in ["lc", "both"]:
+        cmd.append("--do_lc_level")
+    if efficiency_level in ["tc", "both"]:
+        cmd.append("--do_tc_level")
+    if context["efficiency_recalculate"]: cmd.append("--recalculate")
+    # truth object types (e.g. cp, truthbranch-signal; see calculate_associations.py)
+    gen_levels = context.get("efficiency_gen_level", ["cp"])
+    cmd += ["--gen_level"] + gen_levels
+    # composition of TICLCandidates and truth objects per subdetector (see calculate_associations.py)
+    if context.get("efficiency_do_composition", False): cmd.append("--do_composition")
+    return cmd
+
+
+# offset added to the event numbers of the i-th input file when combining the outputs
+# of the per-file processing (same convention as in calculate_associations.py for multiple input files)
+EVENT_OFFSET_PER_FILE = 1000000
+
+
+def combine_efficiency_outputs(partdirs, outputdir):
+    """
+    Combine the efficiency outputs (parquet files) of several input files processed separately
+    into one set of output files, with the event numbers of the i-th part offset by
+    i * EVENT_OFFSET_PER_FILE (so that they stay unique).
+    """
+    if not os.path.exists(outputdir): os.makedirs(outputdir)
+    names = sorted(set(f for partdir in partdirs for f in os.listdir(partdir) if f.endswith('.parquet')))
+    for name in names:
+        dfs = []
+        for idx, partdir in enumerate(partdirs):
+            path = os.path.join(partdir, name)
+            if not os.path.exists(path):
+                raise Exception(f'Output file {name} is missing for input file {idx} (in {partdir}).')
+            df = pd.read_parquet(path)
+            if 'event' not in df.columns:
+                raise Exception(f'Output file {path} has no event column; cannot combine the per-file outputs.')
+            df['event'] = df['event'] + idx * EVENT_OFFSET_PER_FILE
+            dfs.append(df)
+        pd.concat(dfs, ignore_index=True).to_parquet(os.path.join(outputdir, name))
 
 
 def run_local_evaluation(params, context,
@@ -61,10 +146,15 @@ def run_local_evaluation(params, context,
     use_tmpdir=False,
     keep_root_output=False):
     """
-    Runs a single evaluation locally.
+    Runs a single evaluation locally (re-reco with cmsRun, followed by the efficiency calculation).
     Input arguments:
     - params: dict of the form {parameter name: {"value": parameter value, "mod": modifier string}}.
     - context: dict with extra info.
+      If context["process_per_file"] is True and there are multiple input files, the re-reco and
+      the efficiency calculation are run separately for each input file, and the efficiency outputs
+      are combined at the end (with the event numbers of the i-th file offset by i * EVENT_OFFSET_PER_FILE);
+      context["max_events"] then applies per input file.
+      Otherwise, a single re-reco runs over all input files, followed by a single efficiency calculation.
     Returns a dict with loss + metadata.
     """
 
@@ -92,11 +182,20 @@ def run_local_evaluation(params, context,
     with open(template_file, 'r') as f:
         template = f.read()
 
-    # build and write config
-    config = build_config(template, params, context)
-    config_path = os.path.join(workdir, "config.py")
-    with open(config_path, "w") as f:
-        f.write(config)
+    # define the processing units: either one per input file, or one for all input files together
+    inputfiles = context["inputfiles"]
+    per_file = context.get("process_per_file", False) and len(inputfiles) > 1
+    units = [[inputfile] for inputfile in inputfiles] if per_file else [inputfiles]
+
+    # build and write config(s)
+    # (config.py for the combined processing, config_file<i>.py for the processing per input file)
+    config_paths = []
+    for idx, unit in enumerate(units):
+        config = build_config(template, params, {**context, "inputfiles": unit})
+        config_path = os.path.join(workdir, f"config_file{idx}.py" if per_file else "config.py")
+        with open(config_path, "w") as f:
+            f.write(config)
+        config_paths.append(config_path)
 
     # write params to workdir for later reference
     with open(os.path.join(workdir, "params.json"), "w") as f:
@@ -118,91 +217,73 @@ def run_local_evaluation(params, context,
         }
         return res
 
-    # in case the actual running directory is a temporary directory different from workdir,
-    # copy the cmsRun config to that directory
-    if rundir != workdir:
-        cmd = ["cp", config_path, rundir]
-        try: subprocess.run(cmd, cwd=workdir, check=True)
-        except subprocess.CalledProcessError:
-            print('WARNING: could not copy config to rundir.')
-
-    # run cmsRun
-    # note: stdout/stderr are written directly to a small log file in workdir (not
-    # rundir, which may be local/scratch storage), rather than captured via a pipe.
-    # This makes cmsRun's own progress printouts (e.g. "Begin processing the Nth
-    # record...") visible in near-real-time from the persistent output directory
-    # while the job is still running (see jobprogress.py), instead of being buffered
-    # in memory and only surfaced if the call fails.
-    cmsrun_log_path = os.path.join(workdir, "cmsRun.log")
-    with open(cmsrun_log_path, "w") as logfile:
-        try:
-            subprocess.run(["cmsRun", "config.py"], cwd=rundir, check=True,
-                            stdout=logfile, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            with open(cmsrun_log_path, "r") as f: logtext = f.read()
-            error_msg = f"cmsRun failed with return code {e.returncode}"
-            error_msg += f"\nLog (last 1000 chars):\n{logtext[-1000:]}"  # avoid huge logs
-            print(error_msg, file=sys.stderr)
-            return {"loss": 1e6, "status": "fail", "error": error_msg}
-
-    # run efficiency calculation
+    # loop over processing units
+    # (each one in its own running directory if there are several, since the cmsRun output file name is fixed)
     outputdir = os.path.join(workdir, "efficiency")
-    cmd = ([
-        "python3",
-        context["efficiency_script"],
-        "-i", "hgcalreco_out.root",
-        "-o", outputdir,
-        "--input_config_type", context["efficiency_config_type"]
-    ])
-    efficiency_level = context.get("efficiency_level", "both")
-    if efficiency_level not in ["lc", "tc", "both"]:
-        raise ValueError(f'Unknown efficiency_level "{efficiency_level}".')
-    if efficiency_level in ["lc", "both"]:
-        cmd.append("--do_lc_level")
-    if efficiency_level in ["tc", "both"]:
-        cmd.append("--do_tc_level")
-    if context["efficiency_recalculate"]: cmd.append("--recalculate")
-    # truth object types (e.g. cp, truthbranch-signal; see calculate_associations.py)
-    gen_levels = context.get("efficiency_gen_level", ["cp"])
-    cmd += ["--gen_level"] + gen_levels
-    # composition of TICLCandidates and truth objects per subdetector (see calculate_associations.py)
-    if context.get("efficiency_do_composition", False): cmd.append("--do_composition")
-    # note: see the note above the cmsRun call for why this is written to a log file
-    # in workdir rather than captured via a pipe (this also surfaces the per-event
-    # "Reading event N..." printouts from calculate_associations.py).
+    cmsrun_log_path = os.path.join(workdir, "cmsRun.log")
     efficiency_log_path = os.path.join(workdir, "efficiency.log")
-    with open(efficiency_log_path, "w") as logfile:
-        try:
-            subprocess.run(cmd, cwd=rundir, check=True,
-                            stdout=logfile, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            with open(efficiency_log_path, "r") as f: logtext = f.read()
-            error_msg = f"Efficiency calculation failed with return code {e.returncode}"
-            error_msg += f"\nLog (last 1000 chars):\n{logtext[-1000:]}"
+    partdirs = []
+    output_reco_files = []
+    for idx, (unit, config_path) in enumerate(zip(units, config_paths)):
+        unit_rundir = os.path.join(rundir, f"file{idx}") if per_file else rundir
+        if not os.path.exists(unit_rundir): os.makedirs(unit_rundir)
+        header = f"input file {idx+1} / {len(units)}: {unit[0]}" if per_file else None
+
+        # copy the cmsRun config to the running directory (as config.py)
+        if os.path.abspath(config_path) != os.path.abspath(os.path.join(unit_rundir, "config.py")):
+            shutil.copy(config_path, os.path.join(unit_rundir, "config.py"))
+
+        # run cmsRun
+        error = _run_logged(["cmsRun", "config.py"], unit_rundir, cmsrun_log_path, "cmsRun",
+            append=(idx > 0), header=header)
+        if error is not None:
+            return {"loss": 1e6, "status": "fail", "error": error}
+
+        # run efficiency calculation
+        # (for the processing per input file: into a temporary output directory, combined below)
+        unit_outputdir = os.path.join(unit_rundir, "efficiency") if per_file else outputdir
+        cmd = get_efficiency_command(context, "hgcalreco_out.root", unit_outputdir)
+        error = _run_logged(cmd, unit_rundir, efficiency_log_path, "Efficiency calculation",
+            append=(idx > 0), header=header)
+        if error is not None:
+            return {"loss": 1e6, "status": "fail", "error": error}
+        partdirs.append(unit_outputdir)
+
+        # remove root file (to save disk space when running many trials),
+        # or copy it back to workdir if requested and rundir is a separate (temporary)
+        # directory, since it would otherwise be lost once that directory is cleaned up.
+        reco_name = f"hgcalreco_out_file{idx}.root" if per_file else "hgcalreco_out.root"
+        output_reco_files.append(os.path.join(workdir, reco_name))
+        reco_path = os.path.join(unit_rundir, "hgcalreco_out.root")
+        if keep_root_output:
+            if os.path.abspath(reco_path) != os.path.abspath(os.path.join(workdir, reco_name)):
+                try: shutil.copy(reco_path, os.path.join(workdir, reco_name))
+                except OSError:
+                    print(f'WARNING: could not copy {reco_path} back to workdir.')
+        else:
+            try: os.remove(reco_path)
+            except OSError:
+                print(f'WARNING: could not remove {reco_path}.')
+
+    # combine the efficiency outputs of the separate input files
+    if per_file:
+        try: combine_efficiency_outputs(partdirs, outputdir)
+        except Exception as e:
+            error_msg = f"Combining the per-file efficiency outputs failed: {e}"
             print(error_msg, file=sys.stderr)
             return {"loss": 1e6, "status": "fail", "error": error_msg}
-
-    # remove root file (to save disk space when running many trials),
-    # or copy it back to workdir if requested and rundir is a separate (temporary)
-    # directory, since it would otherwise be lost once that directory is cleaned up.
-    if keep_root_output:
-        if rundir != workdir:
-            cmd = ["cp", os.path.join(rundir, "hgcalreco_out.root"), workdir]
-            try: subprocess.run(cmd, check=True)
-            except subprocess.CalledProcessError:
-                print('WARNING: could not copy hgcalreco_out.root back to workdir.')
-    else:
-        try: subprocess.run(["rm", "hgcalreco_out.root"], cwd=rundir, check=True)
-        except subprocess.CalledProcessError:
-            print('WARNING: could not remove hgcalreco_out.root.')
 
     # clean up the temporary running directory itself (e.g. its copy of config.py).
     # on a condor job this is harmless either way (the whole scratch area is wiped
     # when the job ends), but matters for repeated local/interactive runs.
     if rundir != workdir:
         shutil.rmtree(rundir, ignore_errors=True)
+    elif per_file:
+        for idx in range(len(units)): shutil.rmtree(os.path.join(rundir, f"file{idx}"), ignore_errors=True)
 
     # metric extraction
+    efficiency_level = context.get("efficiency_level", "both")
+    gen_levels = context.get("efficiency_gen_level", ["cp"])
     metrics_lc_file = os.path.join(outputdir, "metrics_lc_cp.parquet")
     metrics_cp_file = os.path.join(outputdir, "metrics_cp_lc.parquet")
     metrics_tc_file = os.path.join(outputdir, "metrics_tc_cp.parquet")
@@ -239,7 +320,7 @@ def run_local_evaluation(params, context,
         "metric": metric,
         "metrics": metrics,
         "params": params,
-        "output_reco_file": os.path.join(workdir, "hgcalreco_out.root"),
+        "output_reco_file": output_reco_files[0] if len(output_reco_files) == 1 else output_reco_files,
         "output_metrics_files": output_metrics_files
     }
 

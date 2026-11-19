@@ -1,0 +1,28 @@
+# Submission commands of the latest grid scans (2026-11-19), for reproducibility.
+# Re-reco + efficiency calculation per input file (default), on all 3 PU200 files (300 events per grid point),
+# truth types cp and truthbranch-signal, TICLCandidate level only, with the composition output.
+
+# environment
+source /cvmfs/cms.cern.ch/cmsset_default.sh
+cd /afs/cern.ch/work/l/llambrec/hgcalreco-cmssw/CMSSW_20_1_0_pre5/src && eval $(scram runtime -sh)
+P=/eos/home-l/llambrec/hgcalreco-data/production/SinglePion_201X_D127_PU200
+G=/afs/cern.ch/user/l/llambrec/hgcalreco/run-hgcal-reco-scan/grids/clue2d/splitparams
+PROXY=/afs/cern.ch/user/l/llambrec/.krb5/x509up_u116295
+
+# 1D scans (12 grids, 206 grid points)
+mkdir -p /afs/cern.ch/user/l/llambrec/hgcalreco/run-hgcal-reco-scan/jobs_201X_D127_PU200_3files_1d
+cd /afs/cern.ch/user/l/llambrec/hgcalreco/run-hgcal-reco-scan/jobs_201X_D127_PU200_3files_1d
+python3 ../run_hgcalreco_grid_submit.py -i $P/file_0.root $P/file_1.root $P/file_2.root \
+    -g $G/deltac_all_1d.json $G/deltac_hsi_1d.json $G/deltacold_all_1d.json $G/deltacold_hsi_1d.json \
+       $G/deltao_all_1d.json $G/deltao_hsi_1d.json $G/deltas_all_1d.json $G/deltas_hsi_1d.json \
+       $G/ecut_all_1d.json $G/ecut_hsi_1d.json $G/kappa_all_1d.json $G/kappa_hsi_1d.json \
+    -w /eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261119_201X_D127_PU200 \
+    --efficiency_level tc --gen_level cp truthbranch-signal --do_composition --proxy $PROXY --submit
+
+# 5D scan of the HSi parameters (540 grid points)
+mkdir -p /afs/cern.ch/user/l/llambrec/hgcalreco/run-hgcal-reco-scan/jobs_201X_D127_PU200_3files_5d
+cd /afs/cern.ch/user/l/llambrec/hgcalreco/run-hgcal-reco-scan/jobs_201X_D127_PU200_3files_5d
+python3 ../run_hgcalreco_grid_submit.py -i $P/file_0.root $P/file_1.root $P/file_2.root \
+    -g $G/all_hsi_5d.json \
+    -w /eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261119_201X_D127_PU200_5d \
+    --efficiency_level tc --gen_level cp truthbranch-signal --do_composition --proxy $PROXY --submit

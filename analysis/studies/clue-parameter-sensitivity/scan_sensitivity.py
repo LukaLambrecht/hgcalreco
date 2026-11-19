@@ -69,7 +69,7 @@ sys.path.append(thisdir)
 
 from tools.compositiontools import SUBDETS, SUBDET_LABELS, TRUTH_TYPES
 from tools.compositiontools import load_composition, load_event_lc
-from scanutils import DEFAULT_INPUT, DEFAULT_PARAMS, DEFAULT_REFERENCE_JOB
+from scanutils import DEFAULT_INPUT, DEFAULT_PARAMS, find_default_job
 from scanutils import get_grids, get_grid_jobs, get_grid_jobs_flat, get_job_number, is_default_params
 from scanutils import get_default_row
 from scanutils import make_axes, make_flat_axes, flat_style, savefig
@@ -139,7 +139,7 @@ def get_grid_job_list(griddir, reference_effdir=None, flat=False):
             for jobdir, params, effdir in jobs]
         reference_meta = {'param_name': 'flat', 'param_value': -1, 'is_default': True}
     if not has_default and reference_effdir is not None and os.path.exists(reference_effdir):
-        print(f'No default point in grid {os.path.basename(griddir)}, adding {DEFAULT_REFERENCE_JOB} as default point.')
+        print(f'No default point in grid {os.path.basename(griddir)}, adding {reference_effdir} as default point.')
         jobs.append(('reference', reference_meta, reference_effdir))
     return jobs
 
@@ -436,7 +436,10 @@ if __name__=='__main__':
     # load all grids first, to define the reference truth energy per truth object:
     # the maximum truth energy in LayerClusters over all grid points of all grids
     grids = args.grids if args.grids is not None else get_grids(args.inputdir)
-    reference_effdir = os.path.join(args.inputdir, DEFAULT_REFERENCE_JOB, 'efficiency')
+    # (a grid point with all parameters at their default values, used as default point for grids without one)
+    reference_job = find_default_job(args.inputdir)
+    reference_effdir = os.path.join(args.inputdir, reference_job, 'efficiency') if reference_job is not None else None
+    print(f'Default grid point (reference for grids without one): {reference_job}')
     loaded = {}
     for grid in grids:
         print(f'Loading grid {grid}...')

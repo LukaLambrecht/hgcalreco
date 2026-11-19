@@ -158,11 +158,18 @@ def savefig(fig, outputdir, name):
 
 
 
-# a grid point with all CLUE parameters at their default values
-# (all grids run on the same events, so it can serve as reference for grids without a default point,
-#  e.g. the deltao grids, which do not contain the default value 2.6; verified that all default points
-#  in the 2026-11-09 PU200 scan give identical results)
-DEFAULT_REFERENCE_JOB = 'kappa_hsi_1d/job10'
+def find_default_job(inputdir):
+    '''
+    Find a grid point with all CLUE parameters at their default values in a grid scan output directory
+    (all grids run on the same events, so it can serve as reference for grids without a default point,
+    e.g. the deltao grids, which do not contain the default value 2.6).
+    Returns the job directory relative to inputdir (e.g. "kappa_hsi_1d/job4"), or None if not found.
+    '''
+    for grid in get_grids(inputdir):
+        griddir = os.path.join(inputdir, grid)
+        for jobdir, params, effdir in get_grid_jobs_flat(griddir):
+            if is_default_params(params): return os.path.join(grid, jobdir)
+    return None
 
 
 def get_default_row(df):
