@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 
 # default grid scan output directory
-DEFAULT_INPUT = '/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261109_201X_D127_PU200'
+DEFAULT_INPUT = '/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261119_201X_D127_PU200'
 
 # default CLUE parameter values (see run-hgcal-reco-scan/grids/clue2d/splitparams)
 DEFAULT_PARAMS = {
