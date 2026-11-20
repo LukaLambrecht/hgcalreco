@@ -20,19 +20,15 @@
 # - sig_e_tc_<s>: the same, but only for LayerClusters that are part of any TICLCandidate.
 #
 # Metrics (per truth object, w.r.t. all TICLCandidates matched to it, averaged over truth objects):
-# - eff_all: efficiency w.r.t. all matched TICLCandidates (eff_sum in the stored output), i.e. the energy shared
-#   with all matched TICLCandidates, divided by the truth object's energy shared with all TICLCandidates
-#   (i.e. its energy in LayerClusters that are part of any TICLCandidate, not its total energy);
+# - eff_all_tc, eff_all_rechits: efficiency w.r.t. all matched TICLCandidates (eff_sum_tc and eff_sum_rechits in the
+#   stored output), i.e. the truth object's energy in all matched TICLCandidates, divided by its energy in all
+#   TICLCandidates (tc), or by its RecHit energy E (rechits; truthe_rechits in the stored output: the sum over its
+#   HGCAL cells of RecHit energy x its energy fraction, see calculate_associations.py);
 # - pur_all: purity of the matched TICLCandidates combined, approximated as the average of their purities
 #   weighted by their (raw) energy (the purity of each TICLCandidate is the fraction of its energy
 #   shared with truth objects that is shared with this truth object);
-# - eff_all_truthnorm: truth-normalized efficiency, eff_all x T_tc / T_ref,
-#   with T the truth energy in LayerClusters, T_tc the same for LayerClusters in any TICLCandidate
-#   (approximately the denominator of eff_all), both at this grid point, and T_ref the maximum of T over all
-#   grid points of all grids (the most inclusive settings cluster essentially all RecHits, so T_ref approximates
-#   the truth energy in all RecHits; energy in cells without a RecHit is not included);
-#   this is approximately the energy shared with all matched TICLCandidates divided by the truth energy;
-# - T_frac, T_tc_frac: T / T_ref and T_tc / T_ref;
+# - T_frac, T_tc_frac: the truth object's energy in LayerClusters (T), and in LayerClusters that are part of
+#   any TICLCandidate (T_tc), divided by E;
 # - for each of these: the uncertainty on the mean (_err), the change of the mean w.r.t. the default point
 #   (_delta_mean), the mean absolute change per truth object (_delta_abs), and the mean relative to the
 #   default point (rel_ prefix).
@@ -40,15 +36,15 @@
 # Plots per grid, vs the scanned parameter (for 1D grids; file names <plot>_vs_param.png,
 # or <plot>_vs_param_<s> for the plots per subdetector <s>, including hgcal), with <plot>:
 # - lc (per subdetector): the LayerCluster quantities relative to the default point;
-# - metrics: eff_all, eff_all_truthnorm, pur_all, T_frac and T_tc_frac;
-# - metric_changes: change of the mean w.r.t. the default point, for eff_all, eff_all_truthnorm
+# - metrics: eff_all_tc, eff_all_rechits, pur_all, T_frac and T_tc_frac;
+# - metric_changes: change of the mean w.r.t. the default point, for eff_all_tc, eff_all_rechits
 #   and pur_all (and the mean absolute change per truth object with --show_abs_change);
-# - combined (per subdetector): pur_all, eff_all_truthnorm and the number of LayerClusters,
+# - combined (per subdetector): pur_all, eff_all_rechits and the number of LayerClusters,
 #   all relative to the default point.
 # With --flat (for any grid, including multi-parameter grids), all grid points are shown on a single axis instead,
 # sorted by one or more of (see --flat_sort, default all; file names <plot>_flat_<sorting>[_<s>].png):
 # - purity: the mean purity;
-# - efficiency: the mean truth-normalized efficiency;
+# - efficiency: the mean efficiency normalized to the truth RecHit energy (eff_all_rechits);
 # - average: the average of both;
 # - nlc: the number of LayerClusters in the plotted subdetector, or the total number of LayerClusters in HGCAL
 #   (for plots without a subdetector, or if the former does not change over the grid).
@@ -69,6 +65,7 @@ sys.path.append(thisdir)
 
 from tools.compositiontools import SUBDETS, SUBDET_LABELS, TRUTH_TYPES
 from tools.compositiontools import load_composition, load_event_lc
+from tools.compositiontools import get_combined_purity
 from scanutils import DEFAULT_INPUT, DEFAULT_PARAMS, find_default_job
 from scanutils import get_grids, get_grid_jobs, get_grid_jobs_flat, get_job_number, is_default_params
 from scanutils import get_default_row
@@ -92,7 +89,7 @@ PLOT_SUBDETS = SUBDETS + ['hgcal']
 PLOT_SUBDET_LABELS = {**SUBDET_LABELS, 'hgcal': 'HGCAL'}
 
 # metrics (columns of the per-truth-object table that are averaged per grid point)
-METRICS = ['eff_all', 'pur_all', 'eff_all_truthnorm', 'T_frac', 'T_tc_frac']
+METRICS = ['eff_all_tc', 'eff_all_rechits', 'pur_all', 'T_frac', 'T_tc_frac']
 
 # sortings for the flat plots: (function of the points table and the subdetector of the plot (or None),
 # returning the sorting key and the axis label)
@@ -105,8 +102,9 @@ def _sort_nlc(points, subdet):
 
 FLAT_SORTS = {
     'purity': lambda p, s: (p['pur_all'], 'mean purity of all matched TICLCandidates'),
-    'efficiency': lambda p, s: (p['eff_all_truthnorm'], 'mean truth-normalized efficiency'),
-    'average': lambda p, s: ((p['pur_all'] + p['eff_all_truthnorm']) / 2, 'average of purity and truth-norm. efficiency'),
+    'efficiency': lambda p, s: (p['eff_all_rechits'], 'mean efficiency (w.r.t. RecHit energy)'),
+    'average': lambda p, s: ((p['pur_all'] + p['eff_all_rechits']) / 2,
+        'average of purity and efficiency (w.r.t. RecHit energy)'),
     'nlc': _sort_nlc,
 }
 
@@ -170,17 +168,19 @@ def load_job(effdir, truth_type):
     lc['emean_hgcal'] = lc['e_hgcal'] / max(lc['nlc_hgcal'], 1)
 
     # metrics per truth object
-    truth = df_truth[['event', 'truth_index', 'eff_sum']].rename(columns={'eff_sum': 'eff_all'})
+    if 'truthe_rechits' not in df_truth.columns:
+        raise Exception(f'No truth RecHit energy (truthe_rechits) found in {effdir};'
+            + ' this output was made with an older version of calculate_associations.py.')
+    truth = df_truth[['event', 'truth_index', 'eff_sum_tc', 'eff_sum_rechits']].rename(
+        columns={'eff_sum_tc': 'eff_all_tc', 'eff_sum_rechits': 'eff_all_rechits'})
     # combined purity of all matched TICLCandidates (energy-weighted average, see above)
-    weights = df_tc['raw_energy'].clip(lower=0)
-    pur_all = ((df_tc['pur'] * weights).groupby([df_tc['event'], df_tc['truth_index']]).sum()
-        / weights.groupby([df_tc['event'], df_tc['truth_index']]).sum()).rename('pur_all').reset_index()
-    truth = truth.merge(pur_all, on=['event', 'truth_index'], how='left')
-    truth['T'] = sum(df_truth[f'truthe_{s}'] for s in SUBDETS)
-    # truth energy in LayerClusters that are part of any TICLCandidate
-    # (approximately the denominator of the efficiency; only available in newer versions of the output)
-    truth['T_tc'] = (sum(df_truth[f'truthe_tc_{s}'] for s in SUBDETS)
-        if 'truthe_tc_ee' in df_truth.columns else np.nan)
+    truth = truth.merge(get_combined_purity(df_tc), on=['event', 'truth_index'], how='left')
+    E = df_truth['truthe_rechits'].values
+    def frac(x): return np.divide(x, E, out=np.full(len(E), np.nan), where=E > 0)
+    # truth energy in LayerClusters, and in LayerClusters that are part of any TICLCandidate,
+    # relative to the truth RecHit energy
+    truth['T_frac'] = frac(sum(df_truth[f'truthe_{s}'].values for s in SUBDETS))
+    truth['T_tc_frac'] = frac(sum(df_truth[f'truthe_tc_{s}'].values for s in SUBDETS))
     return lc, truth
 
 
@@ -208,23 +208,6 @@ def load_grid(griddir, truth_type, reference_effdir=None, flat=False, workers=8)
 
 
 # processing
-
-def add_normalized_quantities(truth, t_ref):
-    '''
-    Add the truth energies relative to a reference energy per truth object,
-    and the truth-normalized efficiency.
-    t_ref: DataFrame with columns event, truth_index and T_ref (reference truth energy).
-    '''
-    truth = truth.merge(t_ref, on=['event', 'truth_index'], how='left')
-    truth['T_frac'] = np.where(truth['T_ref'] > 0, truth['T'] / truth['T_ref'].where(truth['T_ref'] > 0, 1), np.nan)
-    truth['T_tc_frac'] = np.where(truth['T_ref'] > 0, truth['T_tc'] / truth['T_ref'].where(truth['T_ref'] > 0, 1), np.nan)
-    # truth-normalized efficiency: energy shared with all matched TICLCandidates divided by T_ref
-    # (eff_all is approximately this shared energy divided by T_tc, so multiply by T_tc / T_ref;
-    #  fallback for older outputs without T_tc: T / T_ref, which only captures losses from LayerClusters)
-    rescaling = truth['T_tc_frac'] if truth['T_tc'].notna().all() else truth['T_frac']
-    truth['eff_all_truthnorm'] = truth['eff_all'] * rescaling
-    return truth
-
 
 def get_points(lc, truth):
     '''
@@ -347,16 +330,18 @@ def plot_curves(points, curves, ylabel, outputdir, name, axis='ratio', subdet=No
 def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, flat_sorts=None):
     '''Make all plots for one grid.'''
     tlabel = TRUTH_TYPES[truth_type]
-    eff_label = (f'{tlabel} efficiency w.r.t. all matched TICLCandidates,\n'
-        + f'normalized to the {tlabel} energy in all TICLCandidates')
-    effnorm_label = (f'{tlabel} efficiency w.r.t. all matched TICLCandidates,\n'
-        + f'normalized to the {tlabel} energy (approx.)')
+    eff_labels = {
+        'eff_all_tc': (f'{tlabel} efficiency w.r.t. all matched TICLCandidates,\n'
+            + f'normalized to the {tlabel} energy in all TICLCandidates'),
+        'eff_all_rechits': (f'{tlabel} efficiency w.r.t. all matched TICLCandidates,\n'
+            + f'normalized to the {tlabel} energy in all RecHits'),
+    }
     pur_label = f'Purity of all matched TICLCandidates w.r.t. {tlabel}'
-    # colours: efficiency in red, truth-normalized efficiency in green, purity in blue
-    # (lighter shades for the mean absolute change per truth object)
+    # colours: efficiency normalized to the energy in TICLCandidates in red, to the RecHit energy in green,
+    # purity in blue (lighter shades for the mean absolute change per truth object)
     colors = {
-        'eff_all': ('#c0392b', '#f1948a'),
-        'eff_all_truthnorm': ('#1e8449', '#82e0aa'),
+        'eff_all_tc': ('#c0392b', '#f1948a'),
+        'eff_all_rechits': ('#1e8449', '#82e0aa'),
         'pur_all': ('#2a78d6', '#7fb3ef'),
     }
     lc_legend = dict(fontsize=8, handlelength=4)
@@ -371,31 +356,32 @@ def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, 
             name='lc', axis='ratio', subdet=s, legend=lc_legend))
     # metric decomposition
     curves = [
-        dict(column='eff_all', err='eff_all_err', label=eff_label, color=colors['eff_all'][0], linestyle='-', marker='o'),
-        dict(column='eff_all_truthnorm', err='eff_all_truthnorm_err', label=effnorm_label,
-            color=colors['eff_all_truthnorm'][0], linestyle='-', marker='o'),
+        *[dict(column=m, err=f'{m}_err', label=eff_labels[m], color=colors[m][0], linestyle='-', marker='o')
+            for m in ['eff_all_tc', 'eff_all_rechits']],
         dict(column='pur_all', err='pur_all_err', label=pur_label, color=colors['pur_all'][0], linestyle='-', marker='o'),
-        dict(column='T_frac', err='T_frac_err', label=f'{tlabel} energy in LayerClusters,\n'
-            + f'normalized to the {tlabel} energy (approx.)', color='#a6a6a6', linestyle=':', marker='o'),
-        dict(column='T_tc_frac', err='T_tc_frac_err', label=f'{tlabel} energy in LayerClusters in TICLCandidates,\n'
-            + f'normalized to the {tlabel} energy (approx.)', color='#6b6b6b', linestyle='--', marker='o'),
+        dict(column='T_frac', err='T_frac_err', label=f'Fraction of the {tlabel} energy in LayerClusters',
+            color='#a6a6a6', linestyle=':', marker='o'),
+        dict(column='T_tc_frac', err='T_tc_frac_err',
+            label=f'Fraction of the {tlabel} energy in LayerClusters in TICLCandidates',
+            color='#6b6b6b', linestyle='--', marker='o'),
     ]
     plots.append(dict(curves=curves, ylabel='Mean value', name='metrics', axis='fraction',
         legend=metric_legend, markersize=4))
     # metric changes
     curves = []
-    for m, label in [('eff_all', eff_label), ('eff_all_truthnorm', effnorm_label), ('pur_all', pur_label)]:
+    for m, label in [('eff_all_tc', eff_labels['eff_all_tc']), ('eff_all_rechits', eff_labels['eff_all_rechits']),
+            ('pur_all', pur_label)]:
         curves.append(dict(column=f'{m}_delta_mean', label=label, color=colors[m][0], linestyle='-', marker='o'))
         if show_abs_change:
             curves.append(dict(column=f'{m}_delta_abs', label=f'Same, mean absolute change per {tlabel}',
                 color=colors[m][1], linestyle='--', marker='o'))
     plots.append(dict(curves=curves, ylabel='Change of the mean w.r.t. default parameters', name='metric_changes',
         axis='delta', legend=metric_legend, markersize=4))
-    # combined: purity, truth-normalized efficiency and number of LayerClusters, relative to the default point
+    # combined: purity, efficiency and number of LayerClusters, relative to the default point
     for s in PLOT_SUBDETS:
         curves = [
             dict(column='rel_pur_all', label=pur_label, color=colors['pur_all'][0], linestyle='-', marker='o'),
-            dict(column='rel_eff_all_truthnorm', label=effnorm_label, color=colors['eff_all_truthnorm'][0],
+            dict(column='rel_eff_all_rechits', label=eff_labels['eff_all_rechits'], color=colors['eff_all_rechits'][0],
                 linestyle='-', marker='s'),
             dict(column=f'rel_nlc_{s}', label=f'Number of LayerClusters in {PLOT_SUBDET_LABELS[s]}',
                 color='#8e44ad', linestyle='--', marker='D'),
@@ -433,33 +419,25 @@ if __name__=='__main__':
         help='Number of parallel processes for reading the grid point outputs (default: 8)')
     args = parser.parse_args()
 
-    # load all grids first, to define the reference truth energy per truth object:
-    # the maximum truth energy in LayerClusters over all grid points of all grids
     grids = args.grids if args.grids is not None else get_grids(args.inputdir)
     # (a grid point with all parameters at their default values, used as default point for grids without one)
     reference_job = find_default_job(args.inputdir)
     reference_effdir = os.path.join(args.inputdir, reference_job, 'efficiency') if reference_job is not None else None
     print(f'Default grid point (reference for grids without one): {reference_job}')
-    loaded = {}
     for grid in grids:
         print(f'Loading grid {grid}...')
-        loaded[grid] = load_grid(os.path.join(args.inputdir, grid), args.truth_type,
+        loaded = load_grid(os.path.join(args.inputdir, grid), args.truth_type,
             reference_effdir=reference_effdir, flat=args.flat, workers=args.workers)
-    alltruth = pd.concat([t for _, t in [v for v in loaded.values() if v is not None]], ignore_index=True)
-    t_ref = alltruth.groupby(['event', 'truth_index'])['T'].max().rename('T_ref').reset_index()
-
-    for grid in grids:
-        print(f'Processing grid {grid}...')
-        if loaded[grid] is None:
+        if loaded is None:
             print(f'WARNING: no finished grid points found for {grid}, skipping.')
             continue
-        lc, truth = loaded[grid]
-        points = get_points(lc, add_normalized_quantities(truth, t_ref))
+        lc, truth = loaded
+        points = get_points(lc, truth)
         if points is None:
             print(f'WARNING: no default point found for {grid}, skipping.')
             continue
         default = points[points['job'] == get_default_row(lc)['job']].iloc[0]
-        print(f'  Truth energy in LayerClusters at the default point relative to the reference: {default["T_frac"]:.3f}')
+        print(f'  Fraction of the truth energy in LayerClusters at the default point: {default["T_frac"]:.3f}')
         outputdir = os.path.join(args.outputdir, grid)
         os.makedirs(outputdir, exist_ok=True)
         points.to_csv(os.path.join(outputdir, f'summary_{args.truth_type}.csv'), index=False)

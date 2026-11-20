@@ -68,6 +68,11 @@ def _integer_bins(dfs, column, default_max):
     return np.arange(-0.5, high + 0.5, 1)
 
 
+# efficiency column suffixes and the corresponding normalization (for the axis labels)
+EFF_NORMS = [('', ''), ('_tc', ',\nnormalized to its energy in all TICLCandidates'),
+    ('_rechits', ',\nnormalized to its energy in all RecHits')]
+
+
 def _positive_bins(dfs, column, default_max=1., nbins=60):
     vals = _finite_values(dfs, column)
     if len(vals) == 0:
@@ -99,7 +104,13 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None,
 
     histograms = [
         ('pur', np.linspace(0, 1.2, 61), f'TICLCandidate purity w.r.t. matched {truth_label}', 'TICLCandidates', True),
+        # (for truth Branches, eff_tc and eff_rechits: normalized to the truth energy in all TICLCandidates and in all
+        #  RecHits; for CaloParticles and SimClusters, eff: normalized to the truth energy in all TICLCandidates)
         ('eff', np.linspace(0, 1.2, 61), f'TICLCandidate efficiency w.r.t. matched {truth_label}', 'TICLCandidates', True),
+        ('eff_tc', np.linspace(0, 1.2, 61), f'TICLCandidate efficiency w.r.t. matched {truth_label},\n'
+            + 'normalized to its energy in all TICLCandidates', 'TICLCandidates', True),
+        ('eff_rechits', np.linspace(0, 1.2, 61), f'TICLCandidate efficiency w.r.t. matched {truth_label},\n'
+            + 'normalized to its energy in all RecHits', 'TICLCandidates', True),
         ('ntracksters', _integer_bins(dfs, 'ntracksters', 5), 'Tracksters per TICLCandidate', 'TICLCandidates', False),
         ('nlayerclusters', _integer_bins(dfs, 'nlayerclusters', 10), 'LayerClusters per TICLCandidate', 'TICLCandidates', False),
         ('pt', _positive_bins(dfs, 'pt'), 'TICLCandidate pT', 'TICLCandidates', False),
@@ -107,6 +118,7 @@ def plot_tc_result(result, outputdir, params=None, legend_dict=None,
     ]
 
     for column, bins, xlabel, ylabel, unit_interval in histograms:
+        if not any(column in df.columns for df in dfs): continue
         fig, ax = plt.subplots(figsize=(12, 6))
         ax.grid(visible=True, which='both', axis='both')
         for key, df in result.items():
@@ -176,13 +188,20 @@ def plot_cp_tc_result(result, outputdir, params=None, legend_dict=None,
     dfs = list(result.values())
 
     histograms = [
-        ('eff_primary', np.linspace(0, 1.2, 61), f'{truth_label} efficiency w.r.t. primary TICLCandidate', f'{truth_label}s', True),
+        # (for truth Branches, the efficiencies normalized to the truth energy in all TICLCandidates (_tc) and in all
+        #  RecHits (_rechits); for CaloParticles and SimClusters, only the former, without suffix)
+        *[(f'eff_primary{suffix}', np.linspace(0, 1.2, 61),
+            f'{truth_label} efficiency w.r.t. primary TICLCandidate{norm}', f'{truth_label}s', True)
+            for suffix, norm in EFF_NORMS],
         ('pur_primary', np.linspace(0, 1.2, 61), f'Primary TICLCandidate purity w.r.t. {truth_label}', f'{truth_label}s', True),
-        ('eff_sum', _positive_bins(dfs, 'eff_sum', default_max=1.2), f'{truth_label} efficiency w.r.t. all matched TICLCandidates', f'{truth_label}s', False),
+        *[(f'eff_sum{suffix}', _positive_bins(dfs, f'eff_sum{suffix}', default_max=1.2),
+            f'{truth_label} efficiency w.r.t. all matched TICLCandidates{norm}', f'{truth_label}s', False)
+            for suffix, norm in EFF_NORMS],
         ('ntc', _integer_bins(dfs, 'ntc', 5), f'TICLCandidates per {truth_label}', f'{truth_label}s', False),
     ]
 
     for column, bins, xlabel, ylabel, unit_interval in histograms:
+        if not any(column in df.columns for df in dfs): continue
         fig, ax = plt.subplots(figsize=(12, 6))
         ax.grid(visible=True, which='both', axis='both')
         for key, df in result.items():

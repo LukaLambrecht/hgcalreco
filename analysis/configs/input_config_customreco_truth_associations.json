@@ -6,5 +6,8 @@
     "lctobranch_scores": ["std::vector<float>", "flattenHgcalMergeLayerClustersRecoToTruthFixed", "hgcalMergeLayerClustersRecoToTruthFixedFlatScore", "HGCALTICL"],
     "tctobranch_tsids": ["std::vector<unsigned int>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatTSIdx", "HGCALTICL"],
     "tctobranch_branchids": ["std::vector<unsigned int>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatBranchIdx", "HGCALTICL"],
-    "tctobranch_sharedenergy": ["std::vector<float>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatSharedEnergy", "HGCALTICL"]
+    "tctobranch_sharedenergy": ["std::vector<float>", "flattenTiclCandidateRecoToTruthFixed", "ticlCandidateRecoToTruthFixedFlatSharedEnergy", "HGCALTICL"],
+    "branchtolc_branchids": ["std::vector<unsigned int>", "flattenHgcalMergeLayerClustersTruthToReco", "hgcalMergeLayerClustersTruthToRecoFlatBranchIdx", "HGCALTICL"],
+    "branchtolc_lcids": ["std::vector<unsigned int>", "flattenHgcalMergeLayerClustersTruthToReco", "hgcalMergeLayerClustersTruthToRecoFlatLCIdx", "HGCALTICL"],
+    "branchtolc_sharedenergyfraction": ["std::vector<float>", "flattenHgcalMergeLayerClustersTruthToReco", "hgcalMergeLayerClustersTruthToRecoFlatSharedEnergy", "HGCALTICL"]
 }

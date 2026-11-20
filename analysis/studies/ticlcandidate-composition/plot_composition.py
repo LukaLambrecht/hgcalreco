@@ -30,6 +30,7 @@ sys.path.append(topdir)
 from tools.compositiontools import SUBDETS, SUBDET_LABELS, SUBDET_COLORS
 from tools.compositiontools import TRUTH_TYPES, TRUTH_CATEGORIES
 from tools.compositiontools import load_composition, load_event_lc
+from tools.compositiontools import get_efficiency_columns
 
 
 DEFAULT_INPUT = ('/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261119_201X_D127_PU200/'
@@ -187,22 +188,19 @@ def plot_truth_composition(df_truth, truth_type, outputdir):
 def plot_metrics_by_category(df_tc, df_truth, truth_type, outputdir):
     '''
     Efficiency and purity per truth category, and vs the truth CE-E energy fraction.
-    Efficiency: w.r.t. the primary TICLCandidate (eff_primary) and w.r.t. all matched TICLCandidates (eff_sum),
-    one entry per truth object.
+    Efficiency: w.r.t. the primary TICLCandidate and w.r.t. all matched TICLCandidates, one entry per truth object
+    (for truth Branches each normalized to the truth energy in all TICLCandidates and in all RecHits,
+    see tools/compositiontools.py::get_efficiency_columns).
     Purity: of the primary TICLCandidate (pur_primary, one entry per truth object),
     and of all matched TICLCandidates (pur, one entry per TICLCandidate).
     '''
     tlabel = TRUTH_TYPES[truth_type]
     metrics = {
         # name: (dataframe, column, x-axis label, y-axis label for means, figure name)
-        'eff_primary': (df_truth, 'eff_primary',
-            f'{tlabel} efficiency w.r.t. primary TICLCandidate',
-            f'Mean {tlabel} efficiency\nw.r.t. primary TICLCandidate',
-            f'{truth_type}_tc_eff_primary'),
-        'eff_all': (df_truth, 'eff_sum',
-            f'{tlabel} efficiency w.r.t. all matched TICLCandidates',
-            f'Mean {tlabel} efficiency\nw.r.t. all matched TICLCandidates',
-            f'{truth_type}_tc_eff_all'),
+        **{name: (df_truth, column,
+            f'{tlabel} efficiency {description}',
+            f'Mean {tlabel} efficiency\n{description}',
+            f'{truth_type}_tc_{name}') for name, column, description in get_efficiency_columns(df_truth)},
         'pur_primary': (df_truth, 'pur_primary',
             f'Primary TICLCandidate purity w.r.t. {tlabel}',
             f'Mean primary TICLCandidate purity\nw.r.t. {tlabel}',
@@ -350,11 +348,9 @@ def get_summary(df_tc, df_truth, df_event):
         'n': int(len(df_truth)),
         'energy_fraction': {s: float(df_truth[f'truthe_{s}'].sum() / etot) for s in SUBDETS},
         'category_fraction': {k: float(np.mean(df_truth['category'] == k)) for k in TRUTH_CATEGORIES},
-        'eff_primary_by_category': {k: float(df_truth[df_truth['category'] == k]['eff_primary'].mean())
-            for k in TRUTH_CATEGORIES},
+        **{f'{name}_by_category': {k: float(df_truth[df_truth['category'] == k][column].mean())
+            for k in TRUTH_CATEGORIES} for name, column, _ in get_efficiency_columns(df_truth)},
         'pur_primary_by_category': {k: float(df_truth[df_truth['category'] == k]['pur_primary'].mean())
-            for k in TRUTH_CATEGORIES},
-        'eff_all_by_category': {k: float(df_truth[df_truth['category'] == k]['eff_sum'].mean())
             for k in TRUTH_CATEGORIES},
         'pur_all_by_category': {k: float(df_tc[df_tc['category'] == k]['pur'].mean())
             for k in TRUTH_CATEGORIES},

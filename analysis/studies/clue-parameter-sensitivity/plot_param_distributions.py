@@ -32,8 +32,8 @@ from scanutils import DEFAULT_PARAMS, PARAM_LABELS
 # any other column name of the CSV file can be used as well
 SORTS = {
     'purity': (lambda d: d['pur_all'], 'mean purity of all matched TICLCandidates'),
-    'efficiency': (lambda d: d['eff_all_truthnorm'], 'mean truth-normalized efficiency'),
-    'average': (lambda d: (d['pur_all'] + d['eff_all_truthnorm']) / 2, 'average of purity and truth-norm. efficiency'),
+    'efficiency': (lambda d: d['eff_all_rechits'], 'mean efficiency (w.r.t. RecHit energy)'),
+    'average': (lambda d: (d['pur_all'] + d['eff_all_rechits']) / 2, 'average of purity and efficiency (w.r.t. RecHit energy)'),
 }
 
 

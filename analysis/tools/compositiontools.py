@@ -15,6 +15,40 @@ SUBDETS = ['ee', 'hsi', 'hsci']
 DETID_DETECTORS = {8: 0, 9: 1, 10: 2} # HGCalEE, HGCalHSi, HGCalHSc -> index in SUBDETS
 
 
+def get_efficiency_columns(df_truth):
+    '''
+    Get the efficiency columns of a truth-level DataFrame (as stored by calculate_associations.py),
+    as a list of (name, column, description) tuples:
+    - for truth Branches (with columns eff_<primary/sum>_<tc/rechits>): the efficiency w.r.t. the primary
+      and w.r.t. all matched TICLCandidates, each normalized to the truth energy in all TICLCandidates (tc)
+      and to the truth energy in all RecHits (rechits);
+    - otherwise (CaloParticles, SimClusters: columns eff_primary and eff_sum): the efficiency w.r.t. the primary
+      and w.r.t. all matched TICLCandidates, normalized to the truth energy in all TICLCandidates.
+    The name is eff_<primary/all>[_<tc/rechits>].
+    df_truth can also be a list of column names, either of a truth-level DataFrame
+    or of a table with columns named after the efficiency names (e.g. eff_all_rechits).
+    '''
+    columns = list(getattr(df_truth, 'columns', df_truth))
+    kinds = [('primary', 'primary', 'w.r.t. primary TICLCandidate'), ('all', 'sum', 'w.r.t. all matched TICLCandidates')]
+    if 'eff_sum_rechits' not in columns and 'eff_all_rechits' not in columns:
+        return [(f'eff_{name}', f'eff_{column}', description) for name, column, description in kinds]
+    norms = [('tc', 'normalized to energy in all TICLCandidates'), ('rechits', 'normalized to energy in all RecHits')]
+    return [(f'eff_{name}_{norm}', f'eff_{column}_{norm}', f'{description},\n{norm_description}')
+        for name, column, description in kinds for norm, norm_description in norms]
+
+
+def get_combined_purity(df_tc):
+    '''
+    Combined purity of all TICLCandidates matched to each truth object: the average of their purities,
+    weighted by their (raw) energy. Input: a TICLCandidate-level DataFrame (columns event, truth_index,
+    pur and raw_energy, as stored by calculate_associations.py). Returns a DataFrame with columns
+    event, truth_index and pur_all (truth objects without a matched TICLCandidate are absent).
+    '''
+    weights = df_tc['raw_energy'].clip(lower=0)
+    keys = [df_tc['event'], df_tc['truth_index']]
+    return ((df_tc['pur'] * weights).groupby(keys).sum() / weights.groupby(keys).sum()).rename('pur_all').reset_index()
+
+
 def get_layercluster_info(layerclusters):
     '''
     Get the subdetector index (in SUBDETS, or -1 if unknown) and energy of each LayerCluster.

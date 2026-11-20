@@ -40,9 +40,11 @@ if __name__=='__main__':
     parser.add_argument('--do_composition', default=False, action='store_true',
         help='Also store the composition of TICLCandidates and truth objects per HGCAL subdetector'
              ' (see analysis/efficiency/calculate_associations.py).')
-    parser.add_argument('--efficiency_level', default='both',
+    parser.add_argument('--efficiency_level', default='tc',
         choices=['lc', 'tc', 'both'],
-        help='Efficiency metrics to calculate after re-reco.')
+        help='Efficiency metrics to calculate after re-reco: TICLCandidate level (tc, default),'
+             ' LayerCluster level (lc), or both. Note: the LayerCluster-level metrics need too much memory'
+             ' for PU200 samples (dense truth x LayerCluster matrices, about 19 GB per event).')
     parser.add_argument('--cmssw', default=None)
     parser.add_argument('--proxy', default=None)
     parser.add_argument('--overwrite', default=False, action='store_true')

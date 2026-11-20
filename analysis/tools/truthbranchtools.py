@@ -139,11 +139,56 @@ def get_purity_matrix_from_scores(reco_ids, branch_ids, scores, truth, nreco):
     return pur
 
 
+def get_truth_rechit_energies(truth, lc_ids, branch_ids, shared_energies,
+        truth_branch_ids, truth_lc_ids, truth_fractions):
+    '''
+    Get the RecHit energy of each truth object (array of length len(truth)): the sum over all its HGCAL cells
+    of the RecHit energy times its energy fraction in the cell (NaN if it shares no energy with any LayerCluster).
+    This is the denominator of the shared energy fraction in the truth-to-reco direction of the truth Branch
+    associations (see BranchHitAssociator in PhysicsTools/TruthInfo), so it is recovered from a single
+    (LayerCluster, Branch) pair as shared energy / shared energy fraction (the same for all pairs of a Branch,
+    up to float precision), with:
+    - lc_ids, branch_ids, shared_energies: the flattened LayerCluster-to-truth-Branch map (Fixed working point,
+      which contains all pairs), with the shared energy;
+    - truth_branch_ids, truth_lc_ids, truth_fractions: the flattened truth-Branch-to-LayerCluster map, with the
+      shared energy fraction (stored as "SharedEnergy" in the flattened product).
+    '''
+    ids = np.array([t.id for t in truth], dtype=np.uint64)
+    energies = np.full(len(truth), np.nan)
+    if len(ids) == 0 or truth_branch_ids is None or lc_ids is None: return energies
+    truth_branch_ids = np.asarray(truth_branch_ids).astype(np.uint64)
+    truth_lc_ids = np.asarray(truth_lc_ids).astype(np.uint64)
+    truth_fractions = np.asarray(truth_fractions)
+    # per truth object: the pair with the largest shared energy fraction (numerically most precise)
+    mask = np.isin(truth_branch_ids, ids) & (truth_fractions > 0)
+    b, lc, frac = truth_branch_ids[mask], truth_lc_ids[mask], truth_fractions[mask]
+    order = np.lexsort((-frac, b))
+    b, lc, frac = b[order], lc[order], frac[order]
+    b, first = np.unique(b, return_index=True)
+    lc, frac = lc[first], frac[first]
+    # shared energy of the same pairs in the reco-to-truth map (keyed by LayerCluster and Branch index)
+    branch_ids = np.asarray(branch_ids).astype(np.uint64)
+    mask = np.isin(branch_ids, b)
+    keys = (np.asarray(lc_ids).astype(np.uint64)[mask] << np.uint64(32)) | branch_ids[mask]
+    shared = np.asarray(shared_energies)[mask]
+    order = np.argsort(keys)
+    keys, shared = keys[order], shared[order]
+    wanted = (lc << np.uint64(32)) | b
+    if len(keys) == 0: return energies
+    pos = np.minimum(np.searchsorted(keys, wanted), len(keys) - 1)
+    found = (keys[pos] == wanted)
+    index = {int(bid): idx for idx, bid in enumerate(ids)}
+    for bid, ok, p, f in zip(b, found, pos, frac):
+        if ok: energies[index[int(bid)]] = shared[p] / f
+    return energies
+
+
 def get_matrices_from_shared_energy(shared, reco_groups=None):
     '''
     Get purity- and efficiency-like matrices from a (ntruth, nreco) shared energy matrix.
     If reco_groups is provided (array of length nreco, e.g. the layer of each LayerCluster),
-    the efficiency is normalized per group instead of over all reco objects.
+    the efficiency is normalized to the truth energy in the reco objects per group,
+    else to the truth energy in all reco objects.
     '''
     reco_total = np.sum(shared, axis=0)
     pur_matrix = np.divide(shared, reco_total[np.newaxis, :],
@@ -161,12 +206,20 @@ def get_matrices_from_shared_energy(shared, reco_groups=None):
     return pur_matrix, eff_matrix
 
 
-def get_ticl_candidate_matrices(ticlcandidates, tc_ts_indices, ts_ids, branch_ids, shared_energies, truth):
+def get_ticl_candidate_matrices(ticlcandidates, tc_ts_indices, ts_ids, branch_ids, shared_energies, truth,
+        truth_energies):
     '''
     Build TICLCandidate - truth Branch matrices from the flattened Trackster-to-truth-Branch map
     (for the Trackster collection belonging to the TICLCandidates), summing over the
     constituent Tracksters of each TICLCandidate (as in tcassociationtools.py).
-    Returns the purity- and efficiency-like matrices, both of shape (ntruth, ntc).
+    Returns the purity matrix and the efficiencies, both of shape (ntruth, ntc), with two normalizations,
+    as a dict {name: (efficiency matrix, rescaling factor per truth object or None)}:
+    - "tc": the shared energy normalized to the truth object's energy in all TICLCandidates
+      (the sum of its shared energy over all TICLCandidates);
+    - "rechits": the shared energy normalized to truth_energies, the RecHit energy of each truth object
+      (see get_truth_rechit_energies), i.e. the "tc" efficiency rescaled per truth object by its energy in all
+      TICLCandidates divided by its RecHit energy (0 if the latter is not available); stored as a rescaling
+      factor instead of a second (ntruth, ntc) matrix, to limit the memory usage.
     '''
     nts = 0 if len(ts_ids) == 0 else int(np.max(ts_ids)) + 1
     nts = max([nts] + [max(indices) + 1 for indices in tc_ts_indices if len(indices) > 0])
@@ -175,4 +228,10 @@ def get_ticl_candidate_matrices(ticlcandidates, tc_ts_indices, ts_ids, branch_id
     for tc_idx, indices in enumerate(tc_ts_indices):
         if len(indices) == 0: continue
         tc_shared[:, tc_idx] = np.sum(ts_shared[:, indices], axis=1)
-    return get_matrices_from_shared_energy(tc_shared)
+    truth_energy_in_tcs = np.sum(tc_shared, axis=1)
+    pur_matrix, eff_matrix = get_matrices_from_shared_energy(tc_shared)
+    del tc_shared
+    truth_energies = np.nan_to_num(np.asarray(truth_energies, dtype=float), nan=0.)
+    rechits_factor = np.divide(truth_energy_in_tcs, truth_energies,
+        out=np.zeros_like(truth_energies), where=truth_energies > 0)
+    return pur_matrix, {'tc': (eff_matrix, None), 'rechits': (eff_matrix, rechits_factor)}

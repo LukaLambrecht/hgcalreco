@@ -30,6 +30,7 @@ sys.path.append(topdir)
 from tools.compositiontools import SUBDETS, SUBDET_LABELS, SUBDET_COLORS
 from tools.compositiontools import TRUTH_TYPES, TRUTH_CATEGORIES
 from tools.compositiontools import load_composition, load_event_lc
+from tools.compositiontools import get_efficiency_columns
 sys.path.append(thisdir)
 from scanutils import DEFAULT_INPUT, DEFAULT_PARAMS, PARAM_LABELS
 from scanutils import get_grid_jobs, make_axes, savefig
@@ -54,7 +55,7 @@ def get_job_summary(effdir, truth_type):
             ratio = (df_truth[f'{selname}_e_{s}'] / df_truth[f'truthe_{s}'])[mask]
             row[f'{selname}_capture_{s}'] = np.median(ratio) if len(ratio) > 0 else np.nan
     # metrics: (dataframe, column) for efficiency and purity w.r.t. primary and all matched TICLCandidates
-    metrics = {'eff_primary': (df_truth, 'eff_primary'), 'eff_all': (df_truth, 'eff_sum'),
+    metrics = {**{name: (df_truth, column) for name, column, _ in get_efficiency_columns(df_truth)},
                'pur_primary': (df_truth, 'pur_primary'), 'pur_all': (df_tc, 'pur')}
     for metric, (df, column) in metrics.items():
         row[metric] = df[column].mean()
@@ -131,8 +132,8 @@ def plot_grid(df, truth_type, outputdir):
 
     # metrics per truth category
     metrics = {
-        'eff_primary': (f'Mean {tlabel} efficiency\nw.r.t. primary TICLCandidate', f'{truth_type}_tc_eff_primary'),
-        'eff_all': (f'Mean {tlabel} efficiency\nw.r.t. all matched TICLCandidates', f'{truth_type}_tc_eff_all'),
+        **{name: (f'Mean {tlabel} efficiency\n{description}', f'{truth_type}_tc_{name}')
+            for name, _, description in get_efficiency_columns(df.columns)},
         'pur_primary': (f'Mean primary TICLCandidate purity\nw.r.t. {tlabel}', f'{truth_type}_tc_pur_primary'),
         'pur_all': (f'Mean TICLCandidate purity\nw.r.t. matched {tlabel}', f'tc_{truth_type}_pur_all'),
     }

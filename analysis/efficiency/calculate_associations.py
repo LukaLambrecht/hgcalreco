@@ -1,4 +1,21 @@
 # Calculate association scores and auxiliary variables
+#
+# Purity and efficiency at TICLCandidate level for truth Branches (--gen_level truthbranch-*), per pair of truth
+# object t and TICLCandidate c, with S(t, c) their shared energy (sum over the cells of c's LayerClusters of the
+# RecHit energy x t's energy fraction, from the truth Branch associations):
+# - purity: S(t, c) / sum over all truth objects t' of S(t', c) (all truth objects of the truth level,
+#   from all interactions, completed with the calorimeter boundary particles to cover all truth energy);
+# - efficiency, with two denominators:
+#   - eff_tc: S(t, c) / sum over all TICLCandidates c' of S(t, c'), i.e. normalized to t's energy in all TICLCandidates;
+#   - eff_rechits: S(t, c) / E(t), with E(t) the RecHit energy of t (sum over all its HGCAL cells of the RecHit energy
+#     x its energy fraction; stored as truthe_rechits), so energy lost in the LayerClustering or in LayerClusters
+#     that are not part of any TICLCandidate is also counted as inefficiency.
+# Each TICLCandidate is matched to the truth object with which it has the highest purity (if any).
+# Only the signal truth objects (from the signal interaction) and the TICLCandidates matched to them are stored.
+# Per truth object, eff_primary_<tc/rechits> is the efficiency w.r.t. the matched TICLCandidate with the highest
+# efficiency, and eff_sum_<tc/rechits> the sum over all matched TICLCandidates.
+# (For CaloParticles and SimClusters, only the first denominator exists, and the columns are called eff,
+# eff_primary and eff_sum.)
 
 
 import os
@@ -41,6 +58,7 @@ from tools.truthbranchtools import get_shared_energy_matrix
 from tools.truthbranchtools import get_matrices_from_shared_energy
 from tools.truthbranchtools import get_purity_matrix_from_scores
 from tools.truthbranchtools import get_ticl_candidate_matrices
+from tools.truthbranchtools import get_truth_rechit_energies
 
 
 # truth Branches that can be used as truth objects (see tools/truthbranchtools.py):
@@ -238,7 +256,9 @@ def calculate_tc_event_metrics(collections, caloparticles,
     simtracksters_key/tstosimts_*_key arguments (default: CaloParticle-based, exactly as before).
     Pass the SimCluster equivalents (see input_config_customreco_sc_associations.json)
     to get SimCluster-based metrics instead. For truth Branches, pass the precomputed
-    (Trackster indices per TICLCandidate, purity, efficiency) with the matrices argument instead.
+    (Trackster indices per TICLCandidate, purity, efficiency) with the matrices argument instead,
+    where the efficiency can be a dict of efficiency matrices with different normalizations
+    (one set of efficiency columns per entry, with the key as suffix; see _calculate_tc_event_metrics_from_matrices).
 
     Returns:
     - df_tc: one row per non-empty TICLCandidate kept by the mapping.
@@ -309,7 +329,20 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
     '''
     Calculate TICLCandidate-to-truth-object metrics from the purity- and efficiency-like matrices
     (see calculate_tc_event_metrics for more info).
+    eff_matrix: a single efficiency matrix (columns eff, eff_primary and eff_sum), or a dict of efficiencies
+    with different normalizations (columns eff_<key>, eff_primary_<key> and eff_sum_<key> per entry), each given as
+    (efficiency matrix, rescaling factor per truth object or None), with the efficiency of truth object i
+    and TICLCandidate j being matrix[i, j] * factor[i] (e.g. to change the normalization without another matrix);
+    the primary TICLCandidate is the matched one with the highest efficiency for the first entry
+    (the same for all entries, since they only differ by a factor per truth object).
     '''
+    eff_matrices = eff_matrix if isinstance(eff_matrix, dict) else {None: (eff_matrix, None)}
+    def column(name, key): return name if key is None else f'{name}_{key}'
+    def get_eff(key, truth_ids, tc_ids):
+        matrix, factor = eff_matrices[key]
+        values = matrix[truth_ids, tc_ids]
+        return values if factor is None else values * factor[truth_ids]
+    eff_matrix = list(eff_matrices.values())[0][0]
 
     # handle special case of no truth objects
     if len(caloparticles) == 0: return None, None, False
@@ -347,7 +380,6 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
 
     # get the purity and efficiency of ticlcandidates with a match
     tc_pur = pur_matrix[linked_tc_cp_ids, linked_tc_ids]
-    tc_eff = eff_matrix[linked_tc_cp_ids, linked_tc_ids]
 
     # get other relevant variables
     tc_caloparticle_pt = np.array([caloparticles[int(idx)].pt() for idx in linked_tc_cp_ids])
@@ -369,7 +401,7 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
     # make dataframes
     df_tc = pd.DataFrame.from_dict({
         'pur': tc_pur,
-        'eff': tc_eff,
+        **{column('eff', key): get_eff(key, linked_tc_cp_ids, linked_tc_ids) for key in eff_matrices},
         'caloparticle_pt': tc_caloparticle_pt,
         'caloparticle_eta': tc_caloparticle_eta,
         'pt': tc_pt,
@@ -384,9 +416,9 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
     })
 
     nselected = len(cp_selected_ids)
-    cp_tc_eff_primary = np.zeros(nselected)
+    cp_tc_eff_primary = {key: np.zeros(nselected) for key in eff_matrices}
     cp_tc_pur_primary = np.zeros(nselected)
-    cp_tc_eff_sum = np.zeros(nselected)
+    cp_tc_eff_sum = {key: np.zeros(nselected) for key in eff_matrices}
     cp_tc_ntc = np.zeros(nselected, dtype=int)
     cp_tc_primary_tc_index = np.full(nselected, -1, dtype=int) # -1 if no matched TICLCandidate
 
@@ -398,14 +430,15 @@ def _calculate_tc_event_metrics_from_matrices(ticlcandidates, caloparticles,
             primary_idx = np.argmax(this_cp_eff)
             primary_tc_id = tc_ids[primary_idx]
             cp_tc_primary_tc_index[pos] = primary_tc_id
-            cp_tc_eff_primary[pos] = this_cp_eff[primary_idx]
             cp_tc_pur_primary[pos] = pur_matrix[cp_idx, primary_tc_id]
-            cp_tc_eff_sum[pos] = np.sum(this_cp_eff)
+            for key in eff_matrices:
+                cp_tc_eff_primary[key][pos] = get_eff(key, cp_idx, primary_tc_id)
+                cp_tc_eff_sum[key][pos] = np.sum(get_eff(key, cp_idx, np.asarray(tc_ids)))
 
     df_cp_tc = pd.DataFrame.from_dict({
-        'eff_primary': cp_tc_eff_primary,
+        **{column('eff_primary', key): values for key, values in cp_tc_eff_primary.items()},
         'pur_primary': cp_tc_pur_primary,
-        'eff_sum': cp_tc_eff_sum,
+        **{column('eff_sum', key): values for key, values in cp_tc_eff_sum.items()},
         'ntc': cp_tc_ntc,
         'pt': np.array([caloparticles[int(idx)].pt() for idx in cp_selected_ids]),
         'eta': np.array([caloparticles[int(idx)].eta() for idx in cp_selected_ids]),
@@ -679,11 +712,17 @@ if __name__=='__main__':
                     dfs_branch[level]['lc'].append(df_lc_b)
                     dfs_branch[level]['truth_lc'].append(df_b_lc)
                 if args.do_tc_level:
+                    # RecHit energy of each truth object (sum over its HGCAL cells of RecHit energy x energy fraction),
+                    # used as the denominator of the efficiency (see tools/truthbranchtools.py)
+                    truth_energies = get_truth_rechit_energies(truth,
+                        collections['lctobranch_lcids'], collections['lctobranch_branchids'],
+                        collections['lctobranch_sharedenergy'], collections['branchtolc_branchids'],
+                        collections['branchtolc_lcids'], collections['branchtolc_sharedenergyfraction'])
                     ticlcandidates = collections['ticlcandidates_merge']
                     tc_ts_indices = get_all_ticl_candidate_trackster_indices(ticlcandidates)
                     pur_matrix, eff_matrix = get_ticl_candidate_matrices(ticlcandidates, tc_ts_indices,
                         collections['tctobranch_tsids'], collections['tctobranch_branchids'],
-                        collections['tctobranch_sharedenergy'], truth)
+                        collections['tctobranch_sharedenergy'], truth, truth_energies)
                     df_tc_b, df_b_tc, _ = calculate_tc_event_metrics(collections, truth,
                         eventid = eventid,
                         cp_selected_ids = truth_selected_ids,
@@ -693,6 +732,7 @@ if __name__=='__main__':
                     if df_b_tc is not None:
                         df_b_tc['pdgid'] = np.array([truth[int(idx)].pdgId() for idx in truth_selected_ids])
                         df_b_tc['particle_id'] = np.array([truth[int(idx)].id for idx in truth_selected_ids])
+                        df_b_tc['truthe_rechits'] = truth_energies[np.asarray(truth_selected_ids, dtype=int)]
                         df_b_tc = add_truth_composition(df_b_tc,
                             collections['lctobranch_branchids'], collections['lctobranch_lcids'],
                             collections['lctobranch_sharedenergy'], lc_subdets, df_b_tc['particle_id'].values, lc_used_in_tc)

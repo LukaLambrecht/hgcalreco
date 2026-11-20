@@ -11,6 +11,7 @@ rng = np.random.default_rng()
 topdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(topdir)
 from analysis.tools.layertools import get_layer_counts
+from analysis.tools.compositiontools import get_combined_purity
 
 
 def format_vstring_files(files):
@@ -119,7 +120,7 @@ def get_efficiency_command(context, inputfile, outputdir):
         "-o", outputdir,
         "--input_config_type", context["efficiency_config_type"]
     ])
-    efficiency_level = context.get("efficiency_level", "both")
+    efficiency_level = context.get("efficiency_level", "tc")
     if efficiency_level not in ["lc", "tc", "both"]:
         raise ValueError(f'Unknown efficiency_level "{efficiency_level}".')
     if efficiency_level in ["lc", "both"]:
@@ -306,7 +307,7 @@ def run_local_evaluation(params, context,
     # metric extraction
     # (the output files are named metrics_<reco>_<truth>.parquet and metrics_<truth>_<reco>.parquet,
     # with reco = lc or tc and truth = the truth object type, e.g. truthbranch-signal or cp)
-    efficiency_level = context.get("efficiency_level", "both")
+    efficiency_level = context.get("efficiency_level", "tc")
     gen_levels = context.get("efficiency_gen_level", DEFAULT_GEN_LEVELS)
     gen_levels = [g for gen_level in gen_levels for g in (["cp", "sc"] if gen_level == "both" else [gen_level])]
     reco_levels = {"tc": ["tc"], "lc": ["lc"], "both": ["lc", "tc"]}[efficiency_level]
@@ -389,7 +390,13 @@ def extract_metric(results_lc, results_truth):
 def extract_tc_metric(results_tc, results_truth_tc):
     """
     Calculate a scalar metric from TICLCandidate-level association results
-    (for TICLCandidates and truth objects, e.g. truth Branches or CaloParticles).
+    (for TICLCandidates and truth objects, as stored by analysis/efficiency/calculate_associations.py):
+    the average of the mean combined purity of the TICLCandidates matched to each truth object
+    (energy-weighted, see analysis/tools/compositiontools.py::get_combined_purity)
+    and the mean efficiency w.r.t. all matched TICLCandidates, both averaged over the truth objects.
+    For truth Branches, the efficiency normalized to the truth object's RecHit energy is used (eff_sum_rechits);
+    for CaloParticles and SimClusters, the efficiency normalized to their energy in all TICLCandidates (eff_sum).
+    This is the same quantity as the "average" sorting in analysis/studies/clue-parameter-sensitivity.
     """
 
     if isinstance(results_tc, str):
@@ -400,10 +407,10 @@ def extract_tc_metric(results_tc, results_truth_tc):
     if len(results_tc) == 0 or len(results_truth_tc) == 0:
         return 0.
 
-    tc_pur_avg = np.mean(results_tc['pur'].values)
-    tc_eff_avg = np.mean(results_tc['eff'].values)
-    truth_eff_avg = np.mean(results_truth_tc['eff_primary'].values)
-    metric = (tc_pur_avg + tc_eff_avg + truth_eff_avg)/3.
+    eff_column = 'eff_sum_rechits' if 'eff_sum_rechits' in results_truth_tc.columns else 'eff_sum'
+    truth = results_truth_tc[['event', 'truth_index', eff_column]].merge(
+        get_combined_purity(results_tc), on=['event', 'truth_index'], how='left')
+    metric = (np.nanmean(truth['pur_all'].values) + np.mean(truth[eff_column].values)) / 2.
     if not np.isfinite(metric):
         return 0.
     return metric
