@@ -32,9 +32,11 @@ if __name__=='__main__':
     parser.add_argument('--era', default='Phase2C26I13M9',
         help='CMSSW era name (e.g. "Phase2C26I13M9" for D122/D127, "Phase2C22I13M9" for D121).'
              ' Must match the era used for sample production, similar to --geometry.')
-    parser.add_argument('--gen_level', default=['cp'], nargs='+',
+    parser.add_argument('--gen_level', default=['truthbranch-signal'], nargs='+',
         help='Truth object type(s) for the efficiency calculation (see analysis/efficiency/calculate_associations.py),'
-             ' e.g. "cp truthbranch-signal"; the main metric is always the CaloParticle-based one.')
+             ' default: truthbranch-signal; the main metric is the one for the first type.'
+             ' CaloParticles ("cp") and/or SimClusters ("sc") are opt-in: if requested, the corresponding'
+             ' (slow) truth associations are also run in the re-reco.')
     parser.add_argument('--do_composition', default=False, action='store_true',
         help='Also store the composition of TICLCandidates and truth objects per HGCAL subdetector'
              ' (see analysis/efficiency/calculate_associations.py).')

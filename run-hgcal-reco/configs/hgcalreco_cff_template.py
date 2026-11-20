@@ -43,6 +43,13 @@ process.source = cms.Source("PoolSource",
 )
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE_MAX_EVENTS')))
 
+# Whether to also run the CaloParticle/SimCluster-based truth associations
+# (SimTracksters, LayerCluster <-> CaloParticle/SimCluster and Trackster <-> SimTrackster
+# associations) and store CaloParticles/SimClusters in the output.
+# Off by default: the default truth reference is the MC-truth graph (see below),
+# and the CaloParticle/SimCluster chain takes about 2/3 of the processing time in PU200 samples.
+useCaloTruth = TEMPLATE_CALO_TRUTH
+
 ########################
 # Run basic HGCAL reco #
 ########################
@@ -53,6 +60,7 @@ process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
 # TICL (Tracksters)
 process.load("RecoHGCal.Configuration.recoHGCAL_cff")
 # SimTracksters, used as truth targets for Trackster-level associations
+# (only scheduled if useCaloTruth is set, see below)
 process.load("SimCalorimetry.TICLSimProducers.SimTracksters_cff")
 
 # Reuse the HGCAL RecHits stored in the sample-production output. This keeps
@@ -90,6 +98,9 @@ process.hgcal_step = cms.Path(
 ################################################
 # Calculate and parse sim to reco associatiors #
 ################################################
+
+# note: the modules below are always defined, but the CaloParticle/SimCluster-based ones
+#       are only added to the path (and hence only run) if useCaloTruth is set.
 
 # load modules for calculating association scores between objects
 process.load('SimCalorimetry.HGCalAssociatorProducers.LCToCPAssociation_cfi');
@@ -212,26 +223,36 @@ process.flattenMergeTracksterToSCSimTrackster = cms.EDProducer(
 )
 
 # add association scores to the path to execute
+# (reco-only associations always, CaloParticle/SimCluster-based ones only if useCaloTruth is set)
 process.hgcalAssociatorTask = cms.Task(
-    process.ticlSimTrackstersTask,
     process.recHitMapProducer,
-    process.lcAssocByEnergyScoreProducer,
-    process.scAssocByEnergyScoreProducer,
-    process.layerClusterCaloParticleAssociation,
-    process.layerClusterSimClusterAssociation,
     process.allLayerClusterToTracksterAssociations,
-    process.allTrackstersToSimTrackstersAssociationsByLCs,
-    process.flattenLCToCP,
-    process.flattenLCToSC,
-    process.flattenCPToLC,
-    process.flattenSCToLC,
     process.flattenLCToCLUE3DTrackster,
     process.flattenLCToMergeTrackster,
-    process.flattenCLUE3DTracksterToCPSimTrackster,
-    process.flattenMergeTracksterToCPSimTrackster,
-    process.flattenCLUE3DTracksterToSCSimTrackster,
-    process.flattenMergeTracksterToSCSimTrackster
 )
+if useCaloTruth:
+    for module in [
+        process.ticlSimTrackstersTask,
+        process.lcAssocByEnergyScoreProducer,
+        process.scAssocByEnergyScoreProducer,
+        process.layerClusterCaloParticleAssociation,
+        process.layerClusterSimClusterAssociation,
+        process.allTrackstersToSimTrackstersAssociationsByLCs,
+        process.flattenLCToCP,
+        process.flattenLCToSC,
+        process.flattenCPToLC,
+        process.flattenSCToLC,
+        process.flattenCLUE3DTracksterToCPSimTrackster,
+        process.flattenMergeTracksterToCPSimTrackster,
+        process.flattenCLUE3DTracksterToSCSimTrackster,
+        process.flattenMergeTracksterToSCSimTrackster,
+    ]: process.hgcalAssociatorTask.add(module)
+else:
+    # the LayerCluster-to-Trackster associations include the SimTracksters by default;
+    # restrict them to the reco Trackster collections (the SimTracksters are not produced).
+    process.allLayerClusterToTracksterAssociations.tracksterCollections = cms.VInputTag(
+        *[t for t in process.allLayerClusterToTracksterAssociations.tracksterCollections
+          if t.getModuleLabel() != "ticlSimTracksters"])
 process.hgcal_step.associate(process.hgcalAssociatorTask)
 
 ##########################################
@@ -348,16 +369,14 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *_ticlTracksterLinks*_*_*", # linked Tracksters in TICLv5.
         "keep *_ticlCandidate_*_*", # in v5, ticlCandidates have been moved to a separate module.
         "keep *_pfTICL_*_*", # full PF candidate collection from TICL.
-        "keep *_ticlSimTracksters*_*_*",
         # gen-level output
-        "keep *_mix_MergedCaloTruth_*",
         #"keep *_g4SimHits_HGCHitsEE_*", # drop individual hits (no need to recalculate scores)
         #"keep *_g4SimHits_HGCHitsHEfront_*", # drop individual hits (no need to recalculate scores)
         #"keep *_g4SimHits_HGCHitsHEback_*", # drop individual hits (no need to recalculate scores)
         # MC-truth graph (see PhysicsTools/TruthInfo), only
         # present if the input was produced with sample-production's
         # --output-mode truth; harmless no-op "keep" otherwise. Not produced
-        # by this re-reco process, so process is wildcarded like MergedCaloTruth.
+        # by this re-reco process, so the process is wildcarded.
         "keep *_truthLogicalGraphProducer_*_*",
         "keep *_truthLogicalGraphHitIndexProducer_*_*",
         "keep TruthGraph_mix_*_*",
@@ -367,5 +386,11 @@ process.out = cms.OutputModule("PoolOutputModule",
         "keep *_flatten*_*_*",
     )
 )
+if useCaloTruth:
+    # CaloParticle/SimCluster-based truth (see useCaloTruth above)
+    process.out.outputCommands.extend([
+        "keep *_ticlSimTracksters*_*_*",
+        "keep *_mix_MergedCaloTruth_*",
+    ])
 
 process.outpath = cms.EndPath(process.out)

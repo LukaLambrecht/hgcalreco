@@ -28,6 +28,10 @@ if __name__=='__main__':
         help='CMSSW era name (e.g. "Phase2C26I13M9" for D122/D127, "Phase2C22I13M9" for D121).'
              ' Must match the era used for sample production, similar to --geometry.')
     parser.add_argument('--modifiers', default=None)
+    parser.add_argument('--calo_truth', default=False, action='store_true',
+        help='Also run the CaloParticle/SimCluster-based truth associations (and store CaloParticles,'
+             ' SimClusters and SimTracksters in the output); off by default, since the default truth'
+             ' reference is the MC-truth graph.')
     parser.add_argument('--no_exec', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -66,6 +70,7 @@ if __name__=='__main__':
         cmd += f' --geometry {args.geometry}'
         cmd += f' --era {args.era}'
         if args.modifiers is not None: cmd += f' --modifiers {args.modifiers}'
+        if args.calo_truth: cmd += ' --calo_truth'
         if args.no_exec: cmd += f' --no_exec'
         cmds.append(cmd)
 

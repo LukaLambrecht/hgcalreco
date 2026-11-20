@@ -133,12 +133,15 @@ def main(inputdir):
         metrics[jobdir] = load_metrics(jobpath)
 
         # load dataframe for layerclusters and get results, if available
-        df_lc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_lc_cp.parquet'))
+        # (only for CaloParticles, which are opt-in, see calculate_associations.py --gen_level)
+        lc_file = os.path.join(jobpath, 'efficiency', 'metrics_lc_cp.parquet')
+        df_lc = read_nonempty_parquet(lc_file) if os.path.exists(lc_file) else None
         if df_lc is not None:
             results_lc[jobdir] = get_lc_result_from_df(df_lc)
 
         # load dataframe for caloparticle-vs-layercluster metrics, if available
-        df_cp_lc = read_nonempty_parquet(os.path.join(jobpath, 'efficiency', 'metrics_cp_lc.parquet'))
+        cp_lc_file = os.path.join(jobpath, 'efficiency', 'metrics_cp_lc.parquet')
+        df_cp_lc = read_nonempty_parquet(cp_lc_file) if os.path.exists(cp_lc_file) else None
         if df_cp_lc is not None:
             if 'res' not in df_cp_lc.columns:
                 df_cp_lc['res'] = 0
@@ -149,7 +152,7 @@ def main(inputdir):
         # (one set per truth object type that is present)
         for truth_type in TRUTH_TYPES:
             tc_file = os.path.join(jobpath, 'efficiency', f'metrics_tc_{truth_type}.parquet')
-            if not os.path.exists(tc_file) and truth_type != 'cp': continue
+            if not os.path.exists(tc_file): continue
             df_tc = read_nonempty_parquet(tc_file)
             if df_tc is not None:
                 results_tc.setdefault(truth_type, {})[jobdir] = df_tc

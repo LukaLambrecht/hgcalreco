@@ -218,10 +218,18 @@ if __name__ == '__main__':
         with open(paramfile, 'r') as f:
             params = json.load(f)
 
+    # truth object type from the input file name (metrics_tc_<truth type>.parquet),
+    # with the corresponding truth-level file metrics_<truth type>_tc.parquet next to it
+    from plot_grid_result import TRUTH_TYPES
+    basename = os.path.splitext(os.path.basename(inputfile))[0]
+    truth_type = basename[len('metrics_tc_'):] if basename.startswith('metrics_tc_') else 'cp'
+    truth_label = TRUTH_TYPES.get(truth_type, truth_type)
+
     result = {'_': df}
     params = {'_': params}
-    plot_tc_result(result, outputdir, params=params)
+    plot_tc_result(result, outputdir, params=params, truth_label=truth_label, figname_prefix=f'tc_{truth_type}')
 
-    cp_inputfile = os.path.join(os.path.dirname(inputfile), 'metrics_cp_tc.parquet')
-    if os.path.exists(cp_inputfile):
-        plot_cp_tc_result({'_': pd.read_parquet(cp_inputfile)}, outputdir, params=params)
+    truth_inputfile = os.path.join(os.path.dirname(inputfile), f'metrics_{truth_type}_tc.parquet')
+    if os.path.exists(truth_inputfile):
+        plot_cp_tc_result({'_': pd.read_parquet(truth_inputfile)}, outputdir, params=params,
+            truth_label=truth_label, figname_prefix=f'{truth_type}_tc')

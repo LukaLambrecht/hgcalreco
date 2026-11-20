@@ -27,13 +27,32 @@ def format_vstring_files(files):
     return ',\n        '.join(f"'{entry}'" for entry in entries)
 
 
+# truth object types (see analysis/efficiency/calculate_associations.py --gen_level)
+# default: truth Branches of the MC-truth graph at the "signal" level
+DEFAULT_GEN_LEVELS = ["truthbranch-signal"]
+# truth object types that need the (opt-in) CaloParticle/SimCluster-based truth in the re-reco
+CALO_TRUTH_GEN_LEVELS = ["cp", "sc", "both"]
+
+
+def uses_calo_truth(context):
+    """
+    Whether the CaloParticle/SimCluster-based truth associations should be run in the re-reco
+    (and stored in its output): if explicitly requested with context["calo_truth"],
+    or if needed for the requested truth object types (context["efficiency_gen_level"]).
+    """
+    if context.get("calo_truth", False): return True
+    gen_levels = context.get("efficiency_gen_level", DEFAULT_GEN_LEVELS)
+    return any(gen_level in CALO_TRUTH_GEN_LEVELS for gen_level in gen_levels)
+
+
 def build_config(template, params, context, extra_modifiers=None):
     """
     Builds a cmsRun config starting from a template.
     Input arguments:
     - template: template cmsRun config in string format.
     - params: dict of the form {parameter name: {"value": parameter value, "mod": modifier string}}.
-    - context: dict with extra info (inputfiles, max_events, globaltag, geometry, era).
+    - context: dict with extra info (inputfiles, max_events, globaltag, geometry, era,
+      and optionally calo_truth and/or efficiency_gen_level, see uses_calo_truth).
     - extra_modifiers: optional string with additional config modifications
       (e.g. the content of a modifier file), added after the parameter modifiers.
     Returns the cmsRun config in string format.
@@ -50,6 +69,7 @@ def build_config(template, params, context, extra_modifiers=None):
     era = context.get("era", "Phase2C26I13M9")
     config = config.replace('TEMPLATE_ERA_IMPORT', f'from Configuration.Eras.Era_{era}_cff import {era}')
     config = config.replace('TEMPLATE_ERA', era)
+    config = config.replace('TEMPLATE_CALO_TRUTH', str(uses_calo_truth(context)))
 
     # specific parameter modifiers (and optional extra modifiers)
     modifiers = [val["mod"].replace("VALUE", str(val["value"])) for val in params.values()]
@@ -75,14 +95,16 @@ def _run_logged(cmd, cwd, logpath, description, append=False, header=None):
         if header is not None:
             logfile.write(f"\n===== {header} =====\n")
             logfile.flush()
+        # note: the return code is stored explicitly, since the exception variable
+        #       is no longer defined after the except block.
+        returncode = None
         try:
             subprocess.run(cmd, cwd=cwd, check=True, stdout=logfile, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
-            pass
-        else:
-            return None
+            returncode = e.returncode
+        if returncode is None: return None
     with open(logpath, "r") as f: logtext = f.read()
-    error_msg = f"{description} failed with return code {e.returncode}"
+    error_msg = f"{description} failed with return code {returncode}"
     error_msg += f"\nLog (last 1000 chars):\n{logtext[-1000:]}"  # avoid huge logs
     print(error_msg, file=sys.stderr)
     return error_msg
@@ -106,7 +128,7 @@ def get_efficiency_command(context, inputfile, outputdir):
         cmd.append("--do_tc_level")
     if context["efficiency_recalculate"]: cmd.append("--recalculate")
     # truth object types (e.g. cp, truthbranch-signal; see calculate_associations.py)
-    gen_levels = context.get("efficiency_gen_level", ["cp"])
+    gen_levels = context.get("efficiency_gen_level", DEFAULT_GEN_LEVELS)
     cmd += ["--gen_level"] + gen_levels
     # composition of TICLCandidates and truth objects per subdetector (see calculate_associations.py)
     if context.get("efficiency_do_composition", False): cmd.append("--do_composition")
@@ -282,35 +304,30 @@ def run_local_evaluation(params, context,
         for idx in range(len(units)): shutil.rmtree(os.path.join(rundir, f"file{idx}"), ignore_errors=True)
 
     # metric extraction
+    # (the output files are named metrics_<reco>_<truth>.parquet and metrics_<truth>_<reco>.parquet,
+    # with reco = lc or tc and truth = the truth object type, e.g. truthbranch-signal or cp)
     efficiency_level = context.get("efficiency_level", "both")
-    gen_levels = context.get("efficiency_gen_level", ["cp"])
-    metrics_lc_file = os.path.join(outputdir, "metrics_lc_cp.parquet")
-    metrics_cp_file = os.path.join(outputdir, "metrics_cp_lc.parquet")
-    metrics_tc_file = os.path.join(outputdir, "metrics_tc_cp.parquet")
-    metrics_cp_tc_file = os.path.join(outputdir, "metrics_cp_tc.parquet")
+    gen_levels = context.get("efficiency_gen_level", DEFAULT_GEN_LEVELS)
+    gen_levels = [g for gen_level in gen_levels for g in (["cp", "sc"] if gen_level == "both" else [gen_level])]
+    reco_levels = {"tc": ["tc"], "lc": ["lc"], "both": ["lc", "tc"]}[efficiency_level]
+    def get_metrics_files(reco_level, gen_level):
+        return (os.path.join(outputdir, f"metrics_{reco_level}_{gen_level}.parquet"),
+                os.path.join(outputdir, f"metrics_{gen_level}_{reco_level}.parquet"))
+    output_metrics_files = [f for reco_level in reco_levels for gen_level in gen_levels
+                            for f in get_metrics_files(reco_level, gen_level)]
+
+    # main metric: for the first truth object type,
+    # at LayerCluster level (if requested), else at TICLCandidate level
     if efficiency_level == "tc":
-        metric = extract_tc_metric(metrics_tc_file, metrics_cp_tc_file)
-        output_metrics_files = [metrics_tc_file, metrics_cp_tc_file]
-    elif efficiency_level == "both":
-        metric = extract_metric(metrics_lc_file, metrics_cp_file)
-        output_metrics_files = [
-            metrics_lc_file, metrics_cp_file,
-            metrics_tc_file, metrics_cp_tc_file
-        ]
+        metric = extract_tc_metric(*get_metrics_files("tc", gen_levels[0]))
     else:
-        metric = extract_metric(metrics_lc_file, metrics_cp_file)
-        output_metrics_files = [metrics_lc_file, metrics_cp_file]
+        metric = extract_metric(*get_metrics_files("lc", gen_levels[0]))
 
     # TICLCandidate-level metric per truth object type
-    # (the main metric above is the CaloParticle-based one, as before)
     metrics = {}
     if efficiency_level in ["tc", "both"]:
         for gen_level in gen_levels:
-            tc_file = os.path.join(outputdir, f"metrics_tc_{gen_level}.parquet")
-            truth_tc_file = os.path.join(outputdir, f"metrics_{gen_level}_tc.parquet")
-            metrics[gen_level] = extract_tc_metric(tc_file, truth_tc_file)
-            for f in [tc_file, truth_tc_file]:
-                if f not in output_metrics_files: output_metrics_files.append(f)
+            metrics[gen_level] = extract_tc_metric(*get_metrics_files("tc", gen_level))
     if context.get("efficiency_do_composition", False):
         output_metrics_files.append(os.path.join(outputdir, "metrics_event_lc.parquet"))
 
@@ -325,43 +342,43 @@ def run_local_evaluation(params, context,
     }
 
 
-def extract_metric(results_lc, results_cp):
+def extract_metric(results_lc, results_truth):
     """
     Calculate simple scalar metric from dataframes with results
-    for LayerClusters and CaloParticles.
+    for LayerClusters and truth objects (e.g. truth Branches or CaloParticles).
     """
     # simple placeholder for now, to extend later
 
     # read input file(s) if needed
     if isinstance(results_lc, str):
         results_lc = pd.read_parquet(results_lc)
-    if isinstance(results_cp, str):
-        results_cp = pd.read_parquet(results_cp)
+    if isinstance(results_truth, str):
+        results_truth = pd.read_parquet(results_truth)
 
-    if len(results_lc) == 0 or len(results_cp) == 0:
+    if len(results_lc) == 0 or len(results_truth) == 0:
         return 0.
 
     # calculate metrics
     lc_pur_avg = np.mean(results_lc['pur'].values)
     lc_eff_avg = np.mean(results_lc['eff'].values)
-    cp_eff_avg = np.mean(results_cp['eff'].values)
+    truth_eff_avg = np.mean(results_truth['eff'].values)
     layers = results_lc['layer'].values
     eventids = results_lc['event'].values
     counts_per_layer = get_layer_counts(layers, eventids=eventids, absolute=True)
     counts_per_layer_avg = np.mean(list(counts_per_layer.values())) / 40.
 
     # combine them into a single metric
-    metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg)/3.
+    metric = (lc_pur_avg + lc_eff_avg + truth_eff_avg)/3.
     if not np.isfinite(metric):
         return 0.
-    #metric = lc_pur_avg * lc_eff_avg * cp_eff_avg
-    #metric = (lc_pur_avg + lc_eff_avg + cp_eff_avg + (1-counts_per_layer_avg)) / 4.
+    #metric = lc_pur_avg * lc_eff_avg * truth_eff_avg
+    #metric = (lc_pur_avg + lc_eff_avg + truth_eff_avg + (1-counts_per_layer_avg)) / 4.
 
     # printouts for testing
     '''print()
     print(lc_pur_avg)
     print(lc_eff_avg)
-    print(cp_eff_avg)
+    print(truth_eff_avg)
     print(counts_per_layer_avg)
     print(metric)
     print()'''
@@ -369,23 +386,24 @@ def extract_metric(results_lc, results_cp):
     return metric
 
 
-def extract_tc_metric(results_tc, results_cp_tc):
+def extract_tc_metric(results_tc, results_truth_tc):
     """
-    Calculate a scalar metric from TICLCandidate-level association results.
+    Calculate a scalar metric from TICLCandidate-level association results
+    (for TICLCandidates and truth objects, e.g. truth Branches or CaloParticles).
     """
 
     if isinstance(results_tc, str):
         results_tc = pd.read_parquet(results_tc)
-    if isinstance(results_cp_tc, str):
-        results_cp_tc = pd.read_parquet(results_cp_tc)
+    if isinstance(results_truth_tc, str):
+        results_truth_tc = pd.read_parquet(results_truth_tc)
 
-    if len(results_tc) == 0 or len(results_cp_tc) == 0:
+    if len(results_tc) == 0 or len(results_truth_tc) == 0:
         return 0.
 
     tc_pur_avg = np.mean(results_tc['pur'].values)
     tc_eff_avg = np.mean(results_tc['eff'].values)
-    cp_eff_avg = np.mean(results_cp_tc['eff_primary'].values)
-    metric = (tc_pur_avg + tc_eff_avg + cp_eff_avg)/3.
+    truth_eff_avg = np.mean(results_truth_tc['eff_primary'].values)
+    metric = (tc_pur_avg + tc_eff_avg + truth_eff_avg)/3.
     if not np.isfinite(metric):
         return 0.
     return metric

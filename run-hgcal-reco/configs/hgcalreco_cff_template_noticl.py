@@ -1,5 +1,7 @@
 # CMSSW config file for HGCAL reconstruction
 
+# Note: this template only has the CaloParticle/SimCluster-based associations (no truth graph),
+#       regardless of the calo truth setting used for the other templates (see README.md).
 # Note: this config file only runs the "minimal-effort" HGCAL-only reconstruction.
 # It avoids the final TICLv5 linking/candidate/PF tasks, where some non-HGCAL inputs are needed.
 # The output file will contain "ticlTrackstersCLUE3DHigh", but not the linked TICLv5 products.

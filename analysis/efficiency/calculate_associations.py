@@ -430,12 +430,16 @@ if __name__=='__main__':
     parser.add_argument('--input_config_type', default='centralreco', choices=['centralreco', 'customreco'])
     parser.add_argument('--do_lc_level', default=False, action='store_true')
     parser.add_argument('--do_tc_level', default=False, action='store_true')
-    parser.add_argument('--gen_level', default=['cp'], nargs='+', choices=['cp', 'sc', 'both'] + list(TRUTH_BRANCH_LEVELS.keys()),
+    parser.add_argument('--gen_level', default=['truthbranch-signal'], nargs='+', choices=['cp', 'sc', 'both'] + list(TRUTH_BRANCH_LEVELS.keys()),
         help='Truth object(s) to use for LayerCluster- and TICLCandidate-level metrics (one or more of):'
-             ' CaloParticles ("cp", default, unchanged behavior), SimClusters ("sc"),'
-             ' "both" (= cp and sc), or truth Branches of the MC-truth graph at a given truth level'
-             f' ({", ".join(TRUTH_BRANCH_LEVELS.keys())}; requires a re-reco output with the truth graph'
-             ' associations, see tools/truthbranchtools.py). Applies to --do_lc_level and --do_tc_level alike.')
+             ' truth Branches of the MC-truth graph at a given truth level'
+             f' ({", ".join(TRUTH_BRANCH_LEVELS.keys())}; default: truthbranch-signal; requires a re-reco output'
+             ' with the truth graph associations, see tools/truthbranchtools.py),'
+             ' or (opt-in) CaloParticles ("cp"), SimClusters ("sc"), or "both" (= cp and sc);'
+             ' these require a re-reco output with the CaloParticle/SimCluster-based associations'
+             ' (see useCaloTruth in the re-reco config templates). CaloParticles and SimClusters are only read'
+             ' (and the corresponding output files only written) if requested here.'
+             ' Applies to --do_lc_level and --do_tc_level alike.')
     parser.add_argument('--remove_unmatched_rechits', default=False, action='store_true')
     parser.add_argument('--sum_lc_per_layer', default=False, action='store_true')
     parser.add_argument('--do_composition', default=False, action='store_true',
@@ -451,6 +455,8 @@ if __name__=='__main__':
     branch_levels = [level for level in TRUTH_BRANCH_LEVELS if level in gen_levels]
     if args.recalculate and gen_levels != {'cp'}:
         raise NotImplementedError('--recalculate is only supported together with --gen_level cp.')
+    # whether CaloParticles/SimClusters (and their associations) are needed
+    use_calo_truth = len(gen_levels & {'cp', 'sc'}) > 0
 
     # set input configs
     input_configs = []
@@ -464,7 +470,8 @@ if __name__=='__main__':
         if args.recalculate:
             input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_hits.json'))
         else:
-            input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_associations.json'))
+            if use_calo_truth:
+                input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_associations.json'))
             if 'sc' in gen_levels:
                 sc_config = os.path.join(topdir, f'configs/input_config_{args.input_config_type}_sc_associations.json')
                 if os.path.exists(sc_config):
@@ -472,7 +479,13 @@ if __name__=='__main__':
                 else:
                     print(f'WARNING: --gen_level sc requested but {sc_config} does not exist; skipping SimCluster-level associations.')
             if len(branch_levels) > 0:
-                input_configs.append(os.path.join(topdir, f'configs/input_config_{args.input_config_type}_truth_associations.json'))
+                truth_config = os.path.join(topdir, f'configs/input_config_{args.input_config_type}_truth_associations.json')
+                if not os.path.exists(truth_config):
+                    msg = f'Truth Branch levels {branch_levels} requested, but {truth_config} does not exist'
+                    msg += f' (truth graph associations are not available for --input_config_type {args.input_config_type});'
+                    msg += ' use e.g. --gen_level cp instead.'
+                    raise Exception(msg)
+                input_configs.append(truth_config)
     print('Found following input configs:')
     print(json.dumps(input_configs, indent=2))
 
@@ -486,6 +499,8 @@ if __name__=='__main__':
     # the underlying product actually exists in the file, so skipping the ones that
     # are provably unused for this invocation meaningfully reduces peak memory.
     exclude = ['tracksters']
+    if not use_calo_truth:
+        exclude.append('caloparticles')
     if not (args.do_lc_level or args.do_composition):
         exclude.append('layerclusters')
     need_simclusters = 'sc' in gen_levels and (args.do_lc_level or args.do_tc_level)
@@ -538,9 +553,8 @@ if __name__=='__main__':
             # (note: only unique within one output file, not across files!)
             eventid = file_idx*1000000 + event_idx
        
-            # get caloparticles
+            # read the collections for this event
             collections = reader.read_event(event)
-            caloparticles = collections['caloparticles']
 
             # do some event selection
             #if len(caloparticles) < 2: continue
@@ -554,10 +568,13 @@ if __name__=='__main__':
             #         but instead just store their indices, and select them only after the mapping has been made.
             #         this is to avoid matching layerclusters / ticlcandidates to random caloparticles
             #         if their actual match (a caloparticle from pileup) was removed.
-            cp_is_from_primary_interaction = np.array([(cp.eventId().event()==0) for cp in caloparticles])
-            cp_from_primary_interaction_ids = np.nonzero(cp_is_from_primary_interaction)[0]
-            #print(f'Found {len(cp_from_primary_interaction_ids)} out of {len(caloparticles)} CaloParticles from primary interaction.')
-            if args.recalculate: caloparticles = [caloparticles[idx] for idx in cp_from_primary_interaction_ids]
+            # note: only if CaloParticles are needed (see --gen_level).
+            if use_calo_truth:
+                caloparticles = collections['caloparticles']
+                cp_is_from_primary_interaction = np.array([(cp.eventId().event()==0) for cp in caloparticles])
+                cp_from_primary_interaction_ids = np.nonzero(cp_is_from_primary_interaction)[0]
+                #print(f'Found {len(cp_from_primary_interaction_ids)} out of {len(caloparticles)} CaloParticles from primary interaction.')
+                if args.recalculate: caloparticles = [caloparticles[idx] for idx in cp_from_primary_interaction_ids]
 
             # calculate layercluster to caloparticle and/or simcluster associations
             if args.do_lc_level:
@@ -796,10 +813,12 @@ if __name__=='__main__':
     cp_lc_output = os.path.join(args.outputdir, 'metrics_cp_lc.parquet')
     tc_output = os.path.join(args.outputdir, 'metrics_tc_cp.parquet')
     cp_tc_output = os.path.join(args.outputdir, 'metrics_cp_tc.parquet')
-    df_lc.to_parquet(lc_output)
-    df_cp.to_parquet(cp_lc_output)
-    df_tc.to_parquet(tc_output)
-    df_cp_tc.to_parquet(cp_tc_output)
+    if args.do_lc_level and 'cp' in gen_levels:
+        df_lc.to_parquet(lc_output)
+        df_cp.to_parquet(cp_lc_output)
+    if args.do_tc_level and 'cp' in gen_levels:
+        df_tc.to_parquet(tc_output)
+        df_cp_tc.to_parquet(cp_tc_output)
     if args.do_lc_level and 'sc' in gen_levels:
         lc_sc_output = os.path.join(args.outputdir, 'metrics_lc_sc.parquet')
         sc_lc_output = os.path.join(args.outputdir, 'metrics_sc_lc.parquet')
@@ -827,7 +846,7 @@ if __name__=='__main__':
 
     if args.make_plots:
         plotting_commands = []
-        if args.do_lc_level:
+        if args.do_lc_level and 'cp' in gen_levels:
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_lc.py'), lc_output])
             plotting_commands.append([sys.executable, os.path.join(os.path.dirname(__file__), 'plot_metrics_cp.py'), cp_lc_output])
         if args.do_tc_level and 'cp' in gen_levels:

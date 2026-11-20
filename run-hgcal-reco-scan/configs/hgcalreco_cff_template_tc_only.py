@@ -1,5 +1,8 @@
 # CMSSW config file for HGCAL reconstruction
-# Variant restricted to TICLCandidate-vs-CaloParticle metrics only.
+# Variant restricted to TICLCandidate-level metrics only.
+# note: the CaloParticle-based parts described below are only run (and stored) if useCaloTruth
+#       is set (TEMPLATE_CALO_TRUTH, off by default); by default only the TICLCandidate <-> truth graph
+#       associations are made, like in hgcalreco_cff_template.py.
 
 # Note:
 # This is a trimmed-down variant of hgcalreco_cff_template.py, meant for grid scans that
@@ -83,6 +86,10 @@ process.source = cms.Source("PoolSource",
     duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
 )
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(int('TEMPLATE_MAX_EVENTS')))
+
+# Whether to also run the CaloParticle-based truth associations and store CaloParticles in the output
+# (off by default: the default truth reference is the MC-truth graph; see hgcalreco_cff_template.py).
+useCaloTruth = TEMPLATE_CALO_TRUTH
 
 ########################
 # Run basic HGCAL reco #
@@ -226,17 +233,19 @@ process.flattenMergeTracksterToCPSimTrackster = cms.EDProducer(
 )
 
 # add association scores to the path to execute
-process.hgcalAssociatorTask = cms.Task(
-    process.ticlSimTrackstersTask,
-    process.recHitMapProducer,
-    process.lcAssocByEnergyScoreProducer,
-    process.scAssocByEnergyScoreProducer,
-    process.layerClusterCaloParticleAssociation,
-    process.layerClusterSimClusterAssociation,
-    process.allLayerClusterToTracksterAssociations,
-    process.allTrackstersToSimTrackstersAssociationsByLCs,
-    process.flattenMergeTracksterToCPSimTrackster
-)
+# (only if useCaloTruth is set; all of these are CaloParticle-based)
+process.hgcalAssociatorTask = cms.Task(process.recHitMapProducer)
+if useCaloTruth:
+    for module in [
+        process.ticlSimTrackstersTask,
+        process.lcAssocByEnergyScoreProducer,
+        process.scAssocByEnergyScoreProducer,
+        process.layerClusterCaloParticleAssociation,
+        process.layerClusterSimClusterAssociation,
+        process.allLayerClusterToTracksterAssociations,
+        process.allTrackstersToSimTrackstersAssociationsByLCs,
+        process.flattenMergeTracksterToCPSimTrackster,
+    ]: process.hgcalAssociatorTask.add(module)
 process.hgcal_step.associate(process.hgcalAssociatorTask)
 
 ##########################################
@@ -333,17 +342,20 @@ process.out = cms.OutputModule("PoolOutputModule",
         "drop *",
         # reco-level output
         f"keep *_ticlCandidate_*_{processName}", # TICLCandidates and their constituent Tracksters.
-        f"keep *_ticlSimTracksters_fromCPs_{processName}", # CP-derived truth SimTracksters only.
-        # gen-level output
-        "keep CaloParticles_mix_MergedCaloTruth_*", # CaloParticles only, not SimClusters/SimClustersRefs.
         # MC-truth graph and truth Branch targets (only if truth graph is present, see above);
         # the hit index is not needed for TICLCandidate-level metrics and is dropped.
         "keep *_truthLogicalGraphProducer_*_*",
         f"keep *_truthBranchTargets_*_{processName}",
         # links and associations
-        f"keep *_flattenMergeTracksterToCPSimTrackster_*_{processName}",
         f"keep *_flattenTiclCandidate*_*_{processName}", # truth graph associations (if present)
     )
 )
+if useCaloTruth:
+    # CaloParticle-based truth (see useCaloTruth above)
+    process.out.outputCommands.extend([
+        f"keep *_ticlSimTracksters_fromCPs_{processName}", # CP-derived truth SimTracksters only.
+        "keep CaloParticles_mix_MergedCaloTruth_*", # CaloParticles only, not SimClusters/SimClustersRefs.
+        f"keep *_flattenMergeTracksterToCPSimTrackster_*_{processName}",
+    ])
 
 process.outpath = cms.EndPath(process.out)

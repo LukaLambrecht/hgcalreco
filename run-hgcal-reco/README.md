@@ -100,3 +100,17 @@ Changes to the templates in [configs](configs) (and in `run-hgcal-reco-scan/conf
 - Known issue: `hgcalreco_cff_template_noticl.py` fails in this release with a ROOT dictionary parsing error
   for `edm::Ref<vector<io_v1::TrackingParticle>>` (in `HepMCProduct.h`) at the end of the job configuration;
   the other templates are not affected.
+
+
+### Truth reference (20 November 2026)
+
+The default truth reference is now the MC-truth graph (truth Branches, see `truth-graph-validation/status.md`).
+The CaloParticle/SimCluster-based truth (SimTracksters, LayerCluster to CaloParticle/SimCluster and
+Trackster to SimTrackster associations, and the CaloParticles/SimClusters in the output) is opt-in:
+it is only run if `useCaloTruth` is set in the templates (`TEMPLATE_CALO_TRUTH`), i.e. with `--calo_truth` in
+`run_hgcalreco.py` / `run_hgcalreco_loop.py`, or automatically in the grid scans if `cp` and/or `sc` is requested
+with `--gen_level` (see `run-hgcal-reco-scan/README.md`).
+Without it, the re-reco is about 2.7 times faster on PU200 samples.
+The scan templates in `run-hgcal-reco-scan/configs` also no longer store the truth graph hit index and the
+`TruthGraph` product (they are only needed within the re-reco, and are still available in the input files).
+Note: `hgcalreco_cff_template_noticl.py` only has CaloParticle/SimCluster-based associations and was not changed.

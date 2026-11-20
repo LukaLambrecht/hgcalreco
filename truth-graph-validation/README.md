@@ -50,7 +50,9 @@ Useful options:
   graph products are pass-through there (re-reco doesn't recompute them, just
   keeps them - see those templates' output-content lists), so they keep their
   original process label, not the re-reco process's own name (e.g.
-  `"HGCALTICL"`). If unsure, check with `edmDumpEventContent <file>.root |
+  `"HGCALTICL"`). Note: since November 2026, the `run-hgcal-reco-scan` templates
+  no longer keep the `TruthGraph` and `truth::LogicalGraphHitIndex` products
+  (only `truth::Graph`); the `run-hgcal-reco` template still keeps all three. If unsure, check with `edmDumpEventContent <file>.root |
   grep -i truth` - the process name is the last column.
 - `--layout {dot,sfdp,fdp,neato}`: DOT graph layout for the *logical* graph
   dump. `dot` (default) draws a hierarchical left-to-right tree, good for
