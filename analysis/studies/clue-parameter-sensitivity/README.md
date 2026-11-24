@@ -35,7 +35,8 @@ Common options: `-i <scan output dir>`, `-g <grids>`, `-t <truth type>`, `-o <ou
   (per subdetector, or in HGCAL; one set of plots `<plot>_flat_<sorting>[_<subdet>].png` each, see `--flat_sort`).
   Grid points are read in parallel processes (`--workers`, default 8).
 - `plot_param_distributions.py`: distributions of the parameter values for a range of grid points
-  (e.g. in a flat plot) after sorting, from a summary CSV file of `scan_sensitivity.py --flat`.
+  (e.g. in a flat plot, `-r <first> <last>`) or for the best x% (`--best_percent x`) after sorting,
+  from a summary CSV file of `scan_sensitivity.py --flat`.
 - `plot_scan_trends.py`: general trends of the composition and metrics (incl. per truth category)
   vs the scanned parameter.
 - `scanutils.py`: common tools (default parameter values, axis labels, grid point iteration, plotting helpers).

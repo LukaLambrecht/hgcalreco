@@ -102,11 +102,15 @@ def _sort_nlc(points, subdet):
 
 FLAT_SORTS = {
     'purity': lambda p, s: (p['pur_all'], 'mean purity of all matched TICLCandidates'),
-    'efficiency': lambda p, s: (p['eff_all_rechits'], 'mean efficiency (w.r.t. RecHit energy)'),
-    'average': lambda p, s: ((p['pur_all'] + p['eff_all_rechits']) / 2,
-        'average of purity and efficiency (w.r.t. RecHit energy)'),
+    'efficiency': lambda p, s: (p['eff_all_rechits'], 'mean efficiency'),
+    'average': lambda p, s: ((p['pur_all'] + p['eff_all_rechits']) / 2, 'avg. of purity and efficiency'),
     'nlc': _sort_nlc,
+    # the order of the points themselves (job number for grid scans, chronological trial number for hyperopt runs;
+    # no sorting label: the x-axis title is the name of the points only, see plot_curves)
+    'chronological': lambda p, s: (p['param_value'], None),
 }
+# sortings made by default with --flat
+DEFAULT_FLAT_SORTS = ['purity', 'efficiency', 'average', 'nlc']
 
 
 # loading
@@ -145,7 +149,9 @@ def get_grid_job_list(griddir, reference_effdir=None, flat=False):
 def load_job(effdir, truth_type):
     '''
     Load one grid point: a dict with the LayerCluster quantities per subdetector,
-    and a DataFrame with one row per truth object (metrics and truth energies).
+    a DataFrame with one row per truth object (metrics and truth energies),
+    and a DataFrame with one row per event (the per-event LayerCluster quantities: nlc, e, e_tc, sig_e and sig_e_tc
+    per subdetector, used for the uncertainties of the ratios w.r.t. the default point).
     '''
     df_event = load_event_lc(effdir)
     df_tc, df_truth = load_composition(effdir, truth_type=truth_type)
@@ -167,6 +173,16 @@ def load_job(effdir, truth_type):
         lc[f'{q}_hgcal'] = sum(lc[f'{q}_{s}'] for s in SUBDETS)
     lc['emean_hgcal'] = lc['e_hgcal'] / max(lc['nlc_hgcal'], 1)
 
+    # per-event LayerCluster quantities
+    events = df_event[['event']].copy()
+    for s in SUBDETS:
+        for q in ['nlc', 'e', 'e_tc']: events[f'{q}_{s}'] = df_event[f'{q}_{s}'].values
+        for q, column in [('sig_e', f'truthe_{s}'), ('sig_e_tc', f'truthe_tc_{s}')]:
+            per_event = df_truth.groupby('event')[column].sum() if column in df_truth.columns else pd.Series(dtype=float)
+            events[f'{q}_{s}'] = events['event'].map(per_event).fillna(0.).values
+    for q in ['nlc', 'e', 'e_tc', 'sig_e', 'sig_e_tc']:
+        events[f'{q}_hgcal'] = sum(events[f'{q}_{s}'] for s in SUBDETS)
+
     # metrics per truth object
     if 'truthe_rechits' not in df_truth.columns:
         raise Exception(f'No truth RecHit energy (truthe_rechits) found in {effdir};'
@@ -181,14 +197,15 @@ def load_job(effdir, truth_type):
     # relative to the truth RecHit energy
     truth['T_frac'] = frac(sum(df_truth[f'truthe_{s}'].values for s in SUBDETS))
     truth['T_tc_frac'] = frac(sum(df_truth[f'truthe_tc_{s}'].values for s in SUBDETS))
-    return lc, truth
+    return lc, truth, events
 
 
 def load_grid(griddir, truth_type, reference_effdir=None, flat=False, workers=8):
     '''
     Load all grid points of a grid. Returns (or None if no grid points):
     - a DataFrame with one row per grid point (metadata and LayerCluster quantities);
-    - a DataFrame with one row per (grid point, truth object) (job name, metrics and truth energies).
+    - a DataFrame with one row per (grid point, truth object) (job name, metrics and truth energies);
+    - a DataFrame with one row per (grid point, event) (job name and per-event LayerCluster quantities).
     The grid points are loaded in parallel processes (workers).
     '''
     jobs = get_grid_job_list(griddir, reference_effdir=reference_effdir, flat=flat)
@@ -198,26 +215,68 @@ def load_grid(griddir, truth_type, reference_effdir=None, flat=False, workers=8)
             results = list(executor.map(load_job, effdirs, [truth_type] * len(effdirs), chunksize=8))
     else:
         results = [load_job(effdir, truth_type) for effdir in effdirs]
-    lc_rows, truth_dfs = [], []
-    for (jobdir, meta, effdir), (lc, truth) in zip(jobs, results):
+    lc_rows, truth_dfs, event_dfs = [], [], []
+    for (jobdir, meta, effdir), (lc, truth, events) in zip(jobs, results):
         lc_rows.append({'job': jobdir, **meta, **lc})
         truth['job'] = jobdir
         truth_dfs.append(truth)
+        events['job'] = jobdir
+        event_dfs.append(events)
     if len(lc_rows) == 0: return None
-    return pd.DataFrame(lc_rows), pd.concat(truth_dfs, ignore_index=True)
+    return pd.DataFrame(lc_rows), pd.concat(truth_dfs, ignore_index=True), pd.concat(event_dfs, ignore_index=True)
 
 
 # processing
 
-def get_points(lc, truth):
+def _std_err(values):
+    '''Uncertainty on the mean of a set of values: their standard deviation / sqrt(number of values).'''
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    return np.std(values, ddof=1) / np.sqrt(len(values)) if len(values) > 1 else np.nan
+
+
+def _paired_ratio_err(ratio, u):
+    '''
+    Uncertainty on a ratio R = Q / Q_default of two quantities measured on the same events (or truth objects),
+    from the linearization (delta method) of log R: sigma(log R) = std(u) / sqrt(N), with u the per-event
+    (per-truth-object) difference of the relative deviations from the mean at both points
+    (u_i = x_i / mean(x) - x_default,i / mean(x_default) for a mean; see get_points), and sigma(R) = R * sigma(log R).
+    '''
+    return ratio * _std_err(u) if np.isfinite(ratio) else np.nan
+
+
+def get_points(lc, truth, events=None, require_default=True):
     '''
     Combine the per-grid-point LayerCluster quantities and the per-truth-object metrics
     into one table with one row per grid point (sorted by param_value), with the quantities relative
     to the default point and the changes of the metrics w.r.t. the default point (see above).
-    Returns None if there is no default point.
+    Uncertainties (columns with suffix _err), all on means over N truth objects (metrics) or events (LayerCluster
+    quantities), and for the changes and ratios w.r.t. the default point computed from the per-truth-object
+    (per-event) pairs of values at the grid point and at the default point (same events), so that the fluctuations
+    of the event sample common to both points cancel:
+    - mean of a metric m: std(m_i) / sqrt(N);
+    - mean change of a metric: std(d_i) / sqrt(N), with d_i = m_i - m_default,i;
+      mean absolute change: std(|d_i|) / sqrt(N);
+    - ratio R = mean(x) / mean(x_default) (metrics, and LayerCluster quantities if events is given, see load_grid):
+      sigma(R) = R * std(u_i) / sqrt(N), with u_i = x_i / mean(x) - x_default,i / mean(x_default)
+      (linearization of log R); for the mean energy per LayerCluster (a ratio of means, total energy / number):
+      u_i = (e_i / mean(e) - n_i / mean(n)) - (the same at the default point).
+    Only the truth objects (events) with a value at both points are used for the uncertainties of the changes and ratios.
+    Returns None if there is no default point, unless require_default is False:
+    then only the absolute quantities (means of the metrics and their uncertainties) are included.
     '''
     default = get_default_row(lc)
-    if default is None: return None
+    if default is None:
+        if require_default: return None
+        rows = []
+        for job, group in truth.groupby('job'):
+            row = {'job': job, 'ntruth': len(group)}
+            for m in METRICS:
+                row[m] = group[m].mean()
+                row[f'{m}_err'] = _std_err(group[m])
+            rows.append(row)
+        points = lc.merge(pd.DataFrame(rows), on='job', how='left')
+        return points.sort_values(by='param_value', kind='stable').reset_index(drop=True)
     points = lc.copy()
 
     # LayerCluster quantities relative to the default point
@@ -225,6 +284,27 @@ def get_points(lc, truth):
         for s in PLOT_SUBDETS:
             ref = default[f'{q}_{s}']
             points[f'rel_{q}_{s}'] = points[f'{q}_{s}'] / ref if ref > 0 else np.nan
+    # and their uncertainties (from the per-event values, paired by event with the default point)
+    if events is not None:
+        ev = events.merge(events[events['job'] == default['job']].drop(columns='job'), on='event',
+            how='inner', suffixes=('', '_default'))
+        err_rows = []
+        for job, group in ev.groupby('job'):
+            row = {'job': job}
+            ratio = points.loc[points['job'] == job].iloc[0]
+            for s in PLOT_SUBDETS:
+                def rel_dev(q, suffix=''):
+                    x = group[f'{q}_{s}{suffix}'].values
+                    return x / np.mean(x) - 1 if np.mean(x) != 0 else np.full(len(x), np.nan)
+                for q in LC_QUANTITIES:
+                    if q == 'emean':
+                        # mean energy per LayerCluster: ratio of the total energy and the number of LayerClusters
+                        u = (rel_dev('e') - rel_dev('nlc')) - (rel_dev('e', '_default') - rel_dev('nlc', '_default'))
+                    else:
+                        u = rel_dev(q) - rel_dev(q, '_default')
+                    row[f'rel_{q}_{s}_err'] = _paired_ratio_err(ratio[f'rel_{q}_{s}'], u)
+            err_rows.append(row)
+        points = points.merge(pd.DataFrame(err_rows), on='job', how='left')
 
     # metrics: means and changes w.r.t. the default point
     truth_default = truth[truth['job'] == default['job']]
@@ -237,14 +317,29 @@ def get_points(lc, truth):
             # (truth objects without matched TICLCandidates at either point have no purity and are skipped)
             delta = (group[m] - group[f'{m}_default']).dropna()
             row[m] = group[m].mean()
-            row[f'{m}_err'] = group[m].std() / np.sqrt(group[m].count()) if group[m].count() > 1 else np.nan
+            row[f'{m}_err'] = _std_err(group[m])
             row[f'{m}_delta_mean'] = delta.mean()
+            row[f'{m}_delta_mean_err'] = _std_err(delta)
             row[f'{m}_delta_abs'] = delta.abs().mean()
+            row[f'{m}_delta_abs_err'] = _std_err(delta.abs())
         rows.append(row)
     points = points.merge(pd.DataFrame(rows), on='job', how='left')
     default_metrics = points[points['job'] == default['job']].iloc[0]
     for m in METRICS:
         points[f'rel_{m}'] = points[m] / default_metrics[m]
+    # uncertainties of the ratios (paired by truth object with the default point)
+    rel_err = {}
+    for job, group in merged.groupby('job'):
+        ratio = points.loc[points['job'] == job].iloc[0]
+        for m in METRICS:
+            pair = group[[m, f'{m}_default']].dropna()
+            x, xd = pair[m].values, pair[f'{m}_default'].values
+            if len(x) < 2 or np.mean(x) == 0 or np.mean(xd) == 0:
+                rel_err.setdefault(f'rel_{m}_err', {})[job] = np.nan
+                continue
+            u = (x / np.mean(x) - 1) - (xd / np.mean(xd) - 1)
+            rel_err.setdefault(f'rel_{m}_err', {})[job] = _paired_ratio_err(ratio[f'rel_{m}'], u)
+    for column, values in rel_err.items(): points[column] = points['job'].map(values)
     return points.sort_values(by='param_value', kind='stable').reset_index(drop=True)
 
 
@@ -277,15 +372,22 @@ def set_ratio_axis(ax, values):
 
 
 def plot_curves(points, curves, ylabel, outputdir, name, axis='ratio', subdet=None,
-        flat=False, flat_sort=None, linewidth=2, markersize=5, legend=None):
+        flat=False, flat_sort=None, linewidth=2, markersize=5, legend=None, flat_xlabel='Grid scan point', fontscale=1.,
+        legend_outside=False):
     '''
     Plot a set of curves (columns of the points table) vs the scanned parameter,
     or (flat=True) vs the grid point index after sorting with flat_sort (see FLAT_SORTS).
-    curves: list of dicts with keys column, label, color, linestyle, marker and optionally err (uncertainty column).
+    curves: list of dicts with keys column, label, color, linestyle, marker and optionally err
+        (uncertainty column, shown as a semi-transparent band).
     axis: 'ratio' (values relative to the default point), 'fraction' (values between 0 and 1,
           with space for the legend above) or 'delta' (changes w.r.t. the default point).
     subdet: subdetector of the plot (used for the sorting by number of LayerClusters).
     legend: keyword arguments for the legend.
+    flat_xlabel: name of the points on the x-axis of flat plots
+        (or a dict with a name per sorting, e.g. to include "chronological" for that sorting).
+    fontscale: scale factor for the font sizes of flat plots (axis titles, tick labels and legend).
+    legend_outside: put the legend above the axes of flat plots (in a taller figure) instead of inside them
+        (e.g. for larger font sizes; the fraction axis then ends just above 1).
     '''
     if not flat:
         data = points
@@ -297,7 +399,10 @@ def plot_curves(points, curves, ylabel, outputdir, name, axis='ratio', subdet=No
         data = points.iloc[order].reset_index(drop=True)
         x = np.arange(len(data))
         default_x = data.index[data['is_default'].astype(bool)][0] if data['is_default'].astype(bool).any() else None
-        fig, ax = make_flat_axes(ylabel, sortlabel, default_x=default_x)
+        legend_outside = legend_outside and flat
+        xlabel = flat_xlabel.get(flat_sort, 'Grid scan point') if isinstance(flat_xlabel, dict) else flat_xlabel
+        fig, ax = make_flat_axes(ylabel, sortlabel, default_x=default_x, xlabel=xlabel, fontscale=fontscale,
+            figsize=(8, 8) if legend_outside else (7, 5))
         linewidth, markersize = flat_style(len(data), linewidth=linewidth, markersize=markersize)
     plotted = []
     for curve in curves:
@@ -305,16 +410,17 @@ def plot_curves(points, curves, ylabel, outputdir, name, axis='ratio', subdet=No
         if not np.any(np.isfinite(y)): continue
         style = dict(color=curve['color'], linestyle=curve['linestyle'], linewidth=linewidth,
             marker=curve['marker'], markersize=markersize, label=curve['label'])
-        if curve.get('err') is not None:
-            ax.errorbar(x, y, yerr=data[curve['err']].values, **style)
-        else:
-            ax.plot(x, y, **style)
+        ax.plot(x, y, **style)
+        # uncertainty as a semi-transparent band around the curve
+        if curve.get('err') is not None and curve['err'] in data.columns:
+            err = data[curve['err']].values
+            ax.fill_between(x, y - err, y + err, color=curve['color'], alpha=0.25, linewidth=0)
         plotted.append(y)
     if axis == 'ratio':
         ax.axhline(1, color='#c8c8c8', linewidth=1, zorder=0)
         if len(plotted) > 0: set_ratio_axis(ax, np.concatenate(plotted))
     elif axis == 'fraction':
-        ax.set_ylim(0, 1.6)
+        ax.set_ylim(0, 1.05 if legend_outside else 1.6)
     elif axis == 'delta':
         ax.axhline(0, color='#c8c8c8', linewidth=1, zorder=0)
         lim = np.nanmax(np.abs(np.concatenate(plotted))) if len(plotted) > 0 else np.nan
@@ -322,19 +428,29 @@ def plot_curves(points, curves, ylabel, outputdir, name, axis='ratio', subdet=No
             ax.set_ylim(-1.1 * lim, (1.8 if len(curves) > 3 else 1.0) * lim)
     ax.grid(axis='y', color='#e6e6e6', linewidth=0.8, zorder=0)
     ax.set_axisbelow(True)
-    ax.legend(**(legend if legend is not None else {}))
+    legend = dict(legend if legend is not None else {})
+    if fontscale != 1.: legend['fontsize'] = legend.get('fontsize', 10) * fontscale
+    # (above the axes, leaving space for the "default" label of flat plots)
+    if legend_outside: legend.update(loc='lower left', bbox_to_anchor=(0, 1.06))
+    ax.legend(**legend)
     suffix = f'flat_{flat_sort}' if flat else 'vs_param'
     savefig(fig, outputdir, f'{name}_{suffix}' + (f'_{subdet}' if subdet is not None else ''))
 
 
-def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, flat_sorts=None):
-    '''Make all plots for one grid.'''
+def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, flat_sorts=None,
+        flat_xlabel='Grid scan point', names=None, fontscale=1., legend_outside=False):
+    '''
+    Make all plots for one grid (flat_xlabel: name of the points on the x-axis of flat plots;
+    names: only make the plots with these names, e.g. ['metrics'] for a points table without a default point;
+    fontscale: scale factor for the font sizes of flat plots;
+    legend_outside: put the legend above the axes of flat plots, see plot_curves).
+    '''
     tlabel = TRUTH_TYPES[truth_type]
     eff_labels = {
         'eff_all_tc': (f'{tlabel} efficiency w.r.t. all matched TICLCandidates,\n'
             + f'normalized to the {tlabel} energy in all TICLCandidates'),
         'eff_all_rechits': (f'{tlabel} efficiency w.r.t. all matched TICLCandidates,\n'
-            + f'normalized to the {tlabel} energy in all RecHits'),
+            + f'normalized to the {tlabel} energy in RecHits'),
     }
     pur_label = f'Purity of all matched TICLCandidates w.r.t. {tlabel}'
     # colours: efficiency normalized to the energy in TICLCandidates in red, to the RecHit energy in green,
@@ -350,8 +466,8 @@ def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, 
     plots = []
     # LayerCluster quantities per subdetector, relative to the default point
     for s in PLOT_SUBDETS:
-        curves = [dict(column=f'rel_{q}_{s}', label=label, color=color, linestyle=linestyle, marker=marker)
-            for q, (label, color, linestyle, marker) in LC_QUANTITIES.items()]
+        curves = [dict(column=f'rel_{q}_{s}', err=f'rel_{q}_{s}_err', label=label, color=color, linestyle=linestyle,
+            marker=marker) for q, (label, color, linestyle, marker) in LC_QUANTITIES.items()]
         plots.append(dict(curves=curves, ylabel=f'{PLOT_SUBDET_LABELS[s]}: value relative to default parameters',
             name='lc', axis='ratio', subdet=s, legend=lc_legend))
     # metric decomposition
@@ -359,10 +475,12 @@ def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, 
         *[dict(column=m, err=f'{m}_err', label=eff_labels[m], color=colors[m][0], linestyle='-', marker='o')
             for m in ['eff_all_tc', 'eff_all_rechits']],
         dict(column='pur_all', err='pur_all_err', label=pur_label, color=colors['pur_all'][0], linestyle='-', marker='o'),
-        dict(column='T_frac', err='T_frac_err', label=f'Fraction of the {tlabel} energy in LayerClusters',
+        dict(column='T_frac', err='T_frac_err', label=f'{tlabel} energy in LayerClusters,\n'
+            + f'normalized to the {tlabel} energy in RecHits',
             color='#a6a6a6', linestyle=':', marker='o'),
         dict(column='T_tc_frac', err='T_tc_frac_err',
-            label=f'Fraction of the {tlabel} energy in LayerClusters in TICLCandidates',
+            label=f'{tlabel} energy in LayerClusters in TICLCandidates,\n'
+            + f'normalized to the {tlabel} energy in RecHits',
             color='#6b6b6b', linestyle='--', marker='o'),
     ]
     plots.append(dict(curves=curves, ylabel='Mean value', name='metrics', axis='fraction',
@@ -371,27 +489,31 @@ def plot_grid(points, truth_type, outputdir, show_abs_change=False, flat=False, 
     curves = []
     for m, label in [('eff_all_tc', eff_labels['eff_all_tc']), ('eff_all_rechits', eff_labels['eff_all_rechits']),
             ('pur_all', pur_label)]:
-        curves.append(dict(column=f'{m}_delta_mean', label=label, color=colors[m][0], linestyle='-', marker='o'))
+        curves.append(dict(column=f'{m}_delta_mean', err=f'{m}_delta_mean_err', label=label, color=colors[m][0],
+            linestyle='-', marker='o'))
         if show_abs_change:
-            curves.append(dict(column=f'{m}_delta_abs', label=f'Same, mean absolute change per {tlabel}',
+            curves.append(dict(column=f'{m}_delta_abs', err=f'{m}_delta_abs_err', label=f'Same, mean absolute change per {tlabel}',
                 color=colors[m][1], linestyle='--', marker='o'))
     plots.append(dict(curves=curves, ylabel='Change of the mean w.r.t. default parameters', name='metric_changes',
         axis='delta', legend=metric_legend, markersize=4))
     # combined: purity, efficiency and number of LayerClusters, relative to the default point
     for s in PLOT_SUBDETS:
         curves = [
-            dict(column='rel_pur_all', label=pur_label, color=colors['pur_all'][0], linestyle='-', marker='o'),
-            dict(column='rel_eff_all_rechits', label=eff_labels['eff_all_rechits'], color=colors['eff_all_rechits'][0],
-                linestyle='-', marker='s'),
-            dict(column=f'rel_nlc_{s}', label=f'Number of LayerClusters in {PLOT_SUBDET_LABELS[s]}',
+            dict(column='rel_pur_all', err='rel_pur_all_err', label=pur_label, color=colors['pur_all'][0],
+                linestyle='-', marker='o'),
+            dict(column='rel_eff_all_rechits', err='rel_eff_all_rechits_err', label=eff_labels['eff_all_rechits'],
+                color=colors['eff_all_rechits'][0], linestyle='-', marker='s'),
+            dict(column=f'rel_nlc_{s}', err=f'rel_nlc_{s}_err', label=f'Number of LayerClusters in {PLOT_SUBDET_LABELS[s]}',
                 color='#8e44ad', linestyle='--', marker='D'),
         ]
         plots.append(dict(curves=curves, ylabel='Value relative to default parameters', name='combined',
             axis='ratio', subdet=s, legend=dict(fontsize=7, handlelength=4)))
 
+    if names is not None: plots = [plot for plot in plots if plot['name'] in names]
     for plot in plots:
         kwargs = dict(axis=plot['axis'], subdet=plot.get('subdet'), legend=plot['legend'],
-            markersize=plot.get('markersize', 5))
+            markersize=plot.get('markersize', 5), flat_xlabel=flat_xlabel, fontscale=fontscale,
+            legend_outside=legend_outside)
         name = plot['name']
         if not flat:
             plot_curves(points, plot['curves'], plot['ylabel'], outputdir, name, **kwargs)
@@ -413,7 +535,7 @@ if __name__=='__main__':
     parser.add_argument('--flat', default=False, action='store_true',
         help='Show all grid points on a single axis, sorted (see --flat_sort)'
             + ' (works for any grid, including multi-parameter grids)')
-    parser.add_argument('--flat_sort', default=list(FLAT_SORTS.keys()), nargs='+', choices=list(FLAT_SORTS.keys()),
+    parser.add_argument('--flat_sort', default=DEFAULT_FLAT_SORTS, nargs='+', choices=list(FLAT_SORTS.keys()),
         help='Sorting(s) of the grid points with --flat (one set of plots per sorting; default: all)')
     parser.add_argument('--workers', default=8, type=int,
         help='Number of parallel processes for reading the grid point outputs (default: 8)')
@@ -431,8 +553,8 @@ if __name__=='__main__':
         if loaded is None:
             print(f'WARNING: no finished grid points found for {grid}, skipping.')
             continue
-        lc, truth = loaded
-        points = get_points(lc, truth)
+        lc, truth, events = loaded
+        points = get_points(lc, truth, events=events)
         if points is None:
             print(f'WARNING: no default point found for {grid}, skipping.')
             continue

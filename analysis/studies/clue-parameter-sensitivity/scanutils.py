@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 
 # default grid scan output directory
-DEFAULT_INPUT = '/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261119_201X_D127_PU200'
+DEFAULT_INPUT = '/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261120_201X_D127_PU200'
 
 # default CLUE parameter values (see run-hgcal-reco-scan/grids/clue2d/splitparams)
 DEFAULT_PARAMS = {
@@ -126,14 +126,17 @@ def make_axes(df, ylabel):
     return fig, ax
 
 
-def make_flat_axes(ylabel, sortlabel, default_x=None):
+def make_flat_axes(ylabel, sortlabel, default_x=None, xlabel='Grid scan point', fontscale=1., figsize=(7, 5)):
     '''
     Axes for a "flat" grid scan plot: all grid points on a single axis (x = position after sorting).
     default_x: position of the default grid point (if any), marked with a vertical line.
+    xlabel: name of the points on the x-axis (followed by the sorting label, unless sortlabel is None).
+    fontscale: scale factor for the font sizes (axis titles and tick labels).
     '''
-    fig, ax = plt.subplots(figsize=(7, 5))
-    ax.set_xlabel(f'Grid scan point (sorted by {sortlabel})', fontsize=12)
-    ax.set_ylabel(ylabel, fontsize=12)
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlabel(xlabel if sortlabel is None else f'{xlabel}\n(sorted by {sortlabel})', fontsize=12 * fontscale)
+    ax.set_ylabel(ylabel, fontsize=12 * fontscale)
+    if fontscale != 1.: ax.tick_params(axis='both', labelsize=10 * fontscale)
     if default_x is not None:
         ax.axvline(default_x, color='#6b6b6b', linestyle=':', linewidth=1)
         ax.text(default_x, 1.01, 'default', transform=ax.get_xaxis_transform(),

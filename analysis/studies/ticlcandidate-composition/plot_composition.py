@@ -33,7 +33,7 @@ from tools.compositiontools import load_composition, load_event_lc
 from tools.compositiontools import get_efficiency_columns
 
 
-DEFAULT_INPUT = ('/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261119_201X_D127_PU200/'
+DEFAULT_INPUT = ('/eos/home-l/llambrec/hgcalreco-data/gridscans/output_20261120_201X_D127_PU200/'
     'kappa_hsi_1d/job4/efficiency')
 
 

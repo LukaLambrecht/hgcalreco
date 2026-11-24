@@ -11,6 +11,8 @@
 #   python3 plot_param_distributions.py -i output_scan_sensitivity_5d/all_hsi_5d/summary_truthbranch-signal.csv \
 #       -s average -r 485 515
 # Without -s, the order of the CSV file is kept; without -r, all grid points are used.
+# Instead of a fixed range, --best_percent x selects the best x% (the highest values of the sorting key), e.g.
+#   python3 plot_param_distributions.py -i <summary csv> -s average --best_percent 10
 
 
 import os
@@ -32,8 +34,8 @@ from scanutils import DEFAULT_PARAMS, PARAM_LABELS
 # any other column name of the CSV file can be used as well
 SORTS = {
     'purity': (lambda d: d['pur_all'], 'mean purity of all matched TICLCandidates'),
-    'efficiency': (lambda d: d['eff_all_rechits'], 'mean efficiency (w.r.t. RecHit energy)'),
-    'average': (lambda d: (d['pur_all'] + d['eff_all_rechits']) / 2, 'average of purity and efficiency (w.r.t. RecHit energy)'),
+    'efficiency': (lambda d: d['eff_all_rechits'], 'mean efficiency'),
+    'average': (lambda d: (d['pur_all'] + d['eff_all_rechits']) / 2, 'avg. of purity and efficiency'),
 }
 
 
@@ -103,6 +105,9 @@ if __name__=='__main__':
     parser.add_argument('-r', '--range', default=None, nargs=2, type=int,
         help='First and last index (both included) of the selected grid points in the sorted order'
             + ' (default: all grid points)')
+    parser.add_argument('--best_percent', default=None, type=float,
+        help='Select the best x%% of the grid points in the sorted order (the last ones, with the highest sorting key)'
+            + ' instead of a fixed range (needs -s)')
     parser.add_argument('-o', '--outputfile', default=None,
         help='Output file (default: param_distributions_<sort>_<first>_<last>.png next to the input file,'
             + ' with "unsorted" and/or "all" if no sorting and/or range is given)')
@@ -110,7 +115,14 @@ if __name__=='__main__':
 
     df = pd.read_csv(args.inputfile)
     df, sortlabel = get_sorted(df, args.sort)
-    if args.range is None:
+    if args.best_percent is not None:
+        if args.sort is None: raise Exception('--best_percent needs a sorting key (-s).')
+        if args.range is not None: raise Exception('Use either -r or --best_percent, not both.')
+        nselected = max(int(round(len(df) * args.best_percent / 100)), 1)
+        selected = df.iloc[len(df) - nselected:]
+        rangetag = f'best{args.best_percent:g}'
+        title = f'Best {args.best_percent:g}% of the grid points ({nselected} of {len(df)}, sorted by {sortlabel})'
+    elif args.range is None:
         selected = df
         rangetag = 'all'
         title = f'All {len(df)} grid points'
