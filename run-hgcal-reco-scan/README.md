@@ -51,6 +51,8 @@ All trials are stored in `trials.pkl` after each trial, so a resubmitted job con
 `--max_trials` is the total number of trials per run, and `--max_hours` an optional time budget per job
 (no new trial is started if it would likely end after it; keep it below the wall time of `--job_flavour`,
 e.g. 60 hours with `testmatch` = 3 days).
+If all parameters in the grid file have a default value (`"default"`), each run evaluates the default point
+as its first trial (flagged with `"is_default": true` in its result; `--no_default` to skip this).
 Example (5D HSi search space, 4 independent runs on one input file):
 ```
 python3 run_hgcalreco_hyperopt_submit.py -i file_0.root -g grids/clue2d/splitparams/all_hsi_5d.json \

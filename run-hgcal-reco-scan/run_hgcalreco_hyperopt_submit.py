@@ -23,6 +23,23 @@ if __name__=='__main__':
         help='Run a single re-reco over all input files (and a single efficiency calculation on its output),'
             + ' instead of the default re-reco and efficiency calculation per input file,'
             + ' with the outputs combined at the end')
+    parser.add_argument('--space', default='discrete', choices=['discrete', 'uniform', 'loguniform'],
+        help='Search space per parameter: the values in the grid file(s) (discrete, default),'
+             ' or continuous between their minimum and maximum (uniform or loguniform;'
+             ' loguniform falls back to uniform for parameters with a minimum value <= 0)')
+    parser.add_argument('--max_trials', default=100, type=int,
+        help='Total number of trials per run (resubmitting a run continues from its stored trials)')
+    parser.add_argument('--max_hours', default=None, type=float,
+        help='Time budget per run in hours: no new trial is started if it would be expected to end'
+             ' after this time (default: no limit; keep it below the wall time of --job_flavour)')
+    parser.add_argument('--no_default', default=False, action='store_true',
+        help='Do not evaluate the default point (the default values in the grid file(s)) as the first trial of each run'
+             ' (by default it is, if all parameters have a default value)')
+    parser.add_argument('--nruns', default=1, type=int,
+        help='Number of independent hyperopt runs (one job each, in subdirectories run<i> of the working directory)')
+    parser.add_argument('--job_flavour', default='workday',
+        choices=['espresso', 'microcentury', 'longlunch', 'workday', 'tomorrow', 'testmatch', 'nextweek'],
+        help='Condor job flavour (wall time: 20 min, 1 h, 2 h, 8 h, 1 day, 3 days, 1 week)')
     parser.add_argument('-w', '--workdir', default='auto')
     parser.add_argument('--tag', default='auto')
     parser.add_argument('--config', default=os.path.join(thisdir, 'configs/hgcalreco_cff_template.py'))
@@ -39,9 +56,11 @@ if __name__=='__main__':
     parser.add_argument('--do_composition', default=False, action='store_true',
         help='Also store the composition of TICLCandidates and truth objects per HGCAL subdetector'
              ' (see analysis/efficiency/calculate_associations.py).')
-    parser.add_argument('--efficiency_level', default='both',
+    parser.add_argument('--efficiency_level', default='tc',
         choices=['lc', 'tc', 'both'],
-        help='Efficiency metrics to calculate after re-reco.')
+        help='Efficiency metrics to calculate after re-reco: TICLCandidate level (tc, default),'
+             ' LayerCluster level (lc), or both. Note: the LayerCluster-level metrics need too much memory'
+             ' for PU200 samples (dense truth x LayerCluster matrices, about 19 GB per event).')
     parser.add_argument('--cmssw', default=None)
     parser.add_argument('--proxy', default=None)
     parser.add_argument('--overwrite', default=False, action='store_true')
@@ -108,24 +127,33 @@ if __name__=='__main__':
     }
 
     # write all required files to working directory
+    # (one subdirectory per run, with its own context, all sharing the grid file and job script template)
     cmd = f'cp {os.path.join(thisdir, "templates", "run_hgcalreco_hyperopt.py")} {args.workdir}'
     os.system(cmd)
     grid_file = os.path.join(args.workdir, "grid.json")
     with open(grid_file, 'w') as f:
         json.dump(grid, f, indent=2)
-    context["workdir"] = args.workdir
-    context_file = os.path.join(args.workdir, "context.json")
-    with open(context_file, 'w') as f:
-        json.dump(context, f, indent=2)
-    
-    # make job script
-    jobscript = os.path.abspath(f'cjob_run_{args.tag}.sh')
-    ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
-    with open(jobscript, 'a') as f:
-        # go to working directory
-        f.write(f'cd {args.workdir}\n')
-        # write actual commands to run
-        f.write('python3 run_hgcalreco_hyperopt.py grid.json context.json\n')
+    hyperopt_args = f'--space {args.space} --max_trials {args.max_trials}'
+    if args.max_hours is not None: hyperopt_args += f' --max_hours {args.max_hours}'
+    if args.no_default: hyperopt_args += ' --no_default'
+    exes = []
+    for run_idx in range(args.nruns):
+        rundir = os.path.join(args.workdir, f'run{run_idx}') if args.nruns > 1 else args.workdir
+        if not os.path.exists(rundir): os.makedirs(rundir)
+        context_file = os.path.join(rundir, "context.json")
+        with open(context_file, 'w') as f:
+            json.dump({**context, "workdir": rundir}, f, indent=2)
+
+        # make job script
+        suffix = f'_run{run_idx}' if args.nruns > 1 else ''
+        jobscript = os.path.abspath(f'cjob_run_{args.tag}{suffix}.sh')
+        ct.initJobScript(jobscript, cmssw_version=cmssw, proxy=args.proxy)
+        with open(jobscript, 'a') as f:
+            # go to working directory
+            f.write(f'cd {rundir}\n')
+            # write actual commands to run
+            f.write(f'python3 {os.path.join(args.workdir, "run_hgcalreco_hyperopt.py")} {grid_file} context.json {hyperopt_args}\n')
+        exes.append(jobscript)
 
     # make job description
     name = f'cjob_run_{args.tag}'
@@ -133,8 +161,7 @@ if __name__=='__main__':
     if os.path.exists(jobdescriptor) and not args.overwrite:
         raise Exception('Not yet implemented: job descriptor already exists.')
     ct.makeJobDescription(jobdescriptor, '$(script)', doqueue=False,
-        proxy=args.proxy, jobflavour='workday', mem=args.request_memory)
-    exes = [jobscript]
+        proxy=args.proxy, jobflavour=args.job_flavour, mem=args.request_memory)
     with open(jobdescriptor, 'a') as f:
         f.write('queue script from(\n')
         for exe in exes: f.write(f'    {exe}\n')
