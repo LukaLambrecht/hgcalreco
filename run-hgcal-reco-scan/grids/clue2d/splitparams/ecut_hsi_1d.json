@@ -3,6 +3,7 @@
     "name": "ecut_hsi",
     "mod": "process.hgcalLayerClustersHSi.plugin.ecut = VALUE",
     "values": [1, 2, 3, 4, 5, 7.5, 10, 15, 20, 30],
+    "default": 3,
     "info": "RecHit energy threshold in HSi part. Scalar parameter, unaffected by the parameter splitting. Default value is 3 (in units of MIPs)."
 }
 ]

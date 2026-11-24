@@ -3,6 +3,7 @@
     "name": "kappa_hsi",
     "mod": "process.hgcalLayerClustersHSi.plugin.kappa = VALUE",
     "values": [1, 2, 5, 7.5, 9, 12.5, 15, 20, 30, 50],
+    "default": 9,
     "info": "Seed density threshold in HSi part. Scalar parameter, unaffected by the parameter splitting. Default value is 9 (in units of MIPs)."
 }
 ]

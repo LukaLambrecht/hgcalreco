@@ -3,6 +3,7 @@
     "name": "ecut_all",
     "mod": "process.hgcalLayerClustersEE.plugin.ecut = VALUE; process.hgcalLayerClustersHSi.plugin.ecut = VALUE; process.hgcalLayerClustersHSci.plugin.ecut = VALUE",
     "values": [1, 2, 3, 4, 5, 7.5, 10, 15, 20, 30],
+    "default": 3,
     "info": "RecHit energy threshold in all parts together (EE, HSi, HSci; HFNose ignored). Scalar parameter with the same default in all three producers (3), so no unit rescaling needed."
 }
 ]
